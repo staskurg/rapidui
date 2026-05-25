@@ -24,9 +24,9 @@ Skeleton document for building the **validate → correct → save** loop. Each 
 rapidui.dev
 ├── /api/docs          ← agent-readable documentation
 ├── /api/schema        ← vocabulary / block discovery
-├── /api/validate      ← spec validation
-├── /api/specs         ← persist validated specs
-└── /specs/[id]        ← optional human viewer
+├── /api/validate      ← RUI validation
+├── /api/specs         ← persist validated RUIs
+└── /specs/[id]        ← optional RUI viewer
 ```
 
 ---
@@ -35,15 +35,21 @@ rapidui.dev
 
 **Primary (v0.1): Option A — Support / Ops Ticket Dashboard**
 
-**Typical prompt:** *"Build an internal support dashboard for our tickets API."*
+**Typical user prompt:** *"Build an internal support dashboard for our tickets API."*
 
-**Why this first:** Every company with a support queue wants status filters, assignee columns, priority badges, and headline metrics — and agents default to generating a fresh React admin panel every time. Hits table + metrics + filters without write/action bindings on day one.
+**What the agent should produce:** a **RUI** (`*.rui.json`) — not React code. The agent reads RapidUI docs/schema, emits a validated JSON document with metrics, a filterable tickets table, and GET bindings to the tickets API.
 
-**UI shape:** Metric row (open tickets, urgent count) → filterable `Table` (id, subject, status, assignee, created) → optional status filter controls.
+**Agent-facing prompt (evals / docs):** *"Generate a RUI for an internal support dashboard. Bind to `GET /api/tickets` (ticket list) and `GET /api/tickets/stats` (open and urgent counts)."*
+
+**Why this first:** Every company with a support queue wants status filters, assignee columns, priority badges, and headline metrics — and agents default to generating a fresh React admin panel every time. Option A hits table + metrics + filters without write/action bindings on day one, and proves agents can emit a valid RUI instead of code.
+
+**UI shape (in the RUI):** Metric row (open tickets, urgent count) → filterable `Table` (id, subject, status, assignee, created) → optional status filter controls.
 
 **API stub:** `GET /api/tickets`, `GET /api/tickets/stats`
 
 **Blocks to support:** `Table`, `Metric`, `Text`, layout sections, list + aggregate bindings.
+
+**Golden reference:** `lib/registry/golden/support-dashboard.rui.json`
 
 ### Future eval cases (add as we go)
 
@@ -60,21 +66,21 @@ How we evaluate whether agents can reliably speak RapidUI — now (v0.1) and as 
 
 ### What we are measuring
 
-The MVP hypothesis is **spec reliability**, not UI aesthetics. Evals answer:
+The MVP hypothesis is **RUI reliability**, not UI aesthetics. Evals answer:
 
-1. Did the agent produce a **valid spec**?
+1. Did the agent produce a **valid RUI**?
 2. How many **validation retries** did it take?
 3. Where did it **get stuck** (which error codes recur)?
-4. Does the spec **match the prompt intent** (right blocks, right bindings)?
+4. Does the RUI **match the prompt intent** (right blocks, right bindings)?
 
 ### Two layers of scoring
 
 | Layer | How | When |
 |-------|-----|------|
 | **Deterministic** | `POST /api/validate` pass/fail, retry count, required-block checklist | v0.1 — build this first |
-| **Semantic / intent** | Does spec include table + metrics for a dashboard prompt? Rubric or LLM judge | v0.2+ — optional |
+| **Semantic / intent** | Does the RUI include table + metrics for a dashboard prompt? Rubric or LLM judge | v0.2+ — optional |
 
-Deterministic scoring is enough to prove the platform. Semantic scoring tells you if the spec is *useful*, not just *valid*.
+Deterministic scoring is enough to prove the platform. Semantic scoring tells you if the RUI is *useful*, not just *valid*.
 
 ### v0.1 eval flow (manual + logged)
 
@@ -83,7 +89,7 @@ Eval case (prompt + mock API context)
     ↓
 Agent reads GET /api/docs + GET /api/schema
     ↓
-Agent generates spec → POST /api/validate (loop)
+Agent generates a RUI → POST /api/validate (loop)
     ↓
 On success → POST /api/specs
     ↓
@@ -108,7 +114,7 @@ Log run to Postgres: agent, prompt_id, retries, errors[], pass/fail, duration
 ```txt
 {
   id: "support-dashboard-v0.1",
-  prompt: "Build an internal support dashboard for GET /api/tickets ...",
+  prompt: "Generate a RUI for an internal support dashboard. Bind to GET /api/tickets and GET /api/tickets/stats.",
   mockApi: { endpoints: [...] },
   successCriteria: {
     mustValidate: true,
@@ -121,14 +127,14 @@ Log run to Postgres: agent, prompt_id, retries, errors[], pass/fail, duration
 
 ### Key metrics to track
 
-- **Pass rate** — % of cases that reach valid spec within max retries
+- **Pass rate** — % of cases that reach valid RUI within max retries
 - **Avg retries** — lower is better; spikes mean docs or error messages need work
 - **Error code frequency** — which validation errors agents hit most (feeds doc improvements)
 - **Agent comparison** — Cursor vs Claude on same cases
 
 ### Where this lives in the implementation plan
 
-Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `eval_runs` can be added alongside **§4 Spec Store**. Full automation is explicitly **post-v0.1** unless time allows.
+Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `eval_runs` can be added alongside **§4 RUI Store**. Full automation is explicitly **post-v0.1** unless time allows.
 
 ---
 
@@ -136,18 +142,18 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 
 - [x] §0 complete — app deployed at `https://rapidui.dev`, Postgres provisioned
 - [ ] External agent discovers vocabulary from docs without verbal hand-holding
-- [ ] Agent produces a spec for the support ticket dashboard scenario
+- [ ] Agent produces a RUI for the support ticket dashboard scenario
 - [ ] `POST /api/validate` returns actionable, machine-readable errors
-- [ ] Agent converges to valid spec within a bounded retry count (target: ≤5)
-- [ ] `POST /api/specs` persists validated spec + receipt
-- [ ] Optional: spec viewable by id
+- [ ] Agent converges to valid RUI within a bounded retry count (target: ≤5)
+- [ ] `POST /api/specs` persists validated RUI + receipt
+- [ ] Optional: RUI viewable by id
 
 ---
 
 ## Architecture Summary
 
 ```txt
-Agent reads docs → generates UI spec (JSON)
+Agent reads docs → generates a RUI (JSON, `*.rui.json`)
     → POST /api/validate → errors | success
     → (retry loop)
     → POST /api/specs → { id, receipt }
@@ -167,18 +173,18 @@ Agent reads docs → generates UI spec (JSON)
 | Order | Section | Depends on | Status |
 |-------|---------|------------|--------|
 | 0 | [Project Setup](#0-project-setup) | Decisions locked | **Complete** |
-| 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | Spec complete |
+| 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | **Complete** |
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | Spec complete |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | Not started |
-| 4 | [Spec Store](#4-spec-store--post-specs) | §0 (Postgres), §2 | Not started |
-| 5 | [Spec Viewer (optional)](#5-spec-viewer-optional) | §4 | Not started |
+| 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | Not started |
+| 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
 
 ### Testing while building §0–§2 (before §3 docs)
 
 No `GET /api/docs` or `GET /api/schema` routes until **§3**. During §0–§2, smoke-test validation manually:
 
-- `POST /api/validate` with `lib/registry/golden/support-dashboard.json` (or copy-paste body)
+- `POST /api/validate` with `lib/registry/golden/support-dashboard.rui.json` (or copy-paste body)
 - A few invalid fixtures from [§2 fixture catalog](#invalid-fixture-catalog)
 
 Agent discovery and the full eval loop wait for §3+.
@@ -344,7 +350,15 @@ gh repo create <org>/<repo> --private --source=. --push
 
 **Target scenario:** Option A — Support ticket dashboard (metrics row + filterable tickets table).
 
-**Design principle:** **A-complete, B/C-ready.** v0.1 validates only what Option A needs. `Form`, `Button`, `write`, and `action` are documented as `planned` in `/api/schema` so agents see the roadmap without emitting half-supported specs.
+**Design principle:** **A-complete, B/C-ready.** v0.1 validates only what Option A needs. `Form`, `Button`, `write`, and `action` are documented as `planned` in `/api/schema` so agents see the roadmap without emitting half-supported RUIs.
+
+### Terminology
+
+| Term | Meaning |
+|------|---------|
+| **RUI** | The artifact agents produce — a JSON document describing an app (screens, blocks, bindings). Pronounced "ROO-ee". |
+| **`.rui.json`** | Conventional file extension (content is JSON). Example: `support-dashboard.rui.json`. |
+| **`RuiSchema`** | Zod schema for the RUI root document (`lib/registry/rui.ts`). |
 
 ### Decisions (locked for §1)
 
@@ -355,17 +369,17 @@ gh repo create <org>/<repo> --private --source=. --push
 | Column types | `"string"`, `"number"`, `"date"`, `"badge"` — use `badge` for status |
 | Labels / copy | Both `Section.title` and `Text` block supported |
 | Registry format | TypeScript + **Zod** schemas in `lib/registry/` (single source for types + validation) |
-| Registry version | `"0.1"` — must match top-level spec `version` |
-| Multi-page specs | **`pages[]` + `navigation`** supported; Option A uses one page |
+| Registry version | `"0.1"` — must match top-level RUI `version` |
+| Multi-page RUIs | **`pages[]` + `navigation`** supported; Option A uses one page |
 | `meta` scope | **App-level** title & description (whole application, not a single page) |
 | Unknown properties | **Strict mode** — reject extra props anywhere (`UNKNOWN_PROP`) |
 | Node `id` | **Agent-generated** (v0.1 simplest); validate format + uniqueness only — see [Node IDs](#node-ids) |
 
 ---
 
-### Spec envelope
+### RUI document
 
-Every UI spec is a single JSON document. **`meta` describes the application**; each entry in **`pages`** is a routable screen (future renderer uses `navigation` for routing).
+Every **RUI** is a single JSON document (conventionally saved as `*.rui.json`). **`meta` describes the application**; each entry in **`pages`** is a routable screen (future renderer uses `navigation` for routing).
 
 ```txt
 {
@@ -388,7 +402,7 @@ Every UI spec is a single JSON document. **`meta` describes the application**; e
 | `pageId` | string | yes | Must match a `pages[].id` |
 | `label` | string | yes | Nav label (e.g. "Support") |
 
-**Multi-page (future):** left nav from `navigation.items`; renderer routes between `pages`. Option A golden spec uses one nav item + one page — no uplift for v0.1 eval, but the model supports growth.
+**Multi-page (future):** left nav from `navigation.items`; renderer routes between `pages`. Option A golden RUI uses one nav item + one page — no uplift for v0.1 eval, but the model supports growth.
 
 ---
 
@@ -401,7 +415,7 @@ Every UI spec is a single JSON document. **`meta` describes the application**; e
 | Who assigns | **Agent** (required on every Page, Section, block) |
 | Pattern | `^[a-z][a-z0-9-]*$` (lowercase kebab-case) |
 | Length | 1–64 characters |
-| Uniqueness | Unique across **entire spec** (all pages, sections, blocks) |
+| Uniqueness | Unique across **entire RUI** (all pages, sections, blocks) |
 | Style | Semantic slugs encouraged (e.g. `page-support`, `table-tickets`) — not UUIDs |
 
 **Recommended prefixes** (hints in validation messages / §3 docs — not enforced):
@@ -416,7 +430,7 @@ Every UI spec is a single JSON document. **`meta` describes the application**; e
 
 **Deferred (v0.2+):** Platform-constructed deterministic ids, analytics event keys, id preservation on spec updates.
 
-**§2 normalization (v0.1):** On successful validate, return `normalizedSpec` with deterministic sibling order and canonical JSON key order — **agent `id` strings are preserved**. See [§2 Normalization](#normalization-v01).
+**§2 normalization (v0.1):** On successful validate, return `normalizedRui` with deterministic sibling order and canonical JSON key order — **agent `id` strings are preserved**. See [§2 Normalization](#normalization-v01).
 
 ---
 
@@ -424,7 +438,7 @@ Every UI spec is a single JSON document. **`meta` describes the application**; e
 
 #### `Page` — screen container
 
-One `Page` per routable screen. Specs contain one or more pages; Option A uses one.
+One `Page` per routable screen. RUIs contain one or more pages; Option A uses one.
 
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
@@ -550,7 +564,7 @@ One binding family: **`read`** — fetch data via GET. v0.1 describes *intent*; 
 ### Nesting matrix
 
 ```txt
-Spec
+RUI
 ├── navigation.items[]  →  pageId references pages[].id
 └── pages: Page[]
     └── children: Section[]
@@ -559,7 +573,7 @@ Spec
 
 | Parent | Allowed children | Max depth |
 |--------|------------------|-----------|
-| Spec | `version`, `meta`, `navigation`, `pages` only (strict) | — |
+| RUI | `version`, `meta`, `navigation`, `pages` only (strict) | — |
 | `pages[]` | `Page` nodes (min 1) | — |
 | `Page` | `Section` only | — |
 | `Section` | `Metric`, `Table`, `Text` only | — |
@@ -583,7 +597,7 @@ Validator (§2) implements these rules. Each maps to a stable error `code` for a
 | R0 | Payload must be valid JSON (parse failure) | `INVALID_JSON` |
 | R1 | `version` must equal registry version (`"0.1"`) | `VERSION_MISMATCH` |
 | R2 | Required top-level keys `version`, `meta`, `navigation`, `pages` must be present | `MISSING_REQUIRED_PROP` |
-| R3 | Every node with an `id` must be globally unique across the spec | `DUPLICATE_ID` |
+| R3 | Every node with an `id` must be globally unique across the RUI | `DUPLICATE_ID` |
 | R4 | Every node `id` must match `^[a-z][a-z0-9-]*$` (1–64 chars) | `INVALID_ID_FORMAT` |
 | R5 | Node `type` must be a registered layout or block | `UNKNOWN_TYPE` |
 | R6 | Required props present per type | `MISSING_REQUIRED_PROP` |
@@ -618,13 +632,13 @@ Validator (§2) implements these rules. Each maps to a stable error `code` for a
 
 **§2 implements:** R0–R24. R24 overlaps R20 for binding shape; use `INVALID_BINDING` for path/method/type violations on bindings.
 
-**R2 + strict envelope:** Missing top-level key → `MISSING_REQUIRED_PROP` (path = key name or `""`). Extra top-level key → `UNKNOWN_PROP` (strict / R7). Do not use `INVALID_ENVELOPE`.
+**R2 + strict RUI root:** Missing top-level key → `MISSING_REQUIRED_PROP` (path = key name or `""`). Extra top-level key → `UNKNOWN_PROP` (strict / R7).
 
 ---
 
 ### Golden example — Option A (support dashboard)
 
-Reference spec agents should converge toward for the primary eval case:
+Reference RUI agents should converge toward for the primary eval case:
 
 ```json
 {
@@ -736,7 +750,7 @@ Reference spec agents should converge toward for the primary eval case:
 lib/registry/
 ├── index.ts           # exports registry version + full schema
 ├── version.ts         # "0.1"
-├── envelope.ts        # spec envelope, navigation, meta (Zod)
+├── rui.ts        # RUI root schema — navigation, meta (Zod)
 ├── layouts.ts         # Page, Section definitions (Zod)
 ├── blocks.ts          # Metric, Table, Text (+ planned metadata)
 ├── bindings.ts        # ReadBinding (+ planned write/action)
@@ -744,7 +758,7 @@ lib/registry/
 ├── rules.ts           # rule definitions + error codes (R0–R24)
 ├── planned.ts         # Form, Button, write, action stubs for schema
 └── golden/
-    └── support-dashboard.json
+    └── support-dashboard.rui.json
 ```
 
 `GET /api/schema` (§3) generates from these modules:
@@ -794,7 +808,7 @@ Create the file structure under `lib/registry/`:
 lib/registry/
 ├── index.ts
 ├── version.ts
-├── envelope.ts
+├── rui.ts
 ├── layouts.ts
 ├── blocks.ts
 ├── bindings.ts
@@ -802,138 +816,143 @@ lib/registry/
 ├── rules.ts
 ├── planned.ts
 └── golden/
-    └── support-dashboard.json
+    └── support-dashboard.rui.json
 ```
 
-- [ ] All files created (empty exports OK initially)
-- [ ] `lib/registry/index.ts` re-exports public API
+- [x] All files created (empty exports OK initially)
+- [x] `lib/registry/index.ts` re-exports public API
 
 ### Step 2 — Registry version
 
 In `version.ts`:
 
-- [ ] Export `REGISTRY_VERSION = "0.1"`
-- [ ] Used by envelope Zod schema and rule R1
+- [x] Export `REGISTRY_VERSION = "0.1"`
+- [x] Used by RUI root Zod schema and rule R1
 
 ### Step 3 — ID helpers
 
 In `ids.ts`:
 
-- [ ] Export id regex: `^[a-z][a-z0-9-]*$` (1–64 chars)
-- [ ] Export helper `isValidId(id: string): boolean`
-- [ ] Export helper to collect all ids from a parsed spec (for uniqueness check in §2)
+- [x] Export id regex: `^[a-z][a-z0-9-]*$` (1–64 chars)
+- [x] Export helper `isValidId(id: string): boolean`
+- [x] Export helper `collectIdsFromRui()` to collect all ids from a parsed RUI (for uniqueness check in §2)
 
 ### Step 4 — Bindings schema
 
 In `bindings.ts`:
 
-- [ ] Define `ReadBindingSchema` (Zod, `.strict()`): `type`, `method`, `path`, optional `valuePath`
-- [ ] Export `ReadBinding` type via `z.infer`
-- [ ] Constrain `type: "read"`, `method: "GET"`, `path` starts with `/`
+- [x] Define `ReadBindingSchema` (Zod, `.strict()`): `type`, `method`, `path`, optional `valuePath`
+- [x] Export `ReadBinding` type via `z.infer`
+- [x] Constrain `type: "read"`, `method: "GET"`, `path` starts with `/`
 
 ### Step 5 — Layouts schema
 
 In `layouts.ts`:
 
-- [ ] Define `SectionSchema` — `id`, `type`, optional `title`, `direction`, `children` (blocks, min 1)
-- [ ] Define `PageSchema` — `id`, `type`, `title`, optional `description`, `children` (sections, min 1)
-- [ ] Use `.strict()` on both
-- [ ] Wire block union into `SectionSchema.children` (import from `blocks.ts` once ready)
+- [x] Define `SectionSchema` — `id`, `type`, optional `title`, `direction`, `children` (blocks, min 1)
+- [x] Define `PageSchema` — `id`, `type`, `title`, optional `description`, `children` (sections, min 1)
+- [x] Use `.strict()` on both
+- [x] Wire block union into `SectionSchema.children` (import from `blocks.ts` once ready)
 
 ### Step 6 — Blocks schema
 
 In `blocks.ts`:
 
-- [ ] Define `MetricSchema`, `TableSchema`, `TextSchema` (all `.strict()`)
-- [ ] Table: `columns[]` (key, label, optional type enum), optional `filter` (field, label, options)
-- [ ] Metric: require `binding` with `valuePath` (refine or document for §2 rule R19)
-- [ ] Export `BlockSchema` as discriminated union on `type`
-- [ ] Connect to `SectionSchema.children`
+- [x] Define `MetricSchema`, `TableSchema`, `TextSchema` (all `.strict()`)
+- [x] Table: `columns[]` (key, label, optional type enum), optional `filter` (field, label, options)
+- [x] Metric: require `binding` with `valuePath` (refine or document for §2 rule R19)
+- [x] Export `BlockSchema` as discriminated union on `type`
+- [x] Connect to `SectionSchema.children`
 
-### Step 7 — Envelope schema
+### Step 7 — RUI root schema
 
-In `envelope.ts`:
+In `rui.ts`:
 
-- [ ] Define `MetaSchema`, `NavigationItemSchema`, `NavigationSchema`, `SpecSchema`
-- [ ] Top-level: `version`, `meta`, `navigation`, `pages` — `.strict()`, no extra keys
-- [ ] `pages`: array of `PageSchema`, min length 1
-- [ ] `navigation.items`: min length 1; each item has `pageId`, `label`
-- [ ] Export `Spec` type via `z.infer`
+- [x] Define `MetaSchema`, `NavigationItemSchema`, `NavigationSchema`, `RuiSchema`
+- [x] Top-level: `version`, `meta`, `navigation`, `pages` — `.strict()`, no extra keys
+- [x] `pages`: array of `PageSchema`, min length 1
+- [x] `navigation.items`: min length 1; each item has `pageId`, `label`
+- [x] Export `Rui` type via `z.infer`
 
 ### Step 8 — Planned metadata
 
 In `planned.ts`:
 
-- [ ] Export `PLANNED_BLOCKS = ["Form", "Button"]`
-- [ ] Export `PLANNED_BINDINGS = ["write", "action"]`
-- [ ] Export shape for `/api/schema` → `planned` key (used in §3)
+- [x] Export `PLANNED_BLOCKS = ["Form", "Button"]`
+- [x] Export `PLANNED_BINDINGS = ["write", "action"]`
+- [x] Export shape for `/api/schema` → `planned` key (used in §3)
 
 ### Step 9 — Rules catalog
 
 In `rules.ts`:
 
-- [ ] Export `RULES` array: R0–R24 with `code`, `description` (see [Rules & error codes](#rules--error-codes))
-- [ ] Semantic rules (nav ↔ pages, duplicate ids, filter field) implemented in §2 validator — catalog documents them here for `/api/schema`
+- [x] Export `RULES` array: R0–R24 with `code`, `description` (see [Rules & error codes](#rules--error-codes))
+- [x] Semantic rules (nav ↔ pages, duplicate ids, filter field) implemented in §2 validator — catalog documents them here for `/api/schema`
 
-### Step 10 — Golden spec
+### Step 10 — Golden RUI
 
-In `golden/support-dashboard.json`:
+In `golden/support-dashboard.rui.json`:
 
-- [ ] Copy the [golden example](#golden-example--option-a-support-dashboard) JSON verbatim
-- [ ] Confirm: one nav item, one page, two metrics, one table with filter
+- [x] Copy the [golden example](#golden-example--option-a-support-dashboard) JSON verbatim
+- [x] Confirm: one nav item, one page, two metrics, one table with filter
 
 ### Step 11 — Wire `index.ts` + local smoke test
 
 In `index.ts`:
 
-- [ ] Re-export: `REGISTRY_VERSION`, all schemas, `RULES`, planned metadata
-- [ ] Export `getSchemaPayload()` — builds JSON object for future `GET /api/schema`
+- [x] Re-export: `REGISTRY_VERSION`, all schemas, `RULES`, planned metadata
+- [x] Export `getSchemaPayload()` — builds JSON object for future `GET /api/schema`
+- [x] Export `RUI_FILE_EXTENSION = ".rui.json"`
 
-**Smoke test** (temporary script or `npm test`):
+**Smoke test** (`npm run smoke:registry`):
 
 ```bash
-# Example: node/tsx script that parses golden JSON with SpecSchema.safeParse
-# Expect: success (semantic rules like nav↔pages may be §2 — structural parse should pass)
+npm run smoke:registry
+# Parses golden/support-dashboard.rui.json with RuiSchema; rejects extra top-level prop (strict mode)
 ```
 
-- [ ] Golden spec passes `SpecSchema.safeParse()` (structural)
-- [ ] Invalid fixture (extra prop) fails with Zod error (strict mode)
+- [x] Golden RUI passes `RuiSchema.safeParse()` (structural)
+- [x] Invalid fixture (extra prop) fails with Zod error (strict mode)
 
 ### Step 12 — Commit
 
-- [ ] Commit: `feat(registry): v0.1 vocabulary — envelope, layouts, blocks, bindings`
+- [ ] Commit: `feat(registry): v0.1 vocabulary — RUI, layouts, blocks, bindings` *(pending — changes staged locally)*
 
 ---
 
 ### Deliverables
 
-- [ ] `lib/registry/` module structure as above
-- [ ] **Zod schemas** for envelope, navigation, layouts, blocks, bindings (`.strict()` on all objects)
-- [ ] Spec envelope — `meta` (app-level), `navigation`, `pages[]`
-- [ ] Layout definitions — `Page`, `Section`
-- [ ] Block definitions — `Metric`, `Table`, `Text`
-- [ ] Binding definition — `ReadBinding`
-- [ ] Node ID format — regex + helpers in `ids.ts`
-- [ ] Planned registry — `Form`, `Button`, `write`, `action` metadata
-- [ ] Rule catalog with error codes (R0–R24)
-- [ ] Nesting matrix enforced in Zod schemas
-- [ ] Golden spec — `golden/support-dashboard.json` (one page + one nav item)
-- [ ] Registry importable by §2 validator and §3 schema route
+- [x] `lib/registry/` module structure as above
+- [x] **Zod schemas** for RUI root, navigation, layouts, blocks, bindings (`.strict()` on all objects)
+- [x] RUI document — `meta` (app-level), `navigation`, `pages[]`
+- [x] Layout definitions — `Page`, `Section`
+- [x] Block definitions — `Metric`, `Table`, `Text`
+- [x] Binding definition — `ReadBinding`
+- [x] Node ID format — regex + helpers in `ids.ts`
+- [x] Planned registry — `Form`, `Button`, `write`, `action` metadata
+- [x] Rule catalog with error codes (R0–R24)
+- [x] Nesting matrix enforced in Zod schemas
+- [x] Golden RUI — `golden/support-dashboard.rui.json` (one page + one nav item)
+- [x] Registry importable by §2 validator and §3 schema route
 
 ### Done when
 
-- All [implementation steps](#implementation-steps) checked off
-- Registry exists in `lib/registry/` and exports version `"0.1"`
-- All layouts, blocks, bindings, and rules enumerated without reading validator code
-- Golden spec validates against registry types (manual or type-check)
-- `/api/schema` can be generated from registry modules (implemented in §3; types ready in §1)
-- Team agrees this vocabulary fully covers Option A and documents the path to Options B & C
+- [x] All [implementation steps](#implementation-steps) checked off (except git commit)
+- [x] Registry exists in `lib/registry/` and exports version `"0.1"`
+- [x] All layouts, blocks, bindings, and rules enumerated without reading validator code
+- [x] Golden RUI validates against registry types (`npm run smoke:registry`)
+- [x] `/api/schema` can be generated from registry modules (`getSchemaPayload()` ready; route in §3)
+- [x] Vocabulary fully covers Option A and documents the path to Options B & C
+
+**§1 status: Complete** — ready for §2 Validation Engine.
+
+> **Not in §1 (by design):** Semantic rules R3–R4, R10–R11, R14, R17, R19, R21–R22 are cataloged in `rules.ts` but implemented in §2. `GET /api/schema` route ships in §3.
 
 ---
 
 ## 2. Validation Engine + `POST /api/validate`
 
-**Purpose:** Accept a UI spec JSON payload; return success (with a **canonical normalized spec**) or a list of agent-actionable errors. Same engine powers `POST /api/specs` (§4).
+**Purpose:** Accept a RUI JSON payload; return success (with a **canonical normalized RUI**) or a list of agent-actionable errors. Same engine powers `POST /api/specs` (§4).
 
 **Why second:** This is the core hypothesis — agents must self-correct from stable, multi-error validation feedback.
 
@@ -946,15 +965,15 @@ In `index.ts`:
 | Decision | Choice |
 |----------|--------|
 | Endpoint | `POST /api/validate` |
-| Request body | **Raw spec JSON** (not wrapped in `{ spec: ... }`) |
+| Request body | **Raw RUI JSON** (not wrapped in `{ rui: ... }`) |
 | HTTP on validation failure | **200** + `{ valid: false, errors[] }` — semantic failures are not transport errors |
 | HTTP on transport failure | **400** — invalid JSON, wrong Content-Type, empty body, body too large |
 | Multiple errors | **Return all** findings in one response (cap **50**; if more, set `truncated: true`) |
 | Error `path` root | **`""`** (empty string = document root; JSON Pointer / RFC 6901 convention) |
 | Error `path` format | Bracket indices: `pages[0].children[1].binding.valuePath` |
 | Planned types | **Pre-Zod gate** → `PLANNED_NOT_SUPPORTED` (not `UNKNOWN_TYPE`) |
-| Invalid spec on failure | **Echo input unchanged** — no normalization until valid |
-| Valid spec on success | Return **`normalizedSpec`** — deterministic order + canonical object key order |
+| Invalid RUI on failure | **Echo input unchanged** — no normalization until valid |
+| Valid RUI on success | Return **`normalizedRui`** — deterministic order + canonical object key order |
 | Node `id` values (v0.1) | **Preserve agent ids** on normalize (validate format + uniqueness only) |
 | Node `id` assignment (v0.2+) | Platform-generated ids — deferred; §4 may re-normalize later |
 | `validationVersion` | `"0.1"` — exported as `VALIDATION_VERSION` (receipt field in §4) |
@@ -976,13 +995,13 @@ Phase 2 — Planned gate (pre-Zod)
     Walk tree; detect planned block/binding types       → R22
 
 Phase 3 — Structural (Zod)
-    SpecSchema.safeParse (strict, from §1)              → R1–R9, R12–R13, R15–R18, R20, R23–R24 (+ mapped R6–R7)
+    RuiSchema.safeParse (strict, from §1)              → R1–R9, R12–R13, R15–R18, R20, R23–R24 (+ mapped R6–R7)
 
 Phase 4 — Semantic (custom)
-    Only if phase 3 succeeded (parsed spec available) → R3–R4, R10–R11, R14, R17, R19, R21
+    Only if phase 3 succeeded (parsed RUI available) → R3–R4, R10–R11, R14, R17, R19, R21
 
 Phase 5 — Normalize (success only)
-    Canonical key order + deterministic sibling order   → normalizedSpec
+    Canonical key order + deterministic sibling order   → normalizedRui
 ```
 
 **Planned gate (phase 2):** Before Zod, depth-first walk any object with `type` string. If `type` ∈ `PLANNED_BLOCKS` or binding `type` ∈ `PLANNED_BINDINGS` → single error `PLANNED_NOT_SUPPORTED` at that node’s path (agents see roadmap hint, not generic unknown type).
@@ -1014,7 +1033,7 @@ Emit object keys in this order (omit optional keys if absent):
 
 | Object | Key order |
 |--------|-----------|
-| Spec envelope | `version`, `meta`, `navigation`, `pages` |
+| RUI root | `version`, `meta`, `navigation`, `pages` |
 | `meta` | `title`, `description` |
 | `navigation` | `items` |
 | NavigationItem | `pageId`, `label` |
@@ -1040,7 +1059,7 @@ Emit object keys in this order (omit optional keys if absent):
 POST /api/validate
 Content-Type: application/json
 
-<body> = Spec JSON (§1 envelope)
+<body> = RUI JSON (§1)
 ```
 
 | Check | Failure |
@@ -1057,11 +1076,11 @@ Content-Type: application/json
   "valid": true,
   "validationVersion": "0.1",
   "registryVersion": "0.1",
-  "normalizedSpec": { }
+  "normalizedRui": { }
 }
 ```
 
-`normalizedSpec` is the canonical spec agents should treat as the validated artifact (use this for `POST /api/specs` in §4).
+`normalizedRui` is the canonical RUI agents should treat as the validated artifact (use this for `POST /api/specs` in §4).
 
 #### Response — validation failed (HTTP 200)
 
@@ -1148,7 +1167,7 @@ Map every Zod `ZodIssue` to exactly one RapidUI `code`. Implementation: `lib/val
 | custom refine: valuePath | `INVALID_VALUE_PATH` | R23 |
 | custom refine: Metric valuePath required | `MISSING_VALUE_PATH` | R19 |
 
-**R2 (envelope):** Missing required top-level key → `MISSING_REQUIRED_PROP` at the key path (e.g. `navigation`) or `""` if the root object is empty. Extra top-level key → `UNKNOWN_PROP` at that key (e.g. `foo`). Never emit `INVALID_ENVELOPE`.
+**R2 (RUI root):** Missing required top-level key → `MISSING_REQUIRED_PROP` at the key path (e.g. `navigation`) or `""` if the root object is empty. Extra top-level key → `UNKNOWN_PROP` at that key (e.g. `foo`).
 
 **R6:** Do not implement separately — always map Zod required errors → `MISSING_REQUIRED_PROP`.
 
@@ -1190,14 +1209,14 @@ Templates for `lib/validate/messages.ts`. §3 `/api/docs` re-exports this catalo
 | Code | Message (template) | Hint (template) |
 |------|-------------------|-----------------|
 | `INVALID_JSON` | Request body must be valid JSON. | Send `Content-Type: application/json` with the spec object as the raw body. |
-| `VERSION_MISMATCH` | Spec version must be "0.1". | Set `version` to `"0.1"` to match the registry. |
+| `VERSION_MISMATCH` | RUI version must be "0.1". | Set `version` to `"0.1"` to match the registry. |
 | `DUPLICATE_ID` | Duplicate node id "{id}". | Each Page, Section, and block id must be unique across the entire spec. |
 | `INVALID_ID_FORMAT` | Invalid id "{id}". | Use lowercase kebab-case: `^[a-z][a-z0-9-]*$`, 1–64 chars (e.g. `table-tickets`). |
 | `UNKNOWN_TYPE` | Unknown node type "{type}". | Use Page, Section, Metric, Table, or Text for v0.1. |
 | `MISSING_REQUIRED_PROP` | Missing required property "{prop}". | Add the property per the spec shape (top-level: `version`, `meta`, `navigation`, `pages`; see §3 schema when live). |
 | `INVALID_PROP_TYPE` | Invalid value for "{prop}". | Check type and allowed enum values in the schema. |
 | `UNKNOWN_PROP` | Unknown property "{prop}". | Remove extra properties; v0.1 uses strict schemas. |
-| `EMPTY_PAGES` | Spec must include at least one page. | Add a `pages` array with one or more Page nodes. |
+| `EMPTY_PAGES` | RUI must include at least one page. | Add a `pages` array with one or more Page nodes. |
 | `EMPTY_NAVIGATION` | Navigation must include at least one item. | Add `navigation.items` linking to each page via `pageId`. |
 | `INVALID_NAV_PAGE_ID` | Navigation pageId "{pageId}" does not match any page. | Set `pageId` to an existing `pages[].id`. |
 | `ORPHAN_PAGE` | Page "{id}" is not linked from navigation. | Add a navigation item with `pageId` matching this page. |
@@ -1222,7 +1241,7 @@ Under `lib/validate/fixtures/`. Used for minimal smoke tests and §6 eval debugg
 
 | File | Trigger | Expected primary `code` | Path (example) |
 |------|---------|-------------------------|----------------|
-| `golden-valid.json` | §1 golden spec (any sibling order) | *(pass)* | — |
+| `golden-valid.rui.json` | §1 golden RUI (any sibling order) | *(pass)* | — |
 | `invalid-json.txt` | non-JSON body | `INVALID_JSON` | `""` |
 | `wrong-version.json` | `version: "0.2"` | `VERSION_MISMATCH` | `version` |
 | `extra-top-level.json` | `"foo": 1` at root | `UNKNOWN_PROP` | `foo` |
@@ -1236,7 +1255,7 @@ Under `lib/validate/fixtures/`. Used for minimal smoke tests and §6 eval debugg
 | `invalid-value-path.json` | `valuePath: "items[0]"` | `INVALID_VALUE_PATH` | `...valuePath` |
 | `binding-path-relative.json` | `path: "api/tickets"` | `INVALID_BINDING` | `...binding.path` |
 
-**Minimal v0.1 test scope:** assert `golden-valid.json` → pass + `normalizedSpec` stable; assert `wrong-version.json`, `duplicate-id.json`, `planned-form.json` → expected codes.
+**Minimal v0.1 test scope:** assert `golden-valid.json` → pass + `normalizedRui` stable; assert `wrong-version.json`, `duplicate-id.json`, `planned-form.json` → expected codes.
 
 ---
 
@@ -1296,7 +1315,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Step 4 — Zod structural (phase 3)
 
-- [ ] `SpecSchema.safeParse` from §1
+- [ ] `RuiSchema.safeParse` from §1
 - [ ] Add Zod refines: `ReadBinding.path` starts with `/` (R24), `valuePath` regex (R23), Metric `valuePath` required (R19)
 - [ ] `zod-mapper.ts` — map all issues per [Zod mapping table](#zod-issue--stable-code-mapping)
 
@@ -1310,7 +1329,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 ### Step 6 — Normalize (phase 5)
 
 - [ ] `normalize.ts` — sibling sorts + canonical key order per [normalization](#normalization-v01)
-- [ ] Unit smoke: two specs differing only in sibling order → identical `normalizedSpec`
+- [ ] Unit smoke: two specs differing only in sibling order → identical `normalizedRui`
 
 ### Step 7 — Messages catalog
 
@@ -1330,7 +1349,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Step 10 — Smoke on production
 
-- [ ] `POST https://rapidui.dev/api/validate` with golden spec (manual body from `golden/support-dashboard.json`) → `valid: true` + `normalizedSpec`
+- [ ] `POST https://rapidui.dev/api/validate` with golden RUI (manual body from `golden/support-dashboard.rui.json`) → `valid: true` + `normalizedRui`
 - [ ] Invalid body → 400
 
 ### Step 11 — Commit
@@ -1345,14 +1364,14 @@ app/api/validate/route.ts # POST handler → validateSpec
 - [ ] `validateSpec()` — shared by `/api/validate` and §4
 - [ ] `POST /api/validate` route with documented contracts
 - [ ] `ERROR_CATALOG` for §3
-- [ ] `normalizedSpec` on success (deterministic order)
+- [ ] `normalizedRui` on success (deterministic order)
 - [ ] Fixture files + minimal smoke coverage
 - [ ] R0–R24 implemented per rule map
 
 ### Done when
 
-- Golden spec passes and `normalizedSpec` is stable across input order permutations
-- Fixture invalid specs return expected `code` at expected `path` (minimal set: version, duplicate id, planned Form)
+- Golden RUI passes and `normalizedRui` is stable across input order permutations
+- Fixture invalid RUIs return expected `code` at expected `path` (minimal set: version, duplicate id, planned Form)
 - Multi-error response returns several issues in one call (e.g. duplicate id + bad nav)
 - `PLANNED_NOT_SUPPORTED` fires before `UNKNOWN_TYPE` for `Form` / `Button`
 - §4 can import `validateSpec` without duplicating logic
@@ -1362,19 +1381,19 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ## 3. Agent Documentation
 
-**Purpose:** Everything an external agent needs to produce valid specs without out-of-band instructions.
+**Purpose:** Everything an external agent needs to produce valid RUIs without out-of-band instructions.
 
 **Why third:** Write docs against a **real** validator and registry — avoids doc/implementation drift.
 
 ### Contents (outline)
 
 - [ ] RapidUI overview (what it is / is not)
-- [ ] Spec format overview
+- [ ] RUI format overview
 - [ ] Block reference
 - [ ] Layout reference
 - [ ] Binding reference
 - [ ] Validation error catalog (codes → how to fix)
-- [ ] Golden example spec(s) — support dashboard
+- [ ] Golden example RUI(s) — support dashboard
 - [ ] API usage (`POST /api/validate`, `POST /api/specs`)
 
 ### Delivery
@@ -1392,13 +1411,13 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Done when
 
-- Fresh agent session with only docs + API base URL can attempt a spec for the support dashboard
+- Fresh agent session with only docs + API base URL can attempt a RUI for the support dashboard
 
 ---
 
-## 4. Spec Store + `POST /api/specs`
+## 4. RUI Store + `POST /api/specs`
 
-**Purpose:** Persist validated specs and return an auditable receipt.
+**Purpose:** Persist validated RUIs and return an auditable receipt.
 
 **Why fourth:** Trivial once validation works; completes the artifact loop.
 
@@ -1406,8 +1425,8 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/specs` | Validate (inline) + store spec; return id + receipt |
-| GET | `/specs/:id` | Retrieve spec + receipt |
+| POST | `/specs` | Validate (inline) + store RUI; return id + receipt |
+| GET | `/specs/:id` | Retrieve RUI + receipt |
 
 ### Receipt fields (sketch)
 
@@ -1433,20 +1452,20 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Done when
 
-- Valid spec can be saved and fetched by id with receipt
-- Invalid spec is rejected on write
+- Valid RUI can be saved and fetched by id with receipt
+- Invalid RUI is rejected on write
 
 ---
 
-## 5. Spec Viewer (optional)
+## 5. RUI Viewer (optional)
 
 **Purpose:** Minimal human inspection — not a renderer, not a dashboard.
 
-**Why optional:** Useful for demos; not required to prove agent spec emission.
+**Why optional:** Useful for demos; not required to prove agent RUI emission.
 
 ### Shows
 
-- Raw spec JSON
+- Raw RUI JSON
 - Receipt / metadata
 - Validation status
 - Optional: simple block tree outline
@@ -1486,7 +1505,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 - [ ] Secondary cases: Options B & C added as eval prompts when ready
 - [ ] Checklist: docs → generate → validate → fix → save
 - [ ] `eval_runs` table in Postgres (agent, prompt_id, retries, errors, pass/fail, duration)
-- [ ] Pass/fail criteria: valid spec within ≤5 retries + required block checklist
+- [ ] Pass/fail criteria: valid RUI within ≤5 retries + required block checklist
 
 ### Details to fill in later
 
@@ -1535,7 +1554,7 @@ Base: `https://rapidui.dev`
 | GET | `/api/docs` | §3 | Agent-readable documentation |
 | GET | `/api/schema` | §1, §3 | Vocabulary / block discovery |
 | POST | `/api/validate` | §2 | Validate spec; return errors or success |
-| POST | `/api/specs` | §4 | Store validated spec + receipt |
+| POST | `/api/specs` | §4 | Store validated RUI + receipt |
 | GET | `/api/specs/:id` | §4 | Retrieve spec + receipt |
 | GET | `/specs/:id` | §5 | Optional human viewer |
 
@@ -1561,10 +1580,20 @@ Track when each section is fully specified and implemented.
 
 | Section | Spec complete | Implemented | Notes |
 |---------|---------------|-------------|-------|
-| 0. Project Setup | ☐ | ☐ | Next.js, GitHub, Vercel, Postgres, rapidui.dev |
-| 1. Vocabulary Registry | ☑ | ☐ | Spec complete — Option A; B/C planned |
+| 0. Project Setup | ☑ | ☑ | Next.js, GitHub, Vercel, Postgres, rapidui.dev |
+| 1. Vocabulary Registry | ☑ | ☑ | RUI schemas, golden file, smoke test — Option A; B/C planned |
 | 2. Validation Engine | ☑ | ☐ | Spec complete — pipeline, normalize, /api/validate |
 | 3. Agent Documentation | ☐ | ☐ | |
-| 4. Spec Store | ☐ | ☐ | |
-| 5. Spec Viewer | ☐ | ☐ | |
+| 4. RUI Store | ☐ | ☐ | |
+| 5. RUI Viewer | ☐ | ☐ | |
 | 6. Agent Test Harness | ☐ | ☐ | |
+
+---
+
+## Document history
+
+| Date | Section | Change |
+|------|---------|--------|
+| 2026-05-25 | §0 | Project setup complete — Next.js on Vercel, Postgres, `rapidui.dev` |
+| 2026-05-25 | §1 | Vocabulary Registry implemented — `lib/registry/`, RUI naming, `RuiSchema`, golden `support-dashboard.rui.json`, `npm run smoke:registry` |
+| 2026-05-25 | Docs | Adopted **RUI** as format name and **`.rui.json`** extension; demo scenario updated with agent-facing prompt |

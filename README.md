@@ -1,6 +1,6 @@
 # RapidUI
 
-Agent-first platform for generating, validating, and storing UI specs — **validate → correct → save**.
+Agent-first platform for generating, validating, and storing **RUIs** (RapidUI JSON documents) — **validate → correct → save**.
 
 **Production:** [https://rapidui.dev](https://rapidui.dev)
 
@@ -41,7 +41,7 @@ Use the apex domain (`rapidui.dev`) as the canonical API base URL. `www.rapidui.
 
 ```txt
 app/api/          # API route handlers
-lib/registry/     # §1 vocabulary registry
+lib/registry/     # §1 vocabulary registry (RUI schemas)
 lib/validate/     # §2 validation engine
 lib/db/           # §4 Postgres client
 eval/cases/       # §6 eval case definitions
