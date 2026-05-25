@@ -1349,14 +1349,12 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Step 10 — Smoke on production
 
-- [ ] `POST https://rapidui.dev/api/validate` with golden RUI (manual body from `golden/support-dashboard.rui.json`) → `valid: true` + `normalizedRui`
-- [ ] Invalid body → 400
-
-> **Local verified:** `npm run smoke:validate` + curl to `localhost:3000/api/validate`. Step 10 runs after next deploy to `rapidui.dev`.
+- [x] `POST https://rapidui.dev/api/validate` with golden RUI (manual body from `golden/support-dashboard.rui.json`) → `valid: true` + `normalizedRui`
+- [x] Invalid body → 400
 
 ### Step 11 — Commit
 
-- [ ] Commit: `feat(validate): v0.1 pipeline, normalize, POST /api/validate`
+- [x] Commit: `feat(validate): v0.1 pipeline, normalize, POST /api/validate` (`0fddb09`)
 
 ---
 
@@ -1379,7 +1377,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 - [x] §4 can import `validateSpec` without duplicating logic
 - [x] **Ready to start §3 Agent Documentation** (error catalog + real validator)
 
-**§2 status: Complete** — implementation and local smoke verified. Remaining: **Step 10** (production curl after deploy) and **Step 11** (git commit).
+**§2 status: Complete** — ready for §3 Agent Documentation.
 
 > **Not in §2 (by design):** Full fixture catalog (§6 eval debugging), `GET /api/docs` / `GET /api/schema` (§3), remaining invalid fixtures from [fixture catalog](#invalid-fixture-catalog).
 
@@ -1603,4 +1601,5 @@ Track when each section is fully specified and implemented.
 | 2026-05-25 | §0 | Project setup complete — Next.js on Vercel, Postgres, `rapidui.dev` |
 | 2026-05-25 | §1 | Committed `f2ce571` — registry on `main`, ready for §2 |
 | 2026-05-25 | §2 | Validation engine implemented — `lib/validate/`, `POST /api/validate`, smoke:validate |
+| 2026-05-25 | §2 | Committed `0fddb09`; production smoke verified on `rapidui.dev` |
 | 2026-05-25 | Docs | Adopted **RUI** as format name and **`.rui.json`** extension; demo scenario updated with agent-facing prompt |
