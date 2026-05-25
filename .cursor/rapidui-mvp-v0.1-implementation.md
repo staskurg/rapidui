@@ -143,7 +143,7 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 - [x] §0 complete — app deployed at `https://rapidui.dev`, Postgres provisioned
 - [ ] External agent discovers vocabulary from docs without verbal hand-holding
 - [ ] Agent produces a RUI for the support ticket dashboard scenario
-- [ ] `POST /api/validate` returns actionable, machine-readable errors
+- [x] `POST /api/validate` returns actionable, machine-readable errors
 - [ ] Agent converges to valid RUI within a bounded retry count (target: ≤5)
 - [ ] `POST /api/specs` persists validated RUI + receipt
 - [ ] Optional: RUI viewable by id
@@ -174,7 +174,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 |-------|---------|------------|--------|
 | 0 | [Project Setup](#0-project-setup) | Decisions locked | **Complete** |
 | 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | **Complete** |
-| 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | Spec complete |
+| 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | Not started |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | Not started |
 | 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
@@ -1299,58 +1299,60 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Step 1 — Scaffold validate modules
 
-- [ ] Create `lib/validate/` tree per [module layout](#module-layout-1)
-- [ ] `version.ts` → `VALIDATION_VERSION = "0.1"`
-- [ ] `index.ts` exports `validateSpec`, types
+- [x] Create `lib/validate/` tree per [module layout](#module-layout-1)
+- [x] `version.ts` → `VALIDATION_VERSION = "0.1"`
+- [x] `index.ts` exports `validateSpec`, types
 
 ### Step 2 — Transport (phase 1)
 
-- [ ] `transport.ts` — parse JSON, 256 KB limit, object root check
-- [ ] Map failures → `INVALID_JSON` at `path: ""`
+- [x] `transport.ts` — parse JSON, 256 KB limit, object root check
+- [x] Map failures → `INVALID_JSON` at `path: ""`
 
 ### Step 3 — Planned gate (phase 2)
 
-- [ ] `planned-gate.ts` — walk tree, compare to `PLANNED_BLOCKS` / `PLANNED_BINDINGS`
-- [ ] Return early with `PLANNED_NOT_SUPPORTED` + hint
+- [x] `planned-gate.ts` — walk tree, compare to `PLANNED_BLOCKS` / `PLANNED_BINDINGS`
+- [x] Return early with `PLANNED_NOT_SUPPORTED` + hint
 
 ### Step 4 — Zod structural (phase 3)
 
-- [ ] `RuiSchema.safeParse` from §1
-- [ ] Add Zod refines: `ReadBinding.path` starts with `/` (R24), `valuePath` regex (R23), Metric `valuePath` required (R19)
-- [ ] `zod-mapper.ts` — map all issues per [Zod mapping table](#zod-issue--stable-code-mapping)
+- [x] `RuiSchema.safeParse` from §1
+- [x] Add Zod refines: `ReadBinding.path` starts with `/` (R24), `valuePath` regex (R23), Metric `valuePath` required (R19) — in §1 schemas
+- [x] `zod-mapper.ts` — map all issues per [Zod mapping table](#zod-issue--stable-code-mapping)
 
 ### Step 5 — Semantic checks (phase 4)
 
-- [ ] `semantic/ids.ts` — global uniqueness (R3), format (R4) via registry helpers
-- [ ] `semantic/navigation.ts` — R10, R11
-- [ ] `semantic/table.ts` — duplicate column keys (R17), filter field (R21)
-- [ ] `semantic/nesting.ts` — R14 (if applicable)
+- [x] `semantic/ids.ts` — global uniqueness (R3), format (R4) via registry helpers
+- [x] `semantic/navigation.ts` — R10, R11
+- [x] `semantic/table.ts` — duplicate column keys (R17), filter field (R21)
+- [x] `semantic/nesting.ts` — R14 (if applicable)
 
 ### Step 6 — Normalize (phase 5)
 
-- [ ] `normalize.ts` — sibling sorts + canonical key order per [normalization](#normalization-v01)
-- [ ] Unit smoke: two specs differing only in sibling order → identical `normalizedRui`
+- [x] `normalize.ts` — sibling sorts + canonical key order per [normalization](#normalization-v01)
+- [x] Unit smoke: two specs differing only in sibling order → identical `normalizedRui`
 
 ### Step 7 — Messages catalog
 
-- [ ] `messages.ts` — `ERROR_CATALOG` from [message & hint catalog](#message--hint-catalog)
-- [ ] `formatError(code, context)` for template interpolation
+- [x] `messages.ts` — `ERROR_CATALOG` from [message & hint catalog](#message--hint-catalog)
+- [x] `formatError(code, context)` for template interpolation
 
 ### Step 8 — Pipeline + fixtures
 
-- [ ] `pipeline.ts` wires phases; caps errors at 50; stable sort of errors
-- [ ] Copy fixtures into `lib/validate/fixtures/`
-- [ ] Minimal script or test: golden pass; 3 invalid codes
+- [x] `pipeline.ts` wires phases; caps errors at 50; stable sort of errors
+- [x] Copy fixtures into `lib/validate/fixtures/` (minimal v0.1 set)
+- [x] Minimal script or test: golden pass; 3 invalid codes (`npm run smoke:validate`)
 
 ### Step 9 — API route
 
-- [ ] `app/api/validate/route.ts` — POST only; call `validateSpec`
-- [ ] Return 200/400 per [API contract](#post-apivalidate--api-contract)
+- [x] `app/api/validate/route.ts` — POST only; call `validateFromRequest` / `validateSpec`
+- [x] Return 200/400 per [API contract](#post-apivalidate--api-contract)
 
 ### Step 10 — Smoke on production
 
 - [ ] `POST https://rapidui.dev/api/validate` with golden RUI (manual body from `golden/support-dashboard.rui.json`) → `valid: true` + `normalizedRui`
 - [ ] Invalid body → 400
+
+> **Local verified:** `npm run smoke:validate` + curl to `localhost:3000/api/validate`. Step 10 runs after next deploy to `rapidui.dev`.
 
 ### Step 11 — Commit
 
@@ -1360,22 +1362,26 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 ### Deliverables
 
-- [ ] `lib/validate/` module (pipeline, semantic, normalize, messages)
-- [ ] `validateSpec()` — shared by `/api/validate` and §4
-- [ ] `POST /api/validate` route with documented contracts
-- [ ] `ERROR_CATALOG` for §3
-- [ ] `normalizedRui` on success (deterministic order)
-- [ ] Fixture files + minimal smoke coverage
-- [ ] R0–R24 implemented per rule map
+- [x] `lib/validate/` module (pipeline, semantic, normalize, messages)
+- [x] `validateSpec()` — shared by `/api/validate` and §4
+- [x] `POST /api/validate` route with documented contracts
+- [x] `ERROR_CATALOG` for §3
+- [x] `normalizedRui` on success (deterministic order)
+- [x] Fixture files + minimal smoke coverage
+- [x] R0–R24 implemented per rule map
 
 ### Done when
 
-- Golden RUI passes and `normalizedRui` is stable across input order permutations
-- Fixture invalid RUIs return expected `code` at expected `path` (minimal set: version, duplicate id, planned Form)
-- Multi-error response returns several issues in one call (e.g. duplicate id + bad nav)
-- `PLANNED_NOT_SUPPORTED` fires before `UNKNOWN_TYPE` for `Form` / `Button`
-- §4 can import `validateSpec` without duplicating logic
-- **Ready to start §3 Agent Documentation** (error catalog + real validator)
+- [x] Golden RUI passes and `normalizedRui` is stable across input order permutations
+- [x] Fixture invalid RUIs return expected `code` at expected `path` (minimal set: version, duplicate id, planned Form)
+- [x] Multi-error response returns several issues in one call (e.g. duplicate id + bad nav)
+- [x] `PLANNED_NOT_SUPPORTED` fires before `UNKNOWN_TYPE` for `Form` / `Button`
+- [x] §4 can import `validateSpec` without duplicating logic
+- [x] **Ready to start §3 Agent Documentation** (error catalog + real validator)
+
+**§2 status: Complete** — implementation and local smoke verified. Remaining: **Step 10** (production curl after deploy) and **Step 11** (git commit).
+
+> **Not in §2 (by design):** Full fixture catalog (§6 eval debugging), `GET /api/docs` / `GET /api/schema` (§3), remaining invalid fixtures from [fixture catalog](#invalid-fixture-catalog).
 
 ---
 
@@ -1582,7 +1588,7 @@ Track when each section is fully specified and implemented.
 |---------|---------------|-------------|-------|
 | 0. Project Setup | ☑ | ☑ | Next.js, GitHub, Vercel, Postgres, rapidui.dev |
 | 1. Vocabulary Registry | ☑ | ☑ | RUI schemas, golden file, smoke test — Option A; B/C planned |
-| 2. Validation Engine | ☑ | ☐ | Spec complete — pipeline, normalize, /api/validate |
+| 2. Validation Engine | ☑ | ☑ | Pipeline, normalize, `POST /api/validate`, `npm run smoke:validate` |
 | 3. Agent Documentation | ☐ | ☐ | |
 | 4. RUI Store | ☐ | ☐ | |
 | 5. RUI Viewer | ☐ | ☐ | |
@@ -1596,4 +1602,5 @@ Track when each section is fully specified and implemented.
 |------|---------|--------|
 | 2026-05-25 | §0 | Project setup complete — Next.js on Vercel, Postgres, `rapidui.dev` |
 | 2026-05-25 | §1 | Committed `f2ce571` — registry on `main`, ready for §2 |
+| 2026-05-25 | §2 | Validation engine implemented — `lib/validate/`, `POST /api/validate`, smoke:validate |
 | 2026-05-25 | Docs | Adopted **RUI** as format name and **`.rui.json`** extension; demo scenario updated with agent-facing prompt |
