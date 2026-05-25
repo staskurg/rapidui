@@ -916,7 +916,7 @@ npm run smoke:registry
 
 ### Step 12 — Commit
 
-- [ ] Commit: `feat(registry): v0.1 vocabulary — RUI, layouts, blocks, bindings` *(pending — changes staged locally)*
+- [x] Commit: `feat(registry): v0.1 vocabulary — RUI, layouts, blocks, bindings` (`f2ce571`)
 
 ---
 
@@ -937,7 +937,7 @@ npm run smoke:registry
 
 ### Done when
 
-- [x] All [implementation steps](#implementation-steps) checked off (except git commit)
+- [x] All [implementation steps](#implementation-steps) checked off
 - [x] Registry exists in `lib/registry/` and exports version `"0.1"`
 - [x] All layouts, blocks, bindings, and rules enumerated without reading validator code
 - [x] Golden RUI validates against registry types (`npm run smoke:registry`)
@@ -1595,5 +1595,5 @@ Track when each section is fully specified and implemented.
 | Date | Section | Change |
 |------|---------|--------|
 | 2026-05-25 | §0 | Project setup complete — Next.js on Vercel, Postgres, `rapidui.dev` |
-| 2026-05-25 | §1 | Vocabulary Registry implemented — `lib/registry/`, RUI naming, `RuiSchema`, golden `support-dashboard.rui.json`, `npm run smoke:registry` |
+| 2026-05-25 | §1 | Committed `f2ce571` — registry on `main`, ready for §2 |
 | 2026-05-25 | Docs | Adopted **RUI** as format name and **`.rui.json`** extension; demo scenario updated with agent-facing prompt |
