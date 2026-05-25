@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RapidUI
 
-## Getting Started
+Agent-first platform for generating, validating, and storing UI specs — **validate → correct → save**.
 
-First, run the development server:
+**Production:** [https://rapidui.dev](https://rapidui.dev)
+
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). API routes are available under `/api/*`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy the template and pull secrets from Vercel when linked:
 
-## Learn More
+```bash
+cp .env.example .env.local
+npx vercel login
+npx vercel link
+npx vercel env pull .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Vercel Postgres connection string (used from §4 onward) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Health check
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+curl https://rapidui.dev/api/health
+# → {"ok":true}
+```
 
-## Deploy on Vercel
+Use the apex domain (`rapidui.dev`) as the canonical API base URL. `www.rapidui.dev` redirects to the apex — that is expected Vercel behavior.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```txt
+app/api/          # API route handlers
+lib/registry/     # §1 vocabulary registry
+lib/validate/     # §2 validation engine
+lib/db/           # §4 Postgres client
+eval/cases/       # §6 eval case definitions
+```
+
+## Documentation
+
+Implementation plan and MVP scope live in `.cursor/`:
+
+- [rapidui-mvp-v0.1-implementation.md](.cursor/rapidui-mvp-v0.1-implementation.md)
+- [rapidui-mvp-v0.1.md](.cursor/rapidui-mvp-v0.1.md)
+
+## Deployment
+
+Pushes to `main` auto-deploy to Vercel at `https://rapidui.dev`.
