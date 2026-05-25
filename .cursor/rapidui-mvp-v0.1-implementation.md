@@ -134,7 +134,7 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 
 ## Success Criteria (MVP v0.1)
 
-- [ ] §0 complete — app deployed at `https://rapidui.dev`, Postgres provisioned
+- [x] §0 complete — app deployed at `https://rapidui.dev`, Postgres provisioned
 - [ ] External agent discovers vocabulary from docs without verbal hand-holding
 - [ ] Agent produces a spec for the support ticket dashboard scenario
 - [ ] `POST /api/validate` returns actionable, machine-readable errors
@@ -166,7 +166,7 @@ Agent reads docs → generates UI spec (JSON)
 
 | Order | Section | Depends on | Status |
 |-------|---------|------------|--------|
-| 0 | [Project Setup](#0-project-setup) | Decisions locked | Not started |
+| 0 | [Project Setup](#0-project-setup) | Decisions locked | **Complete** |
 | 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | Spec complete |
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | Spec complete |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | Not started |
@@ -193,17 +193,17 @@ Agent discovery and the full eval loop wait for §3+.
 
 ### Prerequisites (install locally)
 
-- [ ] **Node.js** — LTS (v20+ recommended)
-- [ ] **Package manager** — npm (bundled) or pnpm
-- [ ] **Git**
-- [ ] **GitHub account** + repo access
-- [ ] **Vercel account** — linked to GitHub
-- [ ] **Domain** — `rapidui.dev` available for DNS configuration
+- [x] **Node.js** — LTS (v20+ recommended)
+- [x] **Package manager** — npm (bundled) or pnpm
+- [x] **Git**
+- [x] **GitHub account** + repo access
+- [x] **Vercel account** — linked to GitHub
+- [x] **Domain** — `rapidui.dev` available for DNS configuration
 
 **Optional but useful:**
 
 - [ ] [GitHub CLI](https://cli.github.com/) (`gh`) — create repo from terminal
-- [ ] [Vercel CLI](https://vercel.com/docs/cli) — env pull, deploy checks
+- [x] [Vercel CLI](https://vercel.com/docs/cli) — env pull, deploy checks
 
 ### Step 1 — Initialize Next.js app
 
@@ -243,13 +243,13 @@ lib/db/                    # §4
 eval/cases/                # §6
 ```
 
-- [ ] Folders created
-- [ ] `GET /api/health` returns `{ ok: true }` — proves deploy + routing work
+- [x] Folders created
+- [x] `GET /api/health` returns `{ ok: true }` — proves deploy + routing work
 
 ### Step 3 — Environment variables
 
-- [ ] `.env.local` — local secrets (gitignored)
-- [ ] `.env.example` — committed template for required vars
+- [x] `.env.local` — local secrets (gitignored)
+- [x] `.env.example` — committed template for required vars
 
 **Vars to plan for (values come in Step 6):**
 
@@ -261,15 +261,15 @@ Do not commit `.env.local`.
 
 ### Step 4 — Git repository
 
-- [ ] `git init` (if not already a repo)
-- [ ] Initial commit: Next.js scaffold + folder structure + `.env.example`
-- [ ] `.gitignore` includes `.env*.local`, `node_modules`, `.next`
+- [x] `git init` (if not already a repo)
+- [x] Initial commit: Next.js scaffold + folder structure + `.env.example`
+- [x] `.gitignore` includes `.env*.local`, `node_modules`, `.next`
 
 ### Step 5 — GitHub remote
 
-- [ ] Create GitHub repo (e.g. `rapid-ui` or `rapidui` under your org/user)
-- [ ] Add remote: `git remote add origin git@github.com:<org>/<repo>.git`
-- [ ] Push default branch: `git push -u origin main`
+- [x] Create GitHub repo (e.g. `rapid-ui` or `rapidui` under your org/user)
+- [x] Add remote: `git remote add origin git@github.com:<org>/<repo>.git`
+- [x] Push default branch: `git push -u origin main`
 
 **Via GitHub CLI (optional):**
 
@@ -279,45 +279,45 @@ gh repo create <org>/<repo> --private --source=. --push
 
 ### Step 6 — Vercel project
 
-- [ ] Import GitHub repo in [Vercel dashboard](https://vercel.com/new)
-- [ ] Framework preset: **Next.js** (auto-detected)
-- [ ] Production branch: `main`
-- [ ] First deploy succeeds (default `*.vercel.app` URL)
+- [x] Import GitHub repo in [Vercel dashboard](https://vercel.com/new)
+- [x] Framework preset: **Next.js** (auto-detected)
+- [x] Production branch: `main`
+- [x] First deploy succeeds (default `*.vercel.app` URL)
 
 **Post-deploy check:**
 
-- [ ] `https://<project>.vercel.app/api/health` returns `{ ok: true }`
+- [x] `https://<project>.vercel.app/api/health` returns `{ ok: true }`
 
 ### Step 7 — Vercel Postgres (provision only)
 
-- [ ] Create **Postgres** storage in Vercel project (Storage tab → Connect Store)
-- [ ] Link `DATABASE_URL` to project env vars (Production + Preview + Development)
-- [ ] Pull env locally: `vercel env pull .env.local` (requires Vercel CLI + linked project)
+- [x] Create **Postgres** storage in Vercel project (Storage tab → Connect Store)
+- [x] Link `DATABASE_URL` to project env vars (Production + Preview + Development)
+- [x] Pull env locally: `vercel env pull .env.local` (requires Vercel CLI + linked project)
 
 **Note:** No app code touches the database until **§4**. For §0: add Postgres, wire env vars, move on. Tables, `lib/db/` client, and queries come in §4.
 
 ### Step 8 — Custom domain (`rapidui.dev`)
 
-- [ ] Add domain in Vercel project → Settings → Domains
-- [ ] Configure DNS at registrar (Vercel nameservers or A/CNAME records as instructed)
-- [ ] SSL certificate issued
-- [ ] `https://rapidui.dev/api/health` works
+- [x] Add domain in Vercel project → Settings → Domains
+- [x] Configure DNS at registrar (Vercel nameservers or A/CNAME records as instructed)
+- [x] SSL certificate issued
+- [x] `https://rapidui.dev/api/health` works
 
 ### Step 9 — README & agent-facing base URL
 
-- [ ] Root `README.md` — project one-liner, local dev commands, link to `.cursor/` docs
-- [ ] Document public base URL: `https://rapidui.dev` (used in §3 agent docs)
+- [x] Root `README.md` — project one-liner, local dev commands, link to `.cursor/` docs
+- [x] Document public base URL: `https://rapidui.dev` (used in §3 agent docs)
 
 ### Deliverables
 
-- [ ] Next.js app runs locally (`npm run dev`)
-- [ ] Repo on GitHub with `main` pushed
-- [ ] Vercel project deploys on push
-- [ ] `rapidui.dev` resolves with HTTPS
-- [ ] Vercel Postgres provisioned; `DATABASE_URL` in Vercel + `.env.local`
-- [ ] Folder scaffold: `lib/registry`, `lib/validate`, `lib/db`, `eval/cases`
-- [ ] `GET /api/health` live on production
-- [ ] `.env.example` committed
+- [x] Next.js app runs locally (`npm run dev`)
+- [x] Repo on GitHub with `main` pushed
+- [x] Vercel project deploys on push
+- [x] `rapidui.dev` resolves with HTTPS
+- [x] Vercel Postgres provisioned; `DATABASE_URL` in Vercel + `.env.local`
+- [x] Folder scaffold: `lib/registry`, `lib/validate`, `lib/db`, `eval/cases`
+- [x] `GET /api/health` live on production
+- [x] `.env.example` committed
 
 ### Details to fill in later
 
