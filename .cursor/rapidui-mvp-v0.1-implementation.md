@@ -22,10 +22,12 @@ Skeleton document for building the **validate → correct → save** loop. Each 
 
 ```txt
 rapidui.dev
+├── /                  ← §3 minimal homepage (links for humans + agents)
+├── /llms.txt          ← agent discovery index + Instructions
 ├── /api/docs          ← agent-readable documentation
 ├── /api/schema        ← vocabulary / block discovery
 ├── /api/validate      ← RUI validation
-├── /api/specs         ← persist validated RUIs
+├── /api/specs         ← §3: 501 stub → §4: persist validated RUIs
 └── /specs/[id]        ← optional RUI viewer
 ```
 
@@ -175,7 +177,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 0 | [Project Setup](#0-project-setup) | Decisions locked | **Complete** |
 | 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | **Complete** |
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
-| 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | Not started |
+| 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | Spec complete |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | Not started |
 | 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
@@ -1389,33 +1391,348 @@ app/api/validate/route.ts # POST handler → validateSpec
 
 **Why third:** Write docs against a **real** validator and registry — avoids doc/implementation drift.
 
-### Contents (outline)
+**Research basis:** Industry patterns for agent-facing APIs (llms.txt, dual JSON + markdown docs, structured errors, MCP/A2A as adjacent standards) — see [Agent-facing API research (reference)](#agent-facing-api-research-reference).
 
-- [ ] RapidUI overview (what it is / is not)
-- [ ] RUI format overview
-- [ ] Block reference
-- [ ] Layout reference
-- [ ] Binding reference
-- [ ] Validation error catalog (codes → how to fix)
-- [ ] Golden example RUI(s) — support dashboard
-- [ ] API usage (`POST /api/validate`, `POST /api/specs`)
+---
 
-### Delivery
+### Decisions (locked for §3)
 
-- **Format:** JSON + markdown fragments served from Next.js API routes
-- **Endpoints:** `GET /api/docs`, `GET /api/schema` (generated from registry where possible)
-- **Base URL:** `https://rapidui.dev`
+| Decision | Choice |
+|----------|--------|
+| Discovery index | **`GET /llms.txt`** at site root (Markdown index → `/api/docs`, `/api/schema`, workflow) |
+| Narrative + workflow | **`GET /api/docs`** — JSON envelope with markdown sections + embedded JSON for errors/API |
+| Vocabulary | **`GET /api/schema`** — `getSchemaPayload()` from §1 (no hand-maintained duplicate) |
+| Error catalog | Re-export **`ERROR_CATALOG`** from `lib/validate/messages.ts` (single source with validator) |
+| Golden example | Embed **`support-dashboard.rui.json`** in docs `examples` section |
+| **`POST /api/specs` in §3** | **Stub only** — route exists, returns **501** + machine-readable `planned` body (full store in §4) |
+| Auth | None (v0.1) — no `auth.md` until post–v0.1 |
+| MCP server | Out of §3 — optional post–v0.1 wrapper around validate/schema |
+| Narrative doc content | **`lib/docs/content/*.md`** — loaded via `readDoc()` in server code (not inline TS strings, not pasted from `.cursor/` plan) |
+| Homepage `/` | **§3 minimal hub** — human one-liner + “For agents” links; full marketing / §5 viewer links **later** |
+| Base URL | `https://rapidui.dev` |
 
-### Details to fill in later
+#### Naming: RUI vs `specs` (locked)
 
-- Doc structure and response shape for `/api/docs`
-- Registry → schema generation vs hand-maintained schema
-- Copy-paste system prompt or Cursor skill snippet for agents
-- Claude test instructions (standalone, no Cursor context)
+| Term | Use for |
+|------|---------|
+| **RUI** | The artifact — JSON document, `.rui.json`, blocks, bindings. All **prose** in docs and agent instructions. |
+| **spec** (API only) | HTTP resource for a **stored** RUI — paths stay **`/api/specs`**, fields like `specId` in §4 receipts. |
+
+**Do not rename routes to `/api/ruis` for v0.1.** “Spec” is the persisted document handle (common in API design); “RUI” is the format name. Docs must state explicitly: *“A spec is a stored RUI.”* Request/response bodies for validate and store use the **RUI JSON shape** (raw document), not a wrapper `{ "rui": … }`.
+
+---
+
+### Agent discovery surface
+
+```txt
+https://rapidui.dev/
+├── /                           ← §3: minimal homepage (humans + link hub for agents)
+├── llms.txt                    ← §3: agent entry (index + Instructions) — well-known URL
+├── api/
+│   ├── docs                    ← §3: overview, workflow, errors, examples, API contracts
+│   ├── schema                  ← §3: vocabulary (registry-generated)
+│   ├── validate                ← §2: POST (live)
+│   └── specs                   ← §3 stub (501) → §4 full implementation
+```
+
+#### How agents find `llms.txt` (no homepage required)
+
+Agents discover docs by **URL convention**, not by parsing the marketing page:
+
+- Eval prompts and README should say: *“Base URL: `https://rapidui.dev` — start with `GET /llms.txt`.”*
+- IDEs (Cursor, Claude Code, etc.) often probe `https://<domain>/llms.txt` when given a dependency or API domain.
+- `/api/docs` is the full bundle if the agent skips the index.
+
+The homepage is a **backup** for humans and agents that land on `/` first — it must link to `/llms.txt`, `/api/docs`, and `/api/schema` with plain `<a href="...">` (no JS-only nav). Optional `<link rel="alternate" type="text/markdown" href="/llms.txt">` in layout metadata.
+
+**Do not** embed full API docs in homepage HTML; keep `/` a **map**, not the manual.
+
+**Recommended agent workflow (documented in llms.txt + `/api/docs`):**
+
+```txt
+1. GET /llms.txt  (or GET /api/docs)
+2. GET /api/schema
+3. Agent authors RUI JSON in memory / file
+4. POST /api/validate  → loop on errors[] until valid: true
+5. POST /api/specs     → §3: 501 planned; §4: { id, receipt }
+```
+
+---
+
+### `GET /llms.txt`
+
+Served from `app/llms.txt/route.ts` or static `public/llms.txt` (prefer **route** so `baseUrl` stays in sync with env).
+
+**Required sections (llmstxt.org order):**
+
+1. `# RapidUI` + blockquote one-liner
+2. Short body — what it is / is not (v0.1 scope)
+3. **`## Instructions`** — eval prompt, “emit RUI not React”, validate retry loop, link to golden example
+4. **`## Documentation`** — links to `/api/docs`, `/api/schema`
+5. **`## API`** — links to `POST /api/validate`, `POST /api/specs` (note: store planned until §4)
+
+Optional later: `llms-full.txt` concatenating docs + schema (not required for v0.1).
+
+**Content source:** Assembled by `getLlmsTxt()` in `lib/docs/llms.ts` — excerpts from `content/instructions.md` (or dedicated block) + link lists; do not maintain a second full copy of all section bodies.
+
+---
+
+### Homepage `GET /` (minimal hub — §3)
+
+Replace the Next.js scaffold with a simple landing page. **Not** a full marketing site in §3; polish later. §5 viewer (`/specs/[id]`) can be linked from `/` when that section ships.
+
+**Include:**
+
+| Area | Content |
+|------|---------|
+| Hero (humans) | One line: RapidUI = validate → correct → save **RUIs** (not React apps) |
+| Status | Link to `GET /api/health` or inline `{ ok: true }` check |
+| **For agents** | Visible section with links: `/llms.txt`, `/api/docs`, `/api/schema`, `POST /api/validate` (note: `POST /api/specs` planned) |
+| **For developers** | Link to GitHub / README (optional) |
+| Footer | `rapidui.dev` — v0.1 |
+
+**Explicitly defer to later:** visual brand, diagrams, demo video, link to §5 spec viewer, auth.md.
+
+**File:** `app/page.tsx` (+ minimal styling with existing Tailwind). No fetch of full docs into the page — links only.
+
+---
+
+### Doc content maintenance (`lib/docs/content/*.md`)
+
+Narrative sections are **real Markdown files**, assembled at runtime in API routes (server-only).
+
+```txt
+lib/docs/
+├── index.ts              # getDocsPayload()
+├── llms.ts               # getLlmsTxt()
+├── load.ts               # readDoc("overview") → readFileSync
+└── content/
+    ├── overview.md       # what it is / is not (v0.1)
+    ├── workflow.md       # schema → author RUI → validate loop
+    ├── nesting.md        # Page → Section → Block
+    ├── getting-started.md
+    └── instructions.md   # Stripe-style rules for llms.txt ## Instructions
+```
+
+**Loader:**
+
+```ts
+// lib/docs/load.ts — readFileSync from lib/docs/content/{name}.md
+export function readDoc(name: string): string { ... }
+```
+
+| Content type | Source | Never |
+|--------------|--------|--------|
+| Narrative markdown | `content/*.md` via `readDoc()` | Paste into `.ts` strings |
+| Errors | `ERROR_CATALOG` import | Duplicate in `.md` |
+| Vocabulary | `getSchemaPayload()` | Hand-write in `.md` |
+| Golden RUI | `golden/support-dashboard.rui.json` | Copy into `.md` |
+| Engineering plan | `.cursor/*.md` | Serve to agents (too long; drifts) |
+
+Start with **empty or outline `.md` files** in Step 1; fill copy during implementation. PRs that change agent-facing prose edit `lib/docs/content/` only.
+
+---
+
+### `GET /api/schema`
+
+Thin route handler:
+
+```ts
+return NextResponse.json(getSchemaPayload());
+```
+
+**Response:** Already defined in §1 — `version`, `rui`, `layouts`, `blocks`, `bindings`, `rules`, `planned`, `ids`. No duplicate prose in schema JSON.
+
+**Cache:** `Cache-Control: public, max-age=3600` (registry version bumps invalidate by redeploy).
+
+---
+
+### `GET /api/docs`
+
+**Response shape (locked):**
+
+```json
+{
+  "docsVersion": "0.1",
+  "baseUrl": "https://rapidui.dev",
+  "rui": {
+    "fileExtension": ".rui.json",
+    "description": "..."
+  },
+  "links": {
+    "llmsTxt": "/llms.txt",
+    "schema": "/api/schema",
+    "validate": "/api/validate",
+    "specs": "/api/specs"
+  },
+  "sections": [
+    { "id": "overview", "format": "markdown", "content": "..." },
+    { "id": "workflow", "format": "markdown", "content": "..." },
+    { "id": "nesting", "format": "markdown", "content": "..." },
+    { "id": "api", "format": "json", "content": { "validate": { ... }, "specs": { "status": "planned", ... } } },
+    { "id": "errors", "format": "json", "content": [ { "code": "DUPLICATE_ID", "message": "...", "hint": "..." } ] },
+    { "id": "examples", "format": "json", "content": { "supportDashboard": { "prompt": "...", "mockApi": { ... }, "goldenRui": { ... } } } },
+    { "id": "gettingStarted", "format": "markdown", "content": "..." }
+  ]
+}
+```
+
+**Section sources (no drift):**
+
+| Section | Source |
+|---------|--------|
+| `overview`, `workflow`, `nesting`, `gettingStarted` | `readDoc("overview")` etc. from `lib/docs/content/*.md` |
+| `api.validate` | §2 [API contract](#post-apivalidate--api-contract) as JSON in payload; duplicate fenced `http`/`json` in `workflow.md` for agents |
+| `api.specs` | Stub contract + “implemented in §4” |
+| `errors` | `ERROR_CATALOG` mapped to array |
+| `examples.supportDashboard` | Golden file + [Demo Scenario](#demo-scenario) prompt + illustrative `mockApi` in TS/JSON (not `.md`) |
+
+**`mockApi` (v0.1):** Illustrative only — no live execution. Include minimal JSON shapes for `GET /api/tickets` and `GET /api/tickets/stats` so agents can set `valuePath` and columns (derived from golden bindings).
+
+---
+
+### `POST /api/specs` — §3 stub (plug)
+
+**Purpose:** Route exists in docs and OpenAPI-minded agents can probe it; **no Postgres** until §4.
+
+| Method | Path | §3 behavior |
+|--------|------|-------------|
+| POST | `/api/specs` | **501** `application/json` |
+| GET | `/api/specs/:id` | **501** (optional in §3; or omit dynamic route until §4) |
+
+**Stub response body:**
+
+```json
+{
+  "status": "planned",
+  "message": "RUI persistence is not available yet. Use POST /api/validate and keep normalizedRui locally until §4 ships.",
+  "implementedIn": "§4",
+  "docs": "https://rapidui.dev/api/docs",
+  "validate": "https://rapidui.dev/api/validate"
+}
+```
+
+Document in `/api/docs` → `api.specs` with same shape. Eval loop (§6) may skip save until §4 or treat 501 as expected.
+
+---
+
+### Module layout
+
+```txt
+lib/docs/
+├── index.ts              # getDocsPayload()
+├── llms.ts               # getLlmsTxt()
+├── load.ts               # readDoc(name) → content/*.md
+├── mock-api.ts           # illustrative Option A response shapes (optional)
+└── content/
+    ├── overview.md
+    ├── workflow.md
+    ├── nesting.md
+    ├── getting-started.md
+    └── instructions.md
+
+app/
+├── page.tsx              # §3 minimal homepage hub
+├── llms.txt/route.ts     # GET /llms.txt → getLlmsTxt()
+└── api/
+    ├── docs/route.ts     # GET → getDocsPayload()
+    ├── schema/route.ts   # GET → getSchemaPayload()
+    └── specs/route.ts    # POST → 501 stub (§3); §4 replaces
+```
+
+Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs **import**, never fork.
+
+---
+
+### Implementation steps
+
+**Prerequisites:** §1 `getSchemaPayload()`, §2 `ERROR_CATALOG` + `POST /api/validate` live.
+
+#### Step 1 — Scaffold `lib/docs/` + markdown files
+
+- [x] Create `lib/docs/load.ts` with `readDoc(name)` reading `lib/docs/content/{name}.md`
+- [x] Add empty/outline `.md` files: `overview`, `workflow`, `nesting`, `getting-started`, `instructions`
+- [x] `overview.md` — v0.1 scope; out-of-scope: renderer, live API execution, auth
+- [x] `getting-started.md` — copy-paste block: base URL, `GET /llms.txt`, fetch order, support-dashboard prompt
+- [x] `instructions.md` — emit RUI not React; validate retry loop (feeds `llms.txt` ## Instructions)
+
+#### Step 2 — `getDocsPayload()` + `getLlmsTxt()`
+
+- [x] `lib/docs/index.ts` assembles JSON per [response shape](#get-apidocs); markdown sections via `readDoc()`
+- [x] `lib/docs/llms.ts` — `getLlmsTxt()` from `instructions.md` + link sections (no duplicate full bodies)
+- [x] Map `ERROR_CATALOG` → `sections[id=errors]`
+- [x] Load golden RUI from `lib/registry/golden/support-dashboard.rui.json`
+- [x] Add `mockApi` illustrative shapes for Option A endpoints (`mock-api.ts` or inline in `index.ts`)
+
+#### Step 3 — `GET /api/schema`
+
+- [x] `app/api/schema/route.ts`
+- [x] Smoke: 200, `version === "0.1"`, blocks include Metric/Table/Text
+
+#### Step 4 — `GET /api/docs`
+
+- [x] `app/api/docs/route.ts`
+- [x] `api.validate` documents §2 contract (200 on semantic failure, 400 transport, `normalizedRui`)
+- [x] `api.specs` documents stub / planned
+
+#### Step 5 — `GET /llms.txt`
+
+- [x] `app/llms.txt/route.ts` → `getLlmsTxt()`; `Content-Type: text/markdown; charset=utf-8`
+- [ ] Verify `curl https://rapidui.dev/llms.txt` returns 200 without visiting `/` first *(after commit + deploy to `main`)*
+
+#### Step 5b — Homepage hub `GET /`
+
+- [x] Replace scaffold `app/page.tsx` with minimal RapidUI landing (see [Homepage](#homepage-get---minimal-hub--3))
+- [x] “For agents” links: `/llms.txt`, `/api/docs`, `/api/schema`, validate endpoint
+- [x] Optional: `<link rel="alternate" type="text/markdown" href="/llms.txt" />` in `app/layout.tsx`
+
+#### Step 6 — `POST /api/specs` stub
+
+- [x] `app/api/specs/route.ts` — POST only → 501 + body above
+- [x] Do **not** connect `DATABASE_URL` in §3
+
+#### Step 7 — Smoke + production
+
+- [x] `npm run smoke:docs` — fetch docs/schema/llms.txt, assert errors length, golden validates via existing smoke
+- [ ] `curl https://rapidui.dev/` — homepage contains link to `/llms.txt` *(after deploy)*
+- [ ] `curl https://rapidui.dev/llms.txt` *(after deploy)*
+- [ ] `curl https://rapidui.dev/api/docs` | `curl https://rapidui.dev/api/schema` *(after deploy)*
+- [ ] `curl -X POST https://rapidui.dev/api/specs` → 501 + `status: planned` *(after deploy)*
+
+#### Step 8 — README + hints
+
+- [x] README links: `/llms.txt`, `/api/docs`, `/api/schema`
+- [x] Optional: update `MISSING_REQUIRED_PROP` hint in `messages.ts` to reference `GET /api/schema` (remove “when live”)
+
+#### Step 9 — Commit
+
+- [ ] Commit: `feat(docs): agent docs, llms.txt, homepage hub, schema route, specs stub`
+
+---
+
+### Deliverables
+
+- [x] `lib/docs/` — `load.ts`, `content/*.md`, `getDocsPayload()`, `getLlmsTxt()`
+- [x] `GET /llms.txt` at production root (well-known agent entry) — route implemented; production verify after deploy
+- [x] `GET /` — minimal homepage with human copy + “For agents” links
+- [x] `GET /api/docs` — overview, workflow, errors, examples, API usage (validate live, specs planned)
+- [x] `GET /api/schema` — registry-generated vocabulary
+- [x] `POST /api/specs` — 501 stub with machine-readable planned response
+- [x] `npm run smoke:docs`
+- [x] Naming convention documented: **RUI** in prose, **`/api/specs`** for stored documents (§4)
 
 ### Done when
 
-- Fresh agent session with only docs + API base URL can attempt a RUI for the support dashboard
+- [x] `GET /llms.txt` works without loading `/` first (agents use well-known URL) — verified locally via `npm run dev` + `curl localhost:3000/llms.txt`
+- [x] `/` links to `/llms.txt`, `/api/docs`, and `/api/schema` for humans and fallback discovery
+- [ ] Fresh agent session with only `https://rapidui.dev/llms.txt` (or `/api/docs`) + `/api/schema` can author a plausible support-dashboard RUI and call `POST /api/validate` *(manual agent eval — run locally now, on production after deploy)*
+- [x] Error responses are interpretable via `errors[]` in docs without reading validator source
+- [x] `POST /api/specs` returns predictable 501 (not 404) so docs and eval scripts can reference it — verified locally
+- [x] **Ready to start §4 RUI Store** (replace specs stub with Postgres + receipts)
+
+**§3 status: Complete (local)** — implementation and smoke tests pass. Remaining: commit → deploy → production curl checks (Step 7) → optional manual agent eval on `rapidui.dev`.
+
+> **Not in §3 (by design):** Postgres, real `POST/GET /api/specs`, MCP server, `auth.md`, `llms-full.txt`, OpenAPI export, §6 eval case files, full marketing site, §5 spec viewer on homepage (add link when §5 ships).
 
 ---
 
@@ -1466,6 +1783,8 @@ app/api/validate/route.ts # POST handler → validateSpec
 **Purpose:** Minimal human inspection — not a renderer, not a dashboard.
 
 **Why optional:** Useful for demos; not required to prove agent RUI emission.
+
+**Homepage (later):** When §5 ships, add a link from §3’s minimal `/` hub to the viewer (e.g. “Inspect a saved RUI”). Full marketing redesign stays out of scope until post–v0.1.
 
 ### Shows
 
@@ -1532,15 +1851,17 @@ Next.js monorepo — single app, API routes + optional pages.
 ```txt
 rapid-ui/
 ├── app/
+│   ├── llms.txt/route.ts       # §3 discovery index
 │   ├── api/
 │   │   ├── docs/route.ts       # §3 agent documentation
-│   │   ├── schema/route.ts     # §1 vocabulary discovery
+│   │   ├── schema/route.ts     # §3 vocabulary route
 │   │   ├── validate/route.ts   # §2
-│   │   └── specs/route.ts      # §4
+│   │   └── specs/route.ts      # §3 stub → §4 store
 │   └── specs/[id]/page.tsx     # §5 optional viewer
 ├── lib/
 │   ├── registry/               # §1 vocabulary source of truth
 │   ├── validate/               # §2 validation engine
+│   ├── docs/                   # §3 agent doc content + getDocsPayload()
 │   └── db/                     # §4 Postgres client + queries
 ├── eval/
 │   └── cases/                  # §6 eval case definitions
@@ -1555,11 +1876,13 @@ Base: `https://rapidui.dev`
 
 | Method | Path | Section | Notes |
 |--------|------|---------|-------|
-| GET | `/api/docs` | §3 | Agent-readable documentation |
+| GET | `/` | §3 | Minimal homepage — humans + links to llms.txt / API |
+| GET | `/llms.txt` | §3 | Agent discovery index + Instructions |
+| GET | `/api/docs` | §3 | Agent-readable documentation (JSON + markdown sections) |
 | GET | `/api/schema` | §1, §3 | Vocabulary / block discovery |
-| POST | `/api/validate` | §2 | Validate spec; return errors or success |
-| POST | `/api/specs` | §4 | Store validated RUI + receipt |
-| GET | `/api/specs/:id` | §4 | Retrieve spec + receipt |
+| POST | `/api/validate` | §2 | Validate RUI; return errors or success |
+| POST | `/api/specs` | §3 stub, §4 | §3: 501 planned; §4: store validated RUI + receipt |
+| GET | `/api/specs/:id` | §4 | Retrieve stored RUI + receipt |
 | GET | `/specs/:id` | §5 | Optional human viewer |
 
 ---
@@ -1587,10 +1910,70 @@ Track when each section is fully specified and implemented.
 | 0. Project Setup | ☑ | ☑ | Next.js, GitHub, Vercel, Postgres, rapidui.dev |
 | 1. Vocabulary Registry | ☑ | ☑ | RUI schemas, golden file, smoke test — Option A; B/C planned |
 | 2. Validation Engine | ☑ | ☑ | Pipeline, normalize, `POST /api/validate`, `npm run smoke:validate` |
-| 3. Agent Documentation | ☐ | ☐ | |
+| 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
 | 4. RUI Store | ☐ | ☐ | |
 | 5. RUI Viewer | ☐ | ☐ | |
 | 6. Agent Test Harness | ☐ | ☐ | |
+
+---
+
+## Agent-facing API research (reference)
+
+Background reading for §3 design (2026). No implementation requirement — for review when tuning docs and errors.
+
+### Discovery & documentation formats
+
+| Resource | URL | Notes |
+|----------|-----|-------|
+| llms.txt specification | https://llmstxt.org/ | Root Markdown index; H1, blockquote, `##` link lists |
+| llms.txt — how it works | https://llmtxt.info/how-it-works/ | Parsing rules, `llms-full.txt` sibling |
+| LLMs.txt in 2026 (guide) | https://limy.ai/blog/llms.txt-in-2026-the-full-guide | Adoption (Mintlify, Fern, IDE agents) |
+| Stripe llms.txt + Instructions section | https://www.apideck.com/blog/stripe-llms-txt-instructions-section | Behavioral rules in static file |
+| Stripe — Add agents to workflows | https://docs.stripe.com/agents | Toolkit + MCP alongside docs |
+
+### Agent registration & auth
+
+| Resource | URL | Notes |
+|----------|-----|-------|
+| auth.md — the file | https://workos.com/auth-md/docs/auth-md | Prose companion to OAuth PRM (May 2026) |
+| auth.md — for apps | https://workos.com/auth-md/docs/apps | Discovery, flows, fenced HTTP/JSON templates |
+| WorkOS — agent registration blog | https://workos.com/blog/agent-registration-with-auth-md | `/agent/auth`, ID-JAG, RFC 9728 |
+| WorkOS — agent experience (AX) | https://workos.com/blog/agent-experience-oujuh | Machine-readable errors, OpenAPI, idempotency |
+
+### Tool protocols & orchestration
+
+| Resource | URL | Notes |
+|----------|-----|-------|
+| Model Context Protocol | https://modelcontextprotocol.io/ | Tools, resources, prompts; Streamable HTTP |
+| MCP — tools concept | https://modelcontextprotocol.io/docs/concepts/tools | JSON Schema tool definitions |
+| Anthropic — code execution with MCP | https://www.anthropic.com/engineering/code-execution-with-mcp | Load tools as code APIs (token efficiency) |
+| Anthropic — building effective agents | https://www.anthropic.com/engineering/building-effective-agents | Simple patterns; tool format matters |
+| Anthropic — writing tools for agents | https://www.anthropic.com/engineering/writing-tools-for-agents | Descriptions, pagination, response shape |
+| OpenAI — new tools for building agents | https://openai.com/index/new-tools-for-building-agents/ | Responses API, Agents SDK, hosted tools |
+| OpenAI Agents SDK (Python) | https://openai.github.io/openai-agents-python/ | Instructions, tools, MCP, handoffs |
+| Google A2A protocol | https://a2a-protocol.org/ | Agent-to-agent; `agent-card.json`; complements MCP |
+| A2A — llms.txt in repo | https://github.com/a2aproject/A2A/blob/main/docs/llms.txt | Meta: protocols using llms.txt for discovery |
+| Mastra docs llms.txt | https://mintlify.com/mastra-ai/mastra/llms.txt | Example: framework docs as llms index |
+
+### REST / “agent experience” API design
+
+| Resource | URL | Notes |
+|----------|-----|-------|
+| API design for the agentic era | https://www.apideck.com/blog/api-design-principles-agentic-era | AX, `doc_url`, error recovery |
+| Agent-friendly APIs (2026) | https://tianpan.co/blog/2026-04-10-agent-friendly-apis-backend-design | `code`, `is_retriable`, `retry_after_seconds` |
+| RFC 9457 — Problem Details | https://www.rfc-editor.org/rfc/rfc9457 | `application/problem+json` baseline |
+| agentic-api-standard (community) | https://github.com/nexus-marbell/agentic-api-standard | Manifest, HATEOAS, `did_you_mean` — aspirational |
+
+### Cloud provider agent products (adjacent)
+
+| Resource | URL | Notes |
+|----------|-----|-------|
+| AWS — InvokeAgent | https://docs.aws.amazon.com/bedrock/latest/userguide/agents-invoke-agent.html | Managed orchestration, not public doc APIs |
+| AWS — How Bedrock Agents work | https://docs.aws.amazon.com/bedrock/latest/userguide/agents-how.html | Action groups, knowledge bases |
+
+### Framework note (Mastra)
+
+[Mastra](https://mastra.ai/docs/agents/overview) is a **TypeScript agent framework** (build agents), not a documentation standard. Useful as a **consumer** of llms.txt-style docs, not as a replacement for RapidUI’s `/api/docs` + `/api/schema` split.
 
 ---
 
@@ -1603,3 +1986,6 @@ Track when each section is fully specified and implemented.
 | 2026-05-25 | §2 | Validation engine implemented — `lib/validate/`, `POST /api/validate`, smoke:validate |
 | 2026-05-25 | §2 | Committed `0fddb09`; production smoke verified on `rapidui.dev` |
 | 2026-05-25 | Docs | Adopted **RUI** as format name and **`.rui.json`** extension; demo scenario updated with agent-facing prompt |
+| 2026-05-25 | §3 | Full implementation spec — llms.txt, /api/docs, /api/schema, POST /api/specs 501 stub; agent API research appendix |
+| 2026-05-25 | §3 | Content via `lib/docs/content/*.md` + `readDoc()`; minimal homepage hub; llms.txt discovery notes |
+| 2026-05-26 | §3 | Implemented — `lib/docs/`, routes, homepage hub, `smoke:docs`; commit + production verify pending |

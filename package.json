@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "smoke:registry": "tsx scripts/smoke-registry.ts",
-    "smoke:validate": "tsx scripts/smoke-validate.ts"
+    "smoke:validate": "tsx scripts/smoke-validate.ts",
+    "smoke:docs": "tsx scripts/smoke-docs.ts"
   },
   "dependencies": {
     "next": "16.2.6",

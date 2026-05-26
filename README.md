@@ -43,11 +43,18 @@ Use the apex domain (`rapidui.dev`) as the canonical API base URL. `www.rapidui.
 app/api/          # API route handlers
 lib/registry/     # §1 vocabulary registry (RUI schemas)
 lib/validate/     # §2 validation engine
+lib/docs/         # §3 agent documentation content + payloads
 lib/db/           # §4 Postgres client
 eval/cases/       # §6 eval case definitions
 ```
 
 ## Documentation
+
+**Agent discovery (production):**
+
+- [https://rapidui.dev/llms.txt](https://rapidui.dev/llms.txt) — start here for external agents
+- [https://rapidui.dev/api/docs](https://rapidui.dev/api/docs) — full agent documentation (JSON)
+- [https://rapidui.dev/api/schema](https://rapidui.dev/api/schema) — vocabulary / block definitions
 
 Implementation plan and MVP scope live in `.cursor/`:
 

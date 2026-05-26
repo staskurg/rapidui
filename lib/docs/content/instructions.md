@@ -1,0 +1,8 @@
+- **Emit a RUI** (`.rui.json`) — never React, JSX, or component code
+- **Read** `GET /api/schema` before authoring; use only v0.1 blocks (`Metric`, `Table`, `Text`) and read (`GET`) bindings
+- **Validate** with `POST /api/validate`; fix every item in `errors[]` using `code`, `message`, and `hint`
+- **Retry** until `valid: true`; use `normalizedRui` as the canonical validated artifact
+- **Do not** call `POST /api/specs` for persistence yet — it returns 501 until §4; keep `normalizedRui` locally
+- **Naming:** say **RUI** in prose; `/api/specs` is the HTTP resource for a stored RUI (a spec is a stored RUI)
+- **Demo:** for the support dashboard eval, bind `GET /api/tickets` (table, `valuePath: "items"`) and `GET /api/tickets/stats` (metrics, scalar `valuePath` per field)
+- **Reference:** compare against `examples.supportDashboard.goldenRui` in `GET /api/docs`

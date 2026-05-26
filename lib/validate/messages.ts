@@ -38,7 +38,7 @@ export const ERROR_CATALOG: Record<RuleCode, ErrorTemplate> = {
   },
   MISSING_REQUIRED_PROP: {
     message: 'Missing required property "{prop}".',
-    hint: "Add the property per the spec shape (top-level: `version`, `meta`, `navigation`, `pages`; see §3 schema when live).",
+    hint: "Add the property per the spec shape (top-level: `version`, `meta`, `navigation`, `pages`; see GET /api/schema).",
   },
   INVALID_PROP_TYPE: {
     message: 'Invalid value for "{prop}".',
