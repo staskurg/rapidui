@@ -1,0 +1,126 @@
+{
+  "version": "0.1",
+  "meta": {
+    "title": "Support Operations",
+    "description": "Internal support ops dashboard with headline ticket metrics and an open-ticket queue."
+  },
+  "navigation": {
+    "items": [
+      {
+        "pageId": "page-support-ops",
+        "label": "Support Ops"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "id": "page-support-ops",
+      "type": "Page",
+      "title": "Internal Support Ops",
+      "description": "Monitor ticket load, urgent work, and the current open queue.",
+      "children": [
+        {
+          "id": "section-headline-numbers",
+          "type": "Section",
+          "title": "Headline Numbers",
+          "direction": "row",
+          "children": [
+            {
+              "id": "metric-open-tickets",
+              "type": "Metric",
+              "label": "Open Tickets",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "openCount"
+              }
+            },
+            {
+              "id": "metric-urgent-tickets",
+              "type": "Metric",
+              "label": "Urgent Tickets",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "urgentCount"
+              }
+            }
+          ]
+        },
+        {
+          "id": "section-open-ticket-queue",
+          "type": "Section",
+          "title": "Open Ticket Queue",
+          "direction": "stack",
+          "children": [
+            {
+              "id": "table-open-tickets",
+              "type": "Table",
+              "title": "Open Tickets",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets",
+                "valuePath": "items"
+              },
+              "columns": [
+                {
+                  "key": "assignee",
+                  "label": "Assignee",
+                  "type": "string"
+                },
+                {
+                  "key": "created",
+                  "label": "Created",
+                  "type": "date"
+                },
+                {
+                  "key": "id",
+                  "label": "Ticket",
+                  "type": "string"
+                },
+                {
+                  "key": "status",
+                  "label": "Status",
+                  "type": "badge"
+                },
+                {
+                  "key": "subject",
+                  "label": "Subject",
+                  "type": "string"
+                }
+              ],
+              "filter": {
+                "field": "status",
+                "label": "Ticket Status",
+                "options": [
+                  {
+                    "value": "closed",
+                    "label": "Closed"
+                  },
+                  {
+                    "value": "open",
+                    "label": "Open"
+                  },
+                  {
+                    "value": "pending",
+                    "label": "Pending"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "text-open-ticket-context",
+              "type": "Text",
+              "content": "Open tickets needing support follow-up, sorted by operational priority."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

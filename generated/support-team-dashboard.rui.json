@@ -1,0 +1,165 @@
+{
+  "version": "0.1",
+  "meta": {
+    "title": "Support Team Dashboard",
+    "description": "Ticket queue overview and active ticket list for the support team"
+  },
+  "navigation": {
+    "items": [
+      {
+        "pageId": "page-dashboard",
+        "label": "Dashboard"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "id": "page-dashboard",
+      "type": "Page",
+      "title": "Support Team Dashboard",
+      "description": "Monitor ticket volume, response times, and work the active queue",
+      "children": [
+        {
+          "id": "section-stats",
+          "type": "Section",
+          "title": "Ticket Stats",
+          "direction": "row",
+          "children": [
+            {
+              "id": "metric-open",
+              "type": "Metric",
+              "label": "Open Tickets",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "openCount"
+              }
+            },
+            {
+              "id": "metric-pending",
+              "type": "Metric",
+              "label": "Pending",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "pendingCount"
+              }
+            },
+            {
+              "id": "metric-urgent",
+              "type": "Metric",
+              "label": "Urgent",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "urgentCount"
+              }
+            },
+            {
+              "id": "metric-avg-response",
+              "type": "Metric",
+              "label": "Avg Response (hrs)",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "avgResponseTimeHours"
+              }
+            }
+          ]
+        },
+        {
+          "id": "section-queue",
+          "type": "Section",
+          "title": "Ticket Queue",
+          "direction": "stack",
+          "children": [
+            {
+              "id": "text-queue-intro",
+              "type": "Text",
+              "content": "All active and recently closed tickets. Filter by status, then scan priority and assignee to triage the queue."
+            },
+            {
+              "id": "table-tickets",
+              "type": "Table",
+              "title": "Tickets",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets",
+                "valuePath": "items"
+              },
+              "columns": [
+                {
+                  "key": "id",
+                  "label": "ID",
+                  "type": "string"
+                },
+                {
+                  "key": "subject",
+                  "label": "Subject",
+                  "type": "string"
+                },
+                {
+                  "key": "status",
+                  "label": "Status",
+                  "type": "badge"
+                },
+                {
+                  "key": "priority",
+                  "label": "Priority",
+                  "type": "badge"
+                },
+                {
+                  "key": "requester",
+                  "label": "Requester",
+                  "type": "string"
+                },
+                {
+                  "key": "assignee",
+                  "label": "Assignee",
+                  "type": "string"
+                },
+                {
+                  "key": "created",
+                  "label": "Created",
+                  "type": "date"
+                },
+                {
+                  "key": "updated",
+                  "label": "Last Updated",
+                  "type": "date"
+                }
+              ],
+              "filter": {
+                "field": "status",
+                "label": "Status",
+                "options": [
+                  {
+                    "value": "open",
+                    "label": "Open"
+                  },
+                  {
+                    "value": "pending",
+                    "label": "Pending"
+                  },
+                  {
+                    "value": "closed",
+                    "label": "Closed"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

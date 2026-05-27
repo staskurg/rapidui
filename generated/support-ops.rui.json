@@ -1,0 +1,119 @@
+{
+  "version": "0.1",
+  "meta": {
+    "title": "Support Operations",
+    "description": "Internal support tooling — ticket stats and queue management"
+  },
+  "navigation": {
+    "items": [
+      { "pageId": "page-overview", "label": "Overview" },
+      { "pageId": "page-queue", "label": "Queue" }
+    ]
+  },
+  "pages": [
+    {
+      "id": "page-overview",
+      "type": "Page",
+      "title": "Ticket Stats",
+      "children": [
+        {
+          "id": "section-headline",
+          "type": "Section",
+          "title": "Key Metrics",
+          "direction": "row",
+          "children": [
+            {
+              "id": "metric-open",
+              "type": "Metric",
+              "label": "Open Tickets",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "openCount"
+              }
+            },
+            {
+              "id": "metric-urgent",
+              "type": "Metric",
+              "label": "Urgent",
+              "format": "number",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets/stats",
+                "valuePath": "urgentCount"
+              }
+            }
+          ]
+        },
+        {
+          "id": "section-overview-note",
+          "type": "Section",
+          "direction": "stack",
+          "children": [
+            {
+              "id": "text-overview-desc",
+              "type": "Text",
+              "content": "Live counts pulled from the ticket system. Switch to Queue to work individual tickets."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "page-queue",
+      "type": "Page",
+      "title": "Ticket Queue",
+      "children": [
+        {
+          "id": "section-queue-header",
+          "type": "Section",
+          "direction": "stack",
+          "children": [
+            {
+              "id": "text-queue-heading",
+              "type": "Text",
+              "content": "Work the queue — filter by status to triage open and pending tickets."
+            }
+          ]
+        },
+        {
+          "id": "section-queue-table",
+          "type": "Section",
+          "direction": "stack",
+          "children": [
+            {
+              "id": "table-tickets",
+              "type": "Table",
+              "title": "Ticket Queue",
+              "binding": {
+                "type": "read",
+                "method": "GET",
+                "path": "/api/tickets",
+                "valuePath": "items"
+              },
+              "columns": [
+                { "key": "id",       "label": "ID",       "type": "string" },
+                { "key": "subject",  "label": "Subject",  "type": "string" },
+                { "key": "status",   "label": "Status",   "type": "badge"  },
+                { "key": "assignee", "label": "Assignee", "type": "string" },
+                { "key": "created",  "label": "Created",  "type": "date"   }
+              ],
+              "filter": {
+                "field": "status",
+                "label": "Status",
+                "options": [
+                  { "value": "open",    "label": "Open"    },
+                  { "value": "pending", "label": "Pending" },
+                  { "value": "closed",  "label": "Closed"  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

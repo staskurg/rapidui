@@ -177,7 +177,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 0 | [Project Setup](#0-project-setup) | Decisions locked | **Complete** |
 | 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | **Complete** |
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
-| 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | Spec complete |
+| 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | Not started |
 | 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
@@ -1678,7 +1678,7 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 #### Step 5 — `GET /llms.txt`
 
 - [x] `app/llms.txt/route.ts` → `getLlmsTxt()`; `Content-Type: text/markdown; charset=utf-8`
-- [ ] Verify `curl https://rapidui.dev/llms.txt` returns 200 without visiting `/` first *(after commit + deploy to `main`)*
+- [x] Verify `curl https://rapidui.dev/llms.txt` returns 200 without visiting `/` first
 
 #### Step 5b — Homepage hub `GET /`
 
@@ -1694,10 +1694,10 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 #### Step 7 — Smoke + production
 
 - [x] `npm run smoke:docs` — fetch docs/schema/llms.txt, assert errors length, golden validates via existing smoke
-- [ ] `curl https://rapidui.dev/` — homepage contains link to `/llms.txt` *(after deploy)*
-- [ ] `curl https://rapidui.dev/llms.txt` *(after deploy)*
-- [ ] `curl https://rapidui.dev/api/docs` | `curl https://rapidui.dev/api/schema` *(after deploy)*
-- [ ] `curl -X POST https://rapidui.dev/api/specs` → 501 + `status: planned` *(after deploy)*
+- [x] `curl https://rapidui.dev/` — homepage contains link to `/llms.txt`
+- [x] `curl https://rapidui.dev/llms.txt`
+- [x] `curl https://rapidui.dev/api/docs` | `curl https://rapidui.dev/api/schema`
+- [x] `curl -X POST https://rapidui.dev/api/specs` → 501 + `status: planned`
 
 #### Step 8 — README + hints
 
@@ -1706,14 +1706,14 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 
 #### Step 9 — Commit
 
-- [ ] Commit: `feat(docs): agent docs, llms.txt, homepage hub, schema route, specs stub`
+- [x] Commit: `feat(docs): agent docs, llms.txt, homepage hub, schema route, specs stub` (`5163958`)
 
 ---
 
 ### Deliverables
 
 - [x] `lib/docs/` — `load.ts`, `content/*.md`, `getDocsPayload()`, `getLlmsTxt()`
-- [x] `GET /llms.txt` at production root (well-known agent entry) — route implemented; production verify after deploy
+- [x] `GET /llms.txt` at production root (well-known agent entry)
 - [x] `GET /` — minimal homepage with human copy + “For agents” links
 - [x] `GET /api/docs` — overview, workflow, errors, examples, API usage (validate live, specs planned)
 - [x] `GET /api/schema` — registry-generated vocabulary
@@ -1725,12 +1725,12 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 
 - [x] `GET /llms.txt` works without loading `/` first (agents use well-known URL) — verified locally via `npm run dev` + `curl localhost:3000/llms.txt`
 - [x] `/` links to `/llms.txt`, `/api/docs`, and `/api/schema` for humans and fallback discovery
-- [ ] Fresh agent session with only `https://rapidui.dev/llms.txt` (or `/api/docs`) + `/api/schema` can author a plausible support-dashboard RUI and call `POST /api/validate` *(manual agent eval — run locally now, on production after deploy)*
+- [x] Fresh agent session with only `https://rapidui.dev/llms.txt` (or `/api/docs`) + `/api/schema` can author a plausible support-dashboard RUI and call `POST /api/validate` — manual eval: single-page, multi-page, and thin-prompt variants all validated
 - [x] Error responses are interpretable via `errors[]` in docs without reading validator source
 - [x] `POST /api/specs` returns predictable 501 (not 404) so docs and eval scripts can reference it — verified locally
 - [x] **Ready to start §4 RUI Store** (replace specs stub with Postgres + receipts)
 
-**§3 status: Complete (local)** — implementation and smoke tests pass. Remaining: commit → deploy → production curl checks (Step 7) → optional manual agent eval on `rapidui.dev`.
+**§3 status: Complete** — committed (`5163958`), production verified on `rapidui.dev`, manual agent eval passed (valid RUIs from thin prompts including two-page layout).
 
 > **Not in §3 (by design):** Postgres, real `POST/GET /api/specs`, MCP server, `auth.md`, `llms-full.txt`, OpenAPI export, §6 eval case files, full marketing site, §5 spec viewer on homepage (add link when §5 ships).
 
@@ -1989,3 +1989,4 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-25 | §3 | Full implementation spec — llms.txt, /api/docs, /api/schema, POST /api/specs 501 stub; agent API research appendix |
 | 2026-05-25 | §3 | Content via `lib/docs/content/*.md` + `readDoc()`; minimal homepage hub; llms.txt discovery notes |
 | 2026-05-26 | §3 | Implemented — `lib/docs/`, routes, homepage hub, `smoke:docs`; commit + production verify pending |
+| 2026-05-26 | §3 | Committed `5163958`; production curl checks pass; manual agent eval (single-page, two-page, thin prompts) — all valid RUIs |
