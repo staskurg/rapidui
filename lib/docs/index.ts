@@ -3,7 +3,7 @@ import { RUI_FILE_EXTENSION } from "@/lib/registry";
 import { ERROR_CATALOG } from "@/lib/validate/messages";
 import { VALIDATION_VERSION } from "@/lib/validate/version";
 
-import { getBaseUrl } from "./base";
+import { getBaseUrl } from "@/lib/base-url";
 import { readDoc } from "./load";
 import { getSupportDashboardMockApi } from "./mock-api";
 
@@ -61,23 +61,100 @@ function getApiSection(baseUrl: string) {
       },
     },
     specs: {
-      status: "planned",
-      implementedIn: "§4",
       method: "POST",
       path: "/api/specs",
       url: `${baseUrl}/api/specs`,
-      httpStatus: 501,
-      message:
-        "RUI persistence is not available yet. Use POST /api/validate and keep normalizedRui locally until §4 ships.",
-      stubResponse: {
-        status: "planned",
-        message:
-          "RUI persistence is not available yet. Use POST /api/validate and keep normalizedRui locally until §4 ships.",
-        implementedIn: "§4",
-        docs: `${baseUrl}/api/docs`,
-        validate: `${baseUrl}/api/validate`,
+      contentType: "application/json",
+      body: "Raw RUI JSON (version 0.1) — same shape as POST /api/validate",
+      maxBodyBytes: 262144,
+      responses: {
+        success: {
+          httpStatus: 201,
+          shape: {
+            specId: "UUID",
+            url: `${baseUrl}/api/specs/{specId}`,
+            createdAt: "ISO 8601 UTC",
+            contentHash: "sha256:…",
+            validationVersion: VALIDATION_VERSION,
+            registryVersion: "0.1",
+            normalizedRui: "<canonical RUI object>",
+          },
+          notes:
+            "Flat SavedSpec — no nested receipt. Re-validates inline; stores normalizedRui only.",
+        },
+        validationFailed: {
+          httpStatus: 200,
+          shape: {
+            valid: false,
+            validationVersion: VALIDATION_VERSION,
+            registryVersion: "0.1",
+            errors: [
+              {
+                path: "string",
+                code: "string",
+                message: "string",
+                hint: "string",
+              },
+            ],
+            truncated: false,
+          },
+          notes: "Same as POST /api/validate — fix errors[] and retry.",
+        },
+        transportFailure: {
+          httpStatus: 400,
+          shape: {
+            valid: false,
+            errors: [{ path: "", code: "INVALID_JSON", message: "...", hint: "..." }],
+          },
+        },
+        storageUnavailable: {
+          httpStatus: 503,
+          shape: {
+            error: "STORAGE_UNAVAILABLE",
+            message: "RUI store is temporarily unavailable.",
+          },
+        },
       },
-      notes: "A spec is a stored RUI. Full store + receipt ships in §4.",
+      notes:
+        "A spec is a stored RUI. v0.1 url is a platform retrieve link — share as temporary handoff until appUrl ships with renderer.",
+    },
+    specById: {
+      method: "GET",
+      path: "/api/specs/:id",
+      url: `${baseUrl}/api/specs/{specId}`,
+      responses: {
+        success: {
+          httpStatus: 200,
+          shape: {
+            specId: "UUID",
+            url: `${baseUrl}/api/specs/{specId}`,
+            createdAt: "ISO 8601 UTC",
+            contentHash: "sha256:…",
+            validationVersion: VALIDATION_VERSION,
+            registryVersion: "0.1",
+            normalizedRui: "<canonical RUI object>",
+          },
+          notes: "Same flat SavedSpec as POST 201. url is recomputed on every GET.",
+        },
+        notFound: {
+          httpStatus: 404,
+          shape: { error: "NOT_FOUND", specId: "UUID" },
+        },
+        invalidSpecId: {
+          httpStatus: 400,
+          shape: {
+            error: "INVALID_SPEC_ID",
+            message: "specId must be a UUID.",
+          },
+        },
+        storageUnavailable: {
+          httpStatus: 503,
+          shape: {
+            error: "STORAGE_UNAVAILABLE",
+            message: "RUI store is temporarily unavailable.",
+          },
+        },
+      },
     },
   };
 }

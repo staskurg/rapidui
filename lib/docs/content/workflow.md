@@ -65,13 +65,45 @@ Content-Type: application/json
 
 Invalid JSON, wrong Content-Type, or body too large → HTTP 400 with `INVALID_JSON` (no `validationVersion`).
 
-## 4. Save (§4)
+## 4. Save
 
 ```http
 POST /api/specs
+Content-Type: application/json
+
+<RUI JSON body>
 ```
 
-**Not available in v0.1** — returns **501** with `status: "planned"`. Keep `normalizedRui` locally until persistence ships.
+Re-validates inline — you may POST directly without a prior validate call. Invalid RUI never reaches Postgres.
+
+### Success (HTTP 201)
+
+```json
+{
+  "specId": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2026-05-26T12:00:00.000Z",
+  "contentHash": "sha256:…",
+  "validationVersion": "0.1",
+  "registryVersion": "0.1",
+  "normalizedRui": { }
+}
+```
+
+Flat SavedSpec — no nested `receipt`. Share `url` as v0.1 temporary handoff; `GET url` returns the same shape.
+
+### Validation failed (HTTP 200)
+
+Same shape as `POST /api/validate` — fix `errors[]` and retry.
+
+### Storage unavailable (HTTP 503)
+
+```json
+{
+  "error": "STORAGE_UNAVAILABLE",
+  "message": "RUI store is temporarily unavailable."
+}
+```
 
 ## Demo prompt (Option A)
 

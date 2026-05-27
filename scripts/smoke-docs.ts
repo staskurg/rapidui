@@ -42,8 +42,22 @@ assert(examples?.supportDashboard?.goldenRui, "Examples should include golden RU
 assert(examples?.supportDashboard?.mockApi, "Examples should include mockApi");
 
 const apiSection = docs.sections.find((s) => s.id === "api");
-const api = apiSection?.content as { specs?: { status?: string } };
-assert(api?.specs?.status === "planned", "API section should document specs as planned");
+const api = apiSection?.content as {
+  validate?: { method?: string };
+  specs?: { method?: string; responses?: { success?: { httpStatus?: number } } };
+  specById?: { method?: string; path?: string };
+};
+assert(api?.validate?.method === "POST", "API section should document validate POST");
+assert(api?.specs?.method === "POST", "API section should document specs POST");
+assert(
+  api?.specs?.responses?.success?.httpStatus === 201,
+  "API section should document specs POST 201",
+);
+assert(api?.specById?.method === "GET", "API section should document specById GET");
+assert(
+  api?.specById?.path === "/api/specs/:id",
+  "API section should document specById path",
+);
 
 // llms.txt
 const llms = getLlmsTxt();
@@ -60,6 +74,6 @@ assert(goldenResult.valid, "Golden RUI should validate");
 
 console.log("Docs smoke test passed:");
 console.log("- getSchemaPayload: version 0.1, Metric/Table/Text blocks");
-console.log("- getDocsPayload: sections, errors catalog, examples, api.specs planned");
+console.log("- getDocsPayload: sections, errors catalog, examples, api validate/specs/specById");
 console.log("- getLlmsTxt: required llmstxt.org sections");
 console.log("- golden RUI validates");

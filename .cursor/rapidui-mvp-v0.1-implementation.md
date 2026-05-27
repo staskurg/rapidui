@@ -147,7 +147,7 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 - [ ] Agent produces a RUI for the support ticket dashboard scenario
 - [x] `POST /api/validate` returns actionable, machine-readable errors
 - [ ] Agent converges to valid RUI within a bounded retry count (target: ≤5)
-- [ ] `POST /api/specs` persists validated RUI + receipt
+- [ ] `POST /api/specs` persists validated RUI (flat SavedSpec)
 - [ ] Optional: RUI viewable by id
 
 ---
@@ -158,7 +158,7 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 Agent reads docs → generates a RUI (JSON, `*.rui.json`)
     → POST /api/validate → errors | success
     → (retry loop)
-    → POST /api/specs → { id, receipt }
+    → POST /api/specs → SavedSpec (flat)
     → optional GET /api/specs/:id
 ```
 
@@ -178,7 +178,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | **Complete** |
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
-| 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | Not started |
+| 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (merge + prod verify pending) |
 | 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
 
@@ -329,7 +329,7 @@ gh repo create <org>/<repo> --private --source=. --push
 
 ### Details to fill in later
 
-- ORM choice (Drizzle vs Prisma vs raw SQL) — decide when implementing §4
+- ORM choice — **decided in §4:** `@vercel/postgres` + raw SQL (no ORM for v0.1)
 - CI workflow (GitHub Actions lint/test) — optional for v0.1
 - Branch protection / preview deploy policy
 - Monorepo vs single app — staying single app for v0.1
@@ -978,7 +978,7 @@ npm run smoke:registry
 | Valid RUI on success | Return **`normalizedRui`** — deterministic order + canonical object key order |
 | Node `id` values (v0.1) | **Preserve agent ids** on normalize (validate format + uniqueness only) |
 | Node `id` assignment (v0.2+) | Platform-generated ids — deferred; §4 may re-normalize later |
-| `validationVersion` | `"0.1"` — exported as `VALIDATION_VERSION` (receipt field in §4) |
+| `validationVersion` | `"0.1"` — exported as `VALIDATION_VERSION` (saved spec field in §4) |
 | `registryVersion` | `"0.1"` — from `REGISTRY_VERSION` (§1) |
 | Max request body | **256 KB** |
 | Automated tests (v0.1) | **Minimal** — golden pass + 2–3 invalid fixtures; expand in §6 / CI later |
@@ -1416,7 +1416,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 | Term | Use for |
 |------|---------|
 | **RUI** | The artifact — JSON document, `.rui.json`, blocks, bindings. All **prose** in docs and agent instructions. |
-| **spec** (API only) | HTTP resource for a **stored** RUI — paths stay **`/api/specs`**, fields like `specId` in §4 receipts. |
+| **spec** (API only) | HTTP resource for a **stored** RUI — paths stay **`/api/specs`**, response is flat **`SavedSpec`** with `specId` |
 
 **Do not rename routes to `/api/ruis` for v0.1.** “Spec” is the persisted document handle (common in API design); “RUI” is the format name. Docs must state explicitly: *“A spec is a stored RUI.”* Request/response bodies for validate and store use the **RUI JSON shape** (raw document), not a wrapper `{ "rui": … }`.
 
@@ -1454,7 +1454,7 @@ The homepage is a **backup** for humans and agents that land on `/` first — it
 2. GET /api/schema
 3. Agent authors RUI JSON in memory / file
 4. POST /api/validate  → loop on errors[] until valid: true
-5. POST /api/specs     → §3: 501 planned; §4: { id, receipt }
+5. POST /api/specs     → §3: 501 planned; §4: flat SavedSpec
 ```
 
 ---
@@ -1728,7 +1728,7 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 - [x] Fresh agent session with only `https://rapidui.dev/llms.txt` (or `/api/docs`) + `/api/schema` can author a plausible support-dashboard RUI and call `POST /api/validate` — manual eval: single-page, multi-page, and thin-prompt variants all validated
 - [x] Error responses are interpretable via `errors[]` in docs without reading validator source
 - [x] `POST /api/specs` returns predictable 501 (not 404) so docs and eval scripts can reference it — verified locally
-- [x] **Ready to start §4 RUI Store** (replace specs stub with Postgres + receipts)
+- [x] **Ready to start §4 RUI Store** (replace specs stub with Postgres + flat SavedSpec)
 
 **§3 status: Complete** — committed (`5163958`), production verified on `rapidui.dev`, manual agent eval passed (valid RUIs from thin prompts including two-page layout).
 
@@ -1738,43 +1738,497 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 
 ## 4. RUI Store + `POST /api/specs`
 
-**Purpose:** Persist validated RUIs and return an auditable receipt.
+**Purpose:** Persist validated RUIs to Postgres and return the **saved spec** — one flat JSON object. Completes the **validate → correct → save** loop.
 
-**Why fourth:** Trivial once validation works; completes the artifact loop.
+**Why fourth:** Validation (§2) and agent docs (§3) are live; storage is orchestration on top of `validateSpec()` + `DATABASE_URL` (provisioned in §0).
 
-### API (sketch)
+**Prerequisites:** §0 (`DATABASE_URL`), §2 (`validateSpec`, `parseTransportRequest`, `normalizedRui`), §3 (docs reference store endpoints — update when §4 ships).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/specs` | Validate (inline) + store RUI; return id + receipt |
-| GET | `/specs/:id` | Retrieve RUI + receipt |
+---
 
-### Receipt fields (sketch)
+### Platform artifact vs what the user cares about
 
-- `specId`
-- `createdAt`
-- `specVersion`
-- `contentHash`
-- `validationVersion`
+Two different audiences — do not conflate them:
+
+| Audience | v0.1 (now) | v0.2+ (target) |
+|----------|------------|----------------|
+| **End user** | Temporary: agent may share `url` (JSON spec) or §5 viewer — **stand-in** until renderer exists | **`appUrl`** — the live application they can open and use (like canvas / deployed app today) |
+| **Platform / agent / ops** | **`specId`**, `url`, `contentHash`, versions — internal artifact handle + audit | Same — spec remains the source document the renderer consumes; visible on ops dashboard, not the user headline |
+
+```txt
+v0.1 loop (proof):
+  User prompt → agent → validate → save → spec at url (temporary “result”)
+
+v0.2+ loop (product):
+  User prompt → agent → validate → save → render → appUrl
+                                      ↑
+                              specId stays internal;
+                              user never needs spec JSON
+```
+
+**Terminology:** In prose, “receipt” means **the saved spec record as a whole** (id + audit fields + RUI) — not a nested JSON key. The API returns **one flat object**; no `{ receipt: { … } }` wrapper.
+
+§4 **`url`** is a **platform retrieve link** (`GET /api/specs/:id`), not the final user-facing app URL. Agents should treat it as proof-of-save and platform bookkeeping until **`appUrl`** ships with the renderer.
+
+### Decisions (locked for §4)
+
+| Decision | Choice |
+|----------|--------|
+| Storage | **Postgres** (Vercel Postgres via `DATABASE_URL`) — not filesystem, not `generated/` |
+| DB access | **`@vercel/postgres`** + raw SQL migration — no ORM for v0.1 |
+| Write path | **Re-validate inline** on every `POST /api/specs` — no validation token |
+| Request body | **Raw RUI JSON** (same as `POST /api/validate` — not wrapped in `{ "rui": … }`) |
+| Stored artifact | **`normalizedRui`** from `validateSpec()` — never store pre-normalization input |
+| `specId` format | **UUID v4** — server-generated via `crypto.randomUUID()`; agents do not pick ids |
+| Duplicate RUI | **Always insert new row** — same `contentHash` gets a new `specId` (dedupe deferred to v0.2+) |
+| Listing | **`GET /api/specs` out of scope** for v0.1 — only POST + GET by id |
+| `eval_runs` table | **§6 only** — §4 ships `specs` table only |
+| Preview vs prod DB | **Same Postgres** linked to all Vercel envs (Production + Preview + Development) — acceptable for v0.1; isolate per env post–v0.1 if needed |
+| POST success HTTP | **201 Created** |
+| Validation failure on write | **Same as validate** — HTTP **200** + `{ valid: false, errors[] }` |
+| Transport failure on write | **Same as validate** — HTTP **400** + `INVALID_JSON` |
+| DB unavailable | **503** + machine-readable `{ error: "STORAGE_UNAVAILABLE", message: "…" }` |
+| Response shape | **Single flat object** — no nested `receipt`; each field appears once |
+| Saved spec fields | `specId`, `url`, `createdAt`, `contentHash`, `validationVersion`, `registryVersion`, `normalizedRui` |
+| `contentHash` | **`sha256:`** + hex digest of `JSON.stringify(normalizedRui)` |
+| Public **`url`** | **`${baseUrl}/api/specs/${specId}`** — platform retrieve link; computed via `buildSpecUrl(specId)`; not stored in Postgres |
+| Human **`viewUrl`** | **`${baseUrl}/specs/${specId}`** — optional §5 inspect page; not in §4 POST body (add when §5 ships) |
+| User-facing **`appUrl`** | **v0.2+** with renderer — what end users actually open; replaces spec `url` as the agent handoff |
+| Local files after save | **Not required** — platform is source of truth; no `.rui.json` on disk |
+| GET not found | **404** + `{ error: "NOT_FOUND", specId: "…" }` |
+| Invalid `specId` in URL | **400** + `{ error: "INVALID_SPEC_ID", message: "…" }` |
+| Max request body | **256 KB** (reuse `parseTransportRequest` from §2) |
+| Local `generated/*.rui.json` | **Unchanged** — manual eval artifacts; not wired to store |
+
+---
+
+### Postgres schema
+
+Single table for v0.1. Migration SQL committed in repo; run once against Vercel Postgres before smoke/production verify.
+
+```sql
+-- lib/db/migrations/001_specs.sql
+
+CREATE TABLE IF NOT EXISTS specs (
+  id                  UUID PRIMARY KEY,
+  content_hash        TEXT NOT NULL,
+  validation_version  TEXT NOT NULL,
+  registry_version    TEXT NOT NULL,
+  rui                 JSONB NOT NULL,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS specs_content_hash_idx ON specs (content_hash);
+```
+
+| Column | Source |
+|--------|--------|
+| `id` | `crypto.randomUUID()` at insert — exposed as `specId` in API |
+| `content_hash` | `sha256:` + hex of canonical JSON (see below) |
+| `validation_version` | `VALIDATION_VERSION` from validate result |
+| `registry_version` | `REGISTRY_VERSION` from validate result |
+| `rui` | `normalizedRui` JSONB |
+| `created_at` | DB default `NOW()` — echoed as ISO 8601 `createdAt` in API |
+
+**Migration runner:** `scripts/migrate.ts` (or `npm run db:migrate`) — reads SQL file, executes via `@vercel/postgres`. Idempotent (`CREATE TABLE IF NOT EXISTS`). Document in README.
+
+---
+
+### Content hash
+
+Purpose: auditable fingerprint of the stored artifact; enables future dedupe and eval comparisons.
+
+```txt
+normalizedRui  ← validateSpec() phase 5 (deterministic key + sibling order, §2)
+       ↓
+JSON.stringify(normalizedRui)
+       ↓
+SHA-256 → hex digest
+       ↓
+contentHash = "sha256:" + hex
+```
+
+**Implementation:** `lib/db/hash.ts` — `computeContentHash(rui: Rui): string` using Node `crypto.createHash("sha256")`.
+
+Normalization in §2 exists specifically so identical semantic RUIs produce identical hashes regardless of agent emission order.
+
+---
+
+### Saved spec response (flat — no nested `receipt`)
+
+POST **201** and GET **200** return the **same single-level object**. The whole response **is** the saved spec (what we call “receipt” in prose — the platform’s record of a validated save).
+
+```txt
+SavedSpec {
+  specId: string              // UUID — DB primary key; internal handle for render/eval/ops
+  url: string                 // buildSpecUrl(specId) — platform retrieve link (v0.1 handoff)
+  createdAt: string           // ISO 8601 UTC
+  contentHash: string         // "sha256:…" — fingerprint of normalizedRui
+  validationVersion: string   // "0.1" — validator at save time
+  registryVersion: string     // "0.1" — vocabulary at save time
+  normalizedRui: Rui         // the stored document (renderer input in v0.2+)
+}
+```
+
+| Field | Role | Stored in DB? |
+|-------|------|---------------|
+| `specId` | Platform id — render, evals, dashboard | Yes (`specs.id`) |
+| `url` | Retrieve link — v0.1 temporary user/agent result | No — computed |
+| `createdAt` | When saved | Yes (`specs.created_at`) |
+| `contentHash` | Audit / eval fingerprint | Yes (`specs.content_hash`) |
+| `validationVersion` | Rules snapshot | Yes (`specs.validation_version`) |
+| `registryVersion` | Vocabulary snapshot | Yes (`specs.registry_version`) |
+| `normalizedRui` | The RUI artifact | Yes (`specs.rui` JSONB) |
+
+**No nested objects except `normalizedRui` itself** (the RUI tree). No duplicate fields.
+
+**URL builder:** `lib/db/urls.ts` — `buildSpecUrl(specId)` (see **`lib/db/` layout** above).
+
+---
+
+### `lib/db/` layout
+
+```txt
+lib/db/
+├── index.ts            # optional barrel — re-export insertSpec, getSpecById, SavedSpec (match lib/validate/)
+├── client.ts           # sql`` helper from @vercel/postgres; fail fast if DATABASE_URL missing
+├── hash.ts             # computeContentHash(normalizedRui)
+├── urls.ts             # buildSpecUrl(specId) via getBaseUrl()
+├── specs.ts            # insertSpec(), getSpecById(), isValidSpecId()
+├── types.ts            # SavedSpec, SpecRecord, InsertSpecMeta, StoreFailure, …
+└── migrations/
+    └── 001_specs.sql
+```
+
+| Export | Role |
+|--------|------|
+| `insertSpec(normalizedRui, meta)` | INSERT; return flat `SavedSpec` — `url` computed via `buildSpecUrl` |
+| `getSpecById(specId)` | SELECT; map row → flat `SavedSpec` or `null` |
+| `isValidSpecId(id)` | Valid UUID string check for GET route (see [defaults](#implementation-defaults-locked-for-implementer)) |
+| `buildSpecUrl(specId)` | `${getBaseUrl()}/api/specs/${specId}` |
+
+**`InsertSpecMeta`** (argument to `insertSpec` — from `validateSpec()` success):
+
+```txt
+InsertSpecMeta {
+  validationVersion: string   // VALIDATION_VERSION
+  registryVersion: string     // REGISTRY_VERSION
+}
+```
+
+`insertSpec` generates `specId` (`crypto.randomUUID()`), computes `contentHash`, writes DB row, returns full `SavedSpec` including computed `url` and `createdAt`.
+
+**Route handlers stay thin:** transport → `validateSpec()` → on success `insertSpec()` → JSON response.
+
+---
+
+### Save pipeline
+
+```txt
+Phase 1 — Transport (reuse §2)
+    parseTransportRequest                              → 400 on failure
+
+Phase 2–5 — Validate (reuse §2)
+    validateSpec(body)                                   → 200 + errors on failure
+
+Phase 6 — Persist (§4 only)
+    computeContentHash(normalizedRui)
+    INSERT specs (id, content_hash, validation_version, registry_version, rui)
+                                                         → 201 SavedSpec (flat)
+
+Phase 6 failure — DB
+    connection / query error                             → 503 STORAGE_UNAVAILABLE
+```
+
+Invalid RUI **never** reaches Postgres.
+
+---
+
+### `POST /api/specs` — API contract
+
+#### Request
+
+```http
+POST /api/specs
+Content-Type: application/json
+
+<body> = RUI JSON (§1) — same shape as POST /api/validate
+```
+
+| Check | Failure |
+|-------|---------|
+| Same transport rules as §2 | 400 `INVALID_JSON` |
+
+#### Response — success (HTTP 201)
+
+```json
+{
+  "specId": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2026-05-26T12:00:00.000Z",
+  "contentHash": "sha256:abc123…",
+  "validationVersion": "0.1",
+  "registryVersion": "0.1",
+  "normalizedRui": { }
+}
+```
+
+**Agent handoff (v0.1):** Confirm save succeeded; store `specId` internally. For the user, `url` is a **temporary** stand-in (“saved — inspect at `{url}`”) until v0.2 returns **`appUrl`**. Do not treat spec JSON as the final product — the RUI is input to the future renderer.
+
+**Agent handoff (v0.2+):** Tell the user *“Your app is ready at `{appUrl}`.”* — `specId` / spec `url` stay on the platform dashboard for audit, not the user headline.
+
+#### Response — validation failed (HTTP 200)
+
+**Identical shape to `POST /api/validate`** — `{ valid: false, validationVersion, registryVersion, errors[], truncated? }`. Fix and retry (same retry loop as validate).
+
+#### Response — transport failure (HTTP 400)
+
+Same as §2 — `{ valid: false, errors: [{ code: "INVALID_JSON", … }] }`.
+
+#### Response — storage unavailable (HTTP 503)
+
+```json
+{
+  "error": "STORAGE_UNAVAILABLE",
+  "message": "RUI store is temporarily unavailable."
+}
+```
+
+---
+
+### `GET /api/specs/:id` — API contract
+
+#### Request
+
+```http
+GET /api/specs/550e8400-e29b-41d4-a716-446655440000
+```
+
+| Check | Failure |
+|-------|---------|
+| `:id` is valid UUID format | 400 `INVALID_SPEC_ID` |
+| Row exists | 404 `NOT_FOUND` |
+
+#### Response — success (HTTP 200)
+
+```json
+{
+  "specId": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2026-05-26T12:00:00.000Z",
+  "contentHash": "sha256:abc123…",
+  "validationVersion": "0.1",
+  "registryVersion": "0.1",
+  "normalizedRui": { }
+}
+```
+
+Same flat shape as POST — `url` recomputed on every GET.
+
+#### Response — not found (HTTP 404)
+
+```json
+{
+  "error": "NOT_FOUND",
+  "specId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+#### Response — invalid id (HTTP 400)
+
+```json
+{
+  "error": "INVALID_SPEC_ID",
+  "message": "specId must be a UUID."
+}
+```
+
+**Route file:** `app/api/specs/[id]/route.ts` — GET only.
+
+---
+
+### Agent workflow (updated for §4)
+
+Replace §3 workflow step 4 (“501 planned”) with:
+
+```txt
+1. GET /llms.txt  (or GET /api/docs)
+2. GET /api/schema
+3. Agent authors RUI JSON
+4. POST /api/validate  → loop on errors[] until valid: true
+5. POST /api/specs     → 201 SavedSpec (flat) — v0.1: share `url` as temporary result; v0.2+: user gets `appUrl`
+6. GET url             → same SavedSpec shape
+```
+
+Agents may POST directly to `/api/specs` without a prior validate call — store re-validates inline. **Do not** write `normalizedRui` to a local `.rui.json` after save.
+
+---
+
+### Implementation defaults (locked for implementer)
+
+Questions that don’t need another design pass — use these defaults:
+
+| Question | Default |
+|----------|---------|
+| **UUID validation on GET** | Accept any **valid UUID** string (standard regex). Generate ids with `crypto.randomUUID()` (v4). Do not enforce v4-only in the path param. |
+| **`201 Location` header** | **Skip for v0.1** — body field `url` is the handoff; add header later if needed. |
+| **`normalizedRui` on POST** | **Always include** — same flat SavedSpec as GET; redundant after validate is OK for v0.1. |
+| **Smoke test DB cleanup** | **No delete** — leave inserted rows in Postgres for v0.1. |
+| **`lib/db/index.ts` barrel** | **Optional but recommended** — match `lib/validate/index.ts` export pattern. |
+| **Migration on Vercel deploy** | **Manual** — run `npm run db:migrate` locally + once on production Postgres before smoke/prod verify. No auto-migrate in `build` for v0.1. |
+| **`createdAt` format** | Postgres `created_at` → JavaScript `Date` → **`.toISOString()`** (UTC). |
+| **GET `Cache-Control`** | **Out of scope** — no caching headers for v0.1. |
+| **Shared route helper** | Optional `saveFromRequest(request)` mirroring `validateFromRequest` — not required if routes call transport + validate + insert inline. |
+| **`DATABASE_URL` missing** | POST/GET → **503** `STORAGE_UNAVAILABLE` (not 500). |
+
+---
+
+### Pre-implementation checklist
+
+Before coding §4, confirm:
+
+- [x] `DATABASE_URL` in `.env.local` (`vercel env pull` if needed)
+- [x] §2 smoke passes: `npm run smoke:validate`
+- [x] Golden RUI validates: `lib/registry/golden/support-dashboard.rui.json`
+
+Before smoke/prod verify:
+
+- [x] `npm run db:migrate` applied (local)
+- [ ] `npm run db:migrate` applied (production — **after merge/deploy**)
+- [x] `specs` table exists (local)
+
+---
+
+### Handoff summary (implementing agent)
+
+**Read:** This §4 section + §2 validate error shapes.
+
+**Build:**
+
+```txt
+lib/db/                 client, hash, urls, specs, types, migrations/001_specs.sql, index.ts (optional)
+app/api/specs/          route.ts (POST), [id]/route.ts (GET)
+scripts/                migrate.ts, smoke-specs.ts
+```
+
+**Replace:** 501 stub in `app/api/specs/route.ts`.
+
+**Update:** agent docs (Step 6) — remove all 501 / “keep locally” messaging; add save step to getting-started.
+
+**Do not build:** listing, dedupe, auth, `eval_runs`, §5 viewer, renderer.
+
+---
+
+### Implementation steps
+
+**Prerequisites:** §2 complete; `DATABASE_URL` in `.env.local` and Vercel envs.
+
+#### Step 1 — Dependencies + migration
+
+- [x] Add `@vercel/postgres` to `package.json`
+- [x] Create `lib/db/migrations/001_specs.sql` (schema above)
+- [x] Create `scripts/migrate.ts` + `npm run db:migrate`
+- [x] Run migration locally
+- [ ] Run migration on production Postgres (**after merge/deploy**)
+
+#### Step 2 — `lib/db/` core
+
+- [x] `client.ts` — `sql` export from `@vercel/postgres`
+- [x] `hash.ts` — `computeContentHash()`
+- [x] `urls.ts` — `buildSpecUrl(specId)` using `getBaseUrl()` (`lib/base-url.ts`)
+- [x] `types.ts` — `SavedSpec`, `SpecRecord`, `InsertSpecMeta`, store response types
+- [x] `specs.ts` — `insertSpec()`, `getSpecById()`, `isValidSpecId()`
+- [x] `index.ts` — re-export public API (recommended)
+
+#### Step 3 — `POST /api/specs`
+
+- [x] Replace 501 stub in `app/api/specs/route.ts`
+- [x] `parseTransportRequest` → `validateSpec` → `insertSpec`
+- [x] Return 201 / 200 / 400 / 503 per contract above
+
+#### Step 4 — `GET /api/specs/:id`
+
+- [x] `app/api/specs/[id]/route.ts`
+- [x] UUID validation → lookup → 200 / 404 / 400 / 503
+
+#### Step 5 — Smoke test
+
+**Requires:** Step 1 migration applied + `DATABASE_URL` set (same as Step 1 prerequisites).
+
+- [x] `scripts/smoke-specs.ts` + `npm run smoke:specs`
+- [x] POST golden RUI → assert SavedSpec fields, `contentHash` prefix `sha256:`
+- [x] GET by `specId` → assert `normalizedRui` matches POST response
+- [x] Invalid fixture → assert `valid: false` via `validateSpec` (no insert)
+- [x] Bogus UUID → `isValidSpecId` false; unknown UUID → `getSpecById` null
+- [x] No test cleanup — leave rows in DB for v0.1
+
+#### Step 6 — Update agent docs (remove 501 messaging)
+
+- [x] `lib/docs/content/workflow.md` — step 4 save flow + flat SavedSpec 201 example
+- [x] `lib/docs/content/getting-started.md` — add step 5 `POST /api/specs` + SavedSpec handoff (`url`)
+- [x] `lib/docs/content/instructions.md` — remove “keep locally until §4”
+- [x] `lib/docs/index.ts` — `api.specs` + `api.specById` full contract (POST 201, GET by id, flat SavedSpec)
+- [x] `lib/docs/llms.ts` — specs live, not planned
+- [x] `app/page.tsx` — specs persistence live (link in agent list)
+- [x] `scripts/smoke-docs.ts` — assert specs/specById contract (not 501)
+
+#### Step 7 — README + production verify
+
+- [x] README — `db:migrate`, `smoke:specs`, store endpoints
+- [ ] `curl -X POST https://rapidui.dev/api/specs` with golden body → 201 (**after merge/deploy + prod migrate**)
+- [ ] `curl https://rapidui.dev/api/specs/<specId>` → 200 (**after merge/deploy**)
+
+#### Step 8 — Commit
+
+- [ ] Commit: `feat(store): Postgres RUI persistence, POST/GET /api/specs` (**staged; merge pending**)
+
+---
 
 ### Deliverables
 
-- [ ] Postgres schema + storage adapter (Vercel Postgres)
-- [ ] `POST /api/specs` route
-- [ ] `GET /api/specs/:id` route
-- [ ] Receipt generation
-
-### Details to fill in later
-
-- Re-validate on every write vs validation token
-- Id format (uuid, slug)
-- Retention / listing (`GET /specs`) — in or out for v0.1
-- Duplicate handling
+- [x] `@vercel/postgres` dependency
+- [x] `lib/db/` — client, hash, **urls**, types, specs queries, migration SQL, index.ts
+- [x] `scripts/migrate.ts` + `npm run db:migrate`
+- [x] `POST /api/specs` — validate inline + persist (replaces 501 stub)
+- [x] `GET /api/specs/:id` — retrieve flat SavedSpec
+- [x] `npm run smoke:specs`
+- [x] Agent docs updated (workflow, **getting-started**, instructions, `getDocsPayload()`, llms.txt)
 
 ### Done when
 
-- Valid RUI can be saved and fetched by id with receipt
-- Invalid RUI is rejected on write
+- [x] Migration applied locally; `specs` table exists
+- [ ] Migration applied on Vercel Postgres production (**after deploy**)
+- [x] Valid RUI POST → **201** flat SavedSpec (`specId`, `url`, audit fields, `normalizedRui`) — verified locally + agent evals
+- [x] Same RUI fetchable via GET with matching `contentHash` — verified locally
+- [x] Invalid RUI never inserted (validate fails before `insertSpec`)
+- [x] Transport errors → **400**; invalid UUID on GET → **400**; unknown id → **404** — implemented in routes
+- [x] `npm run smoke:specs` passes locally
+- [x] `npm run smoke:validate`, `smoke:docs` pass
+- [ ] Production curl verify on `rapidui.dev` — **still 501 until merge/deploy**
+- [x] Agent workflow docs no longer reference 501 / “keep locally”
+- [x] **Ready to merge §4** — then prod migrate + curl verify; optional §5 viewer or §6 harness next
+
+**§4 status: Complete (local)** — implementation done; **commit + deploy + production migrate** pending.
+
+#### Implementation notes (deviations from original §4 draft)
+
+| Item | Shipped as |
+|------|------------|
+| `getBaseUrl()` | `lib/base-url.ts` — env-driven (`RAPIDUI_BASE_URL` / `VERCEL_URL` / localhost); no hardcoded `rapidui.dev` |
+| `lib/docs/base.ts` | Removed — URL helper moved to `lib/base-url.ts` |
+| `client.ts` DATABASE_URL pre-check | Removed — routes return **503** via `try/catch` on DB errors |
+| CLI env loading | `tsx --env-file=.env.local` on `db:migrate` / `smoke:specs` (no custom loader) |
+| `api.specs` docs shape | `specs` (POST) + `specById` (GET) siblings — no `status: "planned"` field |
+
+#### Post-merge checklist
+
+1. Commit + push to `main` (Vercel auto-deploy)
+2. `npm run db:migrate` against **production** Postgres (with prod `DATABASE_URL`)
+3. Set `RAPIDUI_BASE_URL=https://rapidui.dev` in Vercel production env (if not already)
+4. `curl -X POST https://rapidui.dev/api/specs -H "Content-Type: application/json" -d @lib/registry/golden/support-dashboard.rui.json` → **201**
+5. `curl https://rapidui.dev/api/specs/<specId>` → **200**
+
+> **Not in §4 (by design):** `GET /api/specs` listing, dedupe/idempotency by `contentHash`, validation tokens, auth, `eval_runs` table (§6), §5 viewer page, migrating `generated/*.rui.json` into DB, Drizzle/Prisma ORM.
 
 ---
 
@@ -1788,8 +2242,8 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 
 ### Shows
 
-- Raw RUI JSON
-- Receipt / metadata
+- Raw RUI JSON (`normalizedRui`)
+- SavedSpec metadata (`createdAt`, `contentHash`, `validationVersion`, `registryVersion`) — not a nested “receipt” object
 - Validation status
 - Optional: simple block tree outline
 
@@ -1856,7 +2310,9 @@ rapid-ui/
 │   │   ├── docs/route.ts       # §3 agent documentation
 │   │   ├── schema/route.ts     # §3 vocabulary route
 │   │   ├── validate/route.ts   # §2
-│   │   └── specs/route.ts      # §3 stub → §4 store
+│   │   └── specs/
+│   │       ├── route.ts        # §4 POST
+│   │       └── [id]/route.ts   # §4 GET
 │   └── specs/[id]/page.tsx     # §5 optional viewer
 ├── lib/
 │   ├── registry/               # §1 vocabulary source of truth
@@ -1881,8 +2337,8 @@ Base: `https://rapidui.dev`
 | GET | `/api/docs` | §3 | Agent-readable documentation (JSON + markdown sections) |
 | GET | `/api/schema` | §1, §3 | Vocabulary / block discovery |
 | POST | `/api/validate` | §2 | Validate RUI; return errors or success |
-| POST | `/api/specs` | §3 stub, §4 | §3: 501 planned; §4: store validated RUI + receipt |
-| GET | `/api/specs/:id` | §4 | Retrieve stored RUI + receipt |
+| POST | `/api/specs` | §4 | Store validated RUI (flat SavedSpec, 201) |
+| GET | `/api/specs/:id` | §4 | Retrieve flat SavedSpec |
 | GET | `/specs/:id` | §5 | Optional human viewer |
 
 ---
@@ -1911,7 +2367,7 @@ Track when each section is fully specified and implemented.
 | 1. Vocabulary Registry | ☑ | ☑ | RUI schemas, golden file, smoke test — Option A; B/C planned |
 | 2. Validation Engine | ☑ | ☑ | Pipeline, normalize, `POST /api/validate`, `npm run smoke:validate` |
 | 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
-| 4. RUI Store | ☐ | ☐ | |
+| 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; local verify + agent evals pass; merge + prod migrate pending |
 | 5. RUI Viewer | ☐ | ☐ | |
 | 6. Agent Test Harness | ☐ | ☐ | |
 
@@ -1990,3 +2446,9 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-25 | §3 | Content via `lib/docs/content/*.md` + `readDoc()`; minimal homepage hub; llms.txt discovery notes |
 | 2026-05-26 | §3 | Implemented — `lib/docs/`, routes, homepage hub, `smoke:docs`; commit + production verify pending |
 | 2026-05-26 | §3 | Committed `5163958`; production curl checks pass; manual agent eval (single-page, two-page, thin prompts) — all valid RUIs |
+| 2026-05-26 | §4 | Full implementation spec — Postgres schema, `@vercel/postgres`, re-validate inline, UUID v4 specId, contentHash, POST 201 / GET by id, agent doc update steps |
+| 2026-05-26 | §4 | POST/GET responses include absolute **`url`** (`https://rapidui.dev/api/specs/{specId}`) — agent handoff; no local save; **`viewUrl`** deferred to §5 viewer |
+| 2026-05-26 | §4 | DRY response shape — `specId` + `url` at root only; `receipt` is audit metadata (no repeated id/url) |
+| 2026-05-26 | §4 | Flat **SavedSpec** — no nested `receipt`; v0.1 spec `url` vs v0.2+ `appUrl`; “receipt” = prose only |
+| 2026-05-26 | §4 | Implementer appendix — defaults table, pre-implementation checklist, handoff summary; urls.ts, getting-started, `[id]/route` in structure |
+| 2026-05-27 | §4 | **Implemented** — `lib/db/`, POST/GET `/api/specs`, smoke:specs, docs updated; local agent evals pass (Composer, Sonnet, GPT); commit + prod verify pending |

@@ -26,7 +26,42 @@ npx vercel env pull .env.local
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | Vercel Postgres connection string (used from §4 onward) |
+| `DATABASE_URL` | Vercel Postgres connection string (required for RUI store) |
+| `RAPIDUI_BASE_URL` | Canonical public URL for absolute links in API responses (e.g. `https://rapidui.dev`). Set in Vercel production. Preview/local fall back to `VERCEL_URL` / `localhost`. |
+
+## Database migration
+
+Apply the specs table migration before using the store (local + production). CLI scripts load env from `.env.local` via Node's `--env-file` — run `vercel env pull .env.local` first:
+
+```bash
+npm run db:migrate
+```
+
+Idempotent — safe to re-run (`CREATE TABLE IF NOT EXISTS`).
+
+## RUI store
+
+Persist validated RUIs to Postgres:
+
+```bash
+# Save (re-validates inline)
+curl -X POST https://rapidui.dev/api/specs \
+  -H "Content-Type: application/json" \
+  -d @lib/registry/golden/support-dashboard.rui.json
+
+# Retrieve by specId
+curl https://rapidui.dev/api/specs/{specId}
+```
+
+POST returns **201** flat SavedSpec (`specId`, `url`, `contentHash`, `normalizedRui`, …). GET returns the same shape.
+
+## Smoke tests
+
+```bash
+npm run smoke:validate   # validation engine
+npm run smoke:docs       # agent docs payload
+npm run smoke:specs      # Postgres store (requires DATABASE_URL + migration)
+```
 
 ## Health check
 

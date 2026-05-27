@@ -9,6 +9,11 @@ const agentLinks = [
     label: "POST /api/validate",
     description: "Validate a RUI — retry on errors[] until valid: true",
   },
+  {
+    href: "/api/specs",
+    label: "POST /api/specs",
+    description: "Persist validated RUI — returns 201 flat SavedSpec",
+  },
 ];
 
 export default function Home() {
@@ -70,14 +75,6 @@ export default function Home() {
                 </Link>
               </li>
             ))}
-            <li className="px-4 py-3">
-              <span className="font-mono text-sm font-medium text-zinc-500">
-                POST /api/specs
-              </span>
-              <span className="mt-0.5 block text-sm text-zinc-600 dark:text-zinc-400">
-                Planned (501 until §4) — keep normalizedRui locally after validation
-              </span>
-            </li>
           </ul>
         </section>
 

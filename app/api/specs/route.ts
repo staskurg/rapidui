@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 
-import { getBaseUrl } from "@/lib/docs/base";
+import { insertSpec, STORAGE_UNAVAILABLE_RESPONSE } from "@/lib/db";
+import { validateFromRequest } from "@/lib/validate";
 
-const PLANNED_MESSAGE =
-  "RUI persistence is not available yet. Use POST /api/validate and keep normalizedRui locally until §4 ships.";
+export async function POST(request: Request) {
+  const result = await validateFromRequest(request);
 
-export async function POST() {
-  const baseUrl = getBaseUrl();
+  if (!("validationVersion" in result)) {
+    return NextResponse.json(result, { status: 400 });
+  }
 
-  return NextResponse.json(
-    {
-      status: "planned",
-      message: PLANNED_MESSAGE,
-      implementedIn: "§4",
-      docs: `${baseUrl}/api/docs`,
-      validate: `${baseUrl}/api/validate`,
-    },
-    { status: 501 },
-  );
+  if (!result.valid) {
+    return NextResponse.json(result, { status: 200 });
+  }
+
+  try {
+    const saved = await insertSpec(result.normalizedRui, {
+      validationVersion: result.validationVersion,
+      registryVersion: result.registryVersion,
+    });
+    return NextResponse.json(saved, { status: 201 });
+  } catch {
+    return NextResponse.json(STORAGE_UNAVAILABLE_RESPONSE, { status: 503 });
+  }
 }
