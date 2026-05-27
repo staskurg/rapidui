@@ -147,7 +147,7 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 - [ ] Agent produces a RUI for the support ticket dashboard scenario
 - [x] `POST /api/validate` returns actionable, machine-readable errors
 - [ ] Agent converges to valid RUI within a bounded retry count (target: ≤5)
-- [ ] `POST /api/specs` persists validated RUI (flat SavedSpec)
+- [x] `POST /api/specs` persists validated RUI (flat SavedSpec)
 - [ ] Optional: RUI viewable by id
 
 ---
@@ -178,7 +178,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 1 | [Vocabulary Registry](#1-vocabulary-registry) | §0 | **Complete** |
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
-| 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (merge + prod verify pending) |
+| 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (production verified 2026-05-27) |
 | 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
 
@@ -2094,7 +2094,7 @@ Before coding §4, confirm:
 Before smoke/prod verify:
 
 - [x] `npm run db:migrate` applied (local)
-- [ ] `npm run db:migrate` applied (production — **after merge/deploy**)
+- [x] `npm run db:migrate` applied (production — user ran 2026-05-27)
 - [x] `specs` table exists (local)
 
 ---
@@ -2129,7 +2129,7 @@ scripts/                migrate.ts, smoke-specs.ts
 - [x] Create `lib/db/migrations/001_specs.sql` (schema above)
 - [x] Create `scripts/migrate.ts` + `npm run db:migrate`
 - [x] Run migration locally
-- [ ] Run migration on production Postgres (**after merge/deploy**)
+- [x] Run migration on production Postgres (2026-05-27)
 
 #### Step 2 — `lib/db/` core
 
@@ -2175,12 +2175,12 @@ scripts/                migrate.ts, smoke-specs.ts
 #### Step 7 — README + production verify
 
 - [x] README — `db:migrate`, `smoke:specs`, store endpoints
-- [ ] `curl -X POST https://rapidui.dev/api/specs` with golden body → 201 (**after merge/deploy + prod migrate**)
-- [ ] `curl https://rapidui.dev/api/specs/<specId>` → 200 (**after merge/deploy**)
+- [x] `curl -X POST https://rapidui.dev/api/specs` with golden body → 201 (verified 2026-05-27)
+- [x] `curl https://rapidui.dev/api/specs/<specId>` → 200 (verified 2026-05-27)
 
 #### Step 8 — Commit
 
-- [ ] Commit: `feat(store): Postgres RUI persistence, POST/GET /api/specs` (**staged; merge pending**)
+- [x] Commit + merge: `feat(store): Postgres RUI persistence, POST/GET /api/specs` (merged to production 2026-05-27)
 
 ---
 
@@ -2197,18 +2197,18 @@ scripts/                migrate.ts, smoke-specs.ts
 ### Done when
 
 - [x] Migration applied locally; `specs` table exists
-- [ ] Migration applied on Vercel Postgres production (**after deploy**)
+- [x] Migration applied on Vercel Postgres production (2026-05-27)
 - [x] Valid RUI POST → **201** flat SavedSpec (`specId`, `url`, audit fields, `normalizedRui`) — verified locally + agent evals
 - [x] Same RUI fetchable via GET with matching `contentHash` — verified locally
 - [x] Invalid RUI never inserted (validate fails before `insertSpec`)
 - [x] Transport errors → **400**; invalid UUID on GET → **400**; unknown id → **404** — implemented in routes
 - [x] `npm run smoke:specs` passes locally
 - [x] `npm run smoke:validate`, `smoke:docs` pass
-- [ ] Production curl verify on `rapidui.dev` — **still 501 until merge/deploy**
+- [x] Production curl verify on `rapidui.dev` (POST 201 + GET 200, 2026-05-27)
 - [x] Agent workflow docs no longer reference 501 / “keep locally”
-- [x] **Ready to merge §4** — then prod migrate + curl verify; optional §5 viewer or §6 harness next
+- [x] **§4 merged to production** — prod migrate + curl verify done; optional §5 viewer or §6 harness next
 
-**§4 status: Complete (local)** — implementation done; **commit + deploy + production migrate** pending.
+**§4 status: Complete** — local + production verified (golden POST/GET on `rapidui.dev`, 2026-05-27).
 
 #### Implementation notes (deviations from original §4 draft)
 
@@ -2222,11 +2222,11 @@ scripts/                migrate.ts, smoke-specs.ts
 
 #### Post-merge checklist
 
-1. Commit + push to `main` (Vercel auto-deploy)
-2. `npm run db:migrate` against **production** Postgres (with prod `DATABASE_URL`)
-3. Set `RAPIDUI_BASE_URL=https://rapidui.dev` in Vercel production env (if not already)
-4. `curl -X POST https://rapidui.dev/api/specs -H "Content-Type: application/json" -d @lib/registry/golden/support-dashboard.rui.json` → **201**
-5. `curl https://rapidui.dev/api/specs/<specId>` → **200**
+- [x] Commit + push to `main` (Vercel auto-deploy)
+- [x] `npm run db:migrate` against **production** Postgres (user ran 2026-05-27)
+- [x] Set `RAPIDUI_BASE_URL=https://rapidui.dev` in Vercel production env (if not already) — optional; `url` in responses already resolves to `rapidui.dev`
+- [x] `curl -X POST https://rapidui.dev/api/specs -H "Content-Type: application/json" -d @lib/registry/golden/support-dashboard.rui.json` → **201** (2026-05-27)
+- [x] `curl https://rapidui.dev/api/specs/<specId>` → **200** (2026-05-27; e.g. `45d6f126-84e9-4803-b877-44685abc5de1`)
 
 > **Not in §4 (by design):** `GET /api/specs` listing, dedupe/idempotency by `contentHash`, validation tokens, auth, `eval_runs` table (§6), §5 viewer page, migrating `generated/*.rui.json` into DB, Drizzle/Prisma ORM.
 
@@ -2367,7 +2367,7 @@ Track when each section is fully specified and implemented.
 | 1. Vocabulary Registry | ☑ | ☑ | RUI schemas, golden file, smoke test — Option A; B/C planned |
 | 2. Validation Engine | ☑ | ☑ | Pipeline, normalize, `POST /api/validate`, `npm run smoke:validate` |
 | 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
-| 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; local verify + agent evals pass; merge + prod migrate pending |
+| 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; production migrate + curl verify (2026-05-27) |
 | 5. RUI Viewer | ☐ | ☐ | |
 | 6. Agent Test Harness | ☐ | ☐ | |
 
@@ -2452,3 +2452,4 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-26 | §4 | Flat **SavedSpec** — no nested `receipt`; v0.1 spec `url` vs v0.2+ `appUrl`; “receipt” = prose only |
 | 2026-05-26 | §4 | Implementer appendix — defaults table, pre-implementation checklist, handoff summary; urls.ts, getting-started, `[id]/route` in structure |
 | 2026-05-27 | §4 | **Implemented** — `lib/db/`, POST/GET `/api/specs`, smoke:specs, docs updated; local agent evals pass (Composer, Sonnet, GPT); commit + prod verify pending |
+| 2026-05-27 | §4 | **Production verified** — prod migrate applied; `curl` POST golden → 201, GET by `specId` → 200 on `rapidui.dev` |
