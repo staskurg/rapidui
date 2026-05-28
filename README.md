@@ -53,7 +53,9 @@ curl -X POST https://rapidui.dev/api/specs \
 curl https://rapidui.dev/api/specs/{specId}
 ```
 
-POST returns **201** flat SavedSpec (`specId`, `url`, `contentHash`, `normalizedRui`, …). GET returns the same shape.
+POST returns **201** flat SavedSpec (`specId`, `url`, `viewUrl`, `contentHash`, `normalizedRui`, …). GET returns the same shape.
+
+Open **`viewUrl`** (`/specs/{specId}`) in a browser for the human RUI inspector — type-colored block tree for review.
 
 ## Smoke tests
 
@@ -61,6 +63,7 @@ POST returns **201** flat SavedSpec (`specId`, `url`, `contentHash`, `normalized
 npm run smoke:validate   # validation engine
 npm run smoke:docs       # agent docs payload
 npm run smoke:specs      # Postgres store (requires DATABASE_URL + migration)
+npm run smoke:inspector  # in-process RUI inspector render (no dev server)
 ```
 
 ## Health check
@@ -80,6 +83,7 @@ lib/registry/     # §1 vocabulary registry (RUI schemas)
 lib/validate/     # §2 validation engine
 lib/docs/         # §3 agent documentation content + payloads
 lib/db/           # §4 Postgres client
+lib/review/       # §5 RUI inspector components (block tree)
 eval/cases/       # §6 eval case definitions
 ```
 

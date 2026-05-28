@@ -5,7 +5,7 @@ import type { Rui } from "@/lib/registry";
 import { sql } from "./client";
 import { computeContentHash } from "./hash";
 import type { InsertSpecMeta, SavedSpec, SpecRecord } from "./types";
-import { buildSpecUrl } from "./urls";
+import { buildSpecUrl, buildViewUrl } from "./urls";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -14,6 +14,7 @@ function mapRecordToSavedSpec(record: SpecRecord): SavedSpec {
   return {
     specId: record.id,
     url: buildSpecUrl(record.id),
+    viewUrl: buildViewUrl(record.id),
     createdAt: record.created_at.toISOString(),
     contentHash: record.content_hash,
     validationVersion: record.validation_version,

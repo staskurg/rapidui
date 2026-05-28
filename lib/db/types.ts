@@ -4,6 +4,7 @@ import type { Rui } from "@/lib/registry";
 export type SavedSpec = {
   specId: string;
   url: string;
+  viewUrl: string;
   createdAt: string;
   contentHash: string;
   validationVersion: string;

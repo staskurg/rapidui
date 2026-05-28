@@ -82,6 +82,7 @@ Re-validates inline — you may POST directly without a prior validate call. Inv
 {
   "specId": "550e8400-e29b-41d4-a716-446655440000",
   "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "viewUrl": "https://rapidui.dev/specs/550e8400-e29b-41d4-a716-446655440000",
   "createdAt": "2026-05-26T12:00:00.000Z",
   "contentHash": "sha256:…",
   "validationVersion": "0.1",
@@ -90,7 +91,7 @@ Re-validates inline — you may POST directly without a prior validate call. Inv
 }
 ```
 
-Flat SavedSpec — no nested `receipt`. Share `url` as v0.1 temporary handoff; `GET url` returns the same shape.
+Flat SavedSpec — no nested `receipt`. Share **`viewUrl`** with the user for human review; use `url` for programmatic retrieve (`GET url` returns the same SavedSpec shape).
 
 ### Validation failed (HTTP 200)
 

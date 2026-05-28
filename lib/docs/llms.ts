@@ -24,7 +24,8 @@ ${instructions}
 ## API
 
 - [POST /api/validate](${baseUrl}/api/validate) — validate a RUI; retry on \`errors[]\` until \`valid: true\`
-- [POST /api/specs](${baseUrl}/api/specs) — persist validated RUI; returns **201** flat SavedSpec (\`specId\`, \`url\`, \`normalizedRui\`)
-- [GET /api/specs/:id](${baseUrl}/api/specs/{specId}) — retrieve saved spec by \`specId\`
+- [POST /api/specs](${baseUrl}/api/specs) — persist validated RUI; returns **201** flat SavedSpec (\`specId\`, \`url\`, \`viewUrl\`, \`normalizedRui\`)
+- [GET /api/specs/:id](${baseUrl}/api/specs/{specId}) — retrieve saved spec by \`specId\` (JSON)
+- [GET /specs/:id](${baseUrl}/specs/{specId}) — human RUI inspector (type-colored block tree)
 `;
 }

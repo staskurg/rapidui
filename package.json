@@ -11,6 +11,7 @@
     "smoke:validate": "tsx scripts/smoke-validate.ts",
     "smoke:docs": "tsx scripts/smoke-docs.ts",
     "smoke:specs": "tsx --env-file=.env.local scripts/smoke-specs.ts",
+    "smoke:inspector": "tsx scripts/smoke-inspector.ts",
     "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts"
   },
   "dependencies": {

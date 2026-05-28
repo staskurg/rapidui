@@ -28,7 +28,7 @@ rapidui.dev
 ├── /api/schema        ← vocabulary / block discovery
 ├── /api/validate      ← RUI validation
 ├── /api/specs         ← §3: 501 stub → §4: persist validated RUIs
-└── /specs/[id]        ← optional RUI viewer
+└── /specs/[id]        ← §5 RUI inspector (human review)
 ```
 
 ---
@@ -95,6 +95,8 @@ Agent generates a RUI → POST /api/validate (loop)
     ↓
 On success → POST /api/specs
     ↓
+Human opens viewUrl (§5) — optional visual review
+    ↓
 Log run to Postgres: agent, prompt_id, retries, errors[], pass/fail, duration
 ```
 
@@ -148,7 +150,7 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 - [x] `POST /api/validate` returns actionable, machine-readable errors
 - [ ] Agent converges to valid RUI within a bounded retry count (target: ≤5)
 - [x] `POST /api/specs` persists validated RUI (flat SavedSpec)
-- [ ] Optional: RUI viewable by id
+- [x] Optional: RUI inspectable in browser via `viewUrl` (§5)
 
 ---
 
@@ -158,8 +160,9 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 Agent reads docs → generates a RUI (JSON, `*.rui.json`)
     → POST /api/validate → errors | success
     → (retry loop)
-    → POST /api/specs → SavedSpec (flat)
-    → optional GET /api/specs/:id
+    → POST /api/specs → SavedSpec (flat, includes `viewUrl`)
+    → GET /api/specs/:id (retrieve)
+    → GET /specs/:id (§5 human inspect — viewUrl)
 ```
 
 **Single source of truth:** Vocabulary Registry feeds validation rules and agent documentation.
@@ -179,7 +182,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (production verified 2026-05-27) |
-| 5 | [RUI Viewer (optional)](#5-rui-viewer-optional) | §4 | Not started |
+| 5 | [RUI Inspector (reviewer)](#5-rui-inspector-reviewer) | §4 | **Complete** (local verified 2026-05-27) |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
 
 ### Testing while building §0–§2 (before §3 docs)
@@ -227,7 +230,7 @@ npx create-next-app@latest . --typescript --eslint --app --src-dir=false --impor
 |--------|--------|-----|
 | TypeScript | Yes | Shared types for registry, validator, API |
 | ESLint | Yes | Baseline quality |
-| Tailwind CSS | Yes (optional) | Handy for §5 spec viewer; skip if you want zero UI deps |
+| Tailwind CSS | Yes (optional) | Handy for §5 RUI inspector; skip if you want zero UI deps |
 | `src/` directory | No | Matches [project structure sketch](#project-structure-sketch) |
 | App Router | Yes | API routes + pages |
 | Turbopack | Either | Dev preference |
@@ -1408,7 +1411,7 @@ app/api/validate/route.ts # POST handler → validateSpec
 | Auth | None (v0.1) — no `auth.md` until post–v0.1 |
 | MCP server | Out of §3 — optional post–v0.1 wrapper around validate/schema |
 | Narrative doc content | **`lib/docs/content/*.md`** — loaded via `readDoc()` in server code (not inline TS strings, not pasted from `.cursor/` plan) |
-| Homepage `/` | **§3 minimal hub** — human one-liner + “For agents” links; full marketing / §5 viewer links **later** |
+| Homepage `/` | **§3 minimal hub** — human one-liner + “For agents” links; full marketing / §5 inspector link **later** |
 | Base URL | `https://rapidui.dev` |
 
 #### Naming: RUI vs `specs` (locked)
@@ -1479,7 +1482,7 @@ Optional later: `llms-full.txt` concatenating docs + schema (not required for v0
 
 ### Homepage `GET /` (minimal hub — §3)
 
-Replace the Next.js scaffold with a simple landing page. **Not** a full marketing site in §3; polish later. §5 viewer (`/specs/[id]`) can be linked from `/` when that section ships.
+Replace the Next.js scaffold with a simple landing page. **Not** a full marketing site in §3; polish later. §5 inspector (`/specs/[id]`) can be linked from `/` when that section ships.
 
 **Include:**
 
@@ -1491,7 +1494,7 @@ Replace the Next.js scaffold with a simple landing page. **Not** a full marketin
 | **For developers** | Link to GitHub / README (optional) |
 | Footer | `rapidui.dev` — v0.1 |
 
-**Explicitly defer to later:** visual brand, diagrams, demo video, link to §5 spec viewer, auth.md.
+**Explicitly defer to later:** visual brand, diagrams, demo video, link to §5 RUI inspector, auth.md.
 
 **File:** `app/page.tsx` (+ minimal styling with existing Tailwind). No fetch of full docs into the page — links only.
 
@@ -1732,7 +1735,7 @@ Registry and validate logic stay in `lib/registry/` and `lib/validate/` — docs
 
 **§3 status: Complete** — committed (`5163958`), production verified on `rapidui.dev`, manual agent eval passed (valid RUIs from thin prompts including two-page layout).
 
-> **Not in §3 (by design):** Postgres, real `POST/GET /api/specs`, MCP server, `auth.md`, `llms-full.txt`, OpenAPI export, §6 eval case files, full marketing site, §5 spec viewer on homepage (add link when §5 ships).
+> **Not in §3 (by design):** Postgres, real `POST/GET /api/specs`, MCP server, `auth.md`, `llms-full.txt`, OpenAPI export, §6 eval case files, full marketing site, §5 inspector on homepage (add link when §5 ships).
 
 ---
 
@@ -1752,12 +1755,12 @@ Two different audiences — do not conflate them:
 
 | Audience | v0.1 (now) | v0.2+ (target) |
 |----------|------------|----------------|
-| **End user** | Temporary: agent may share `url` (JSON spec) or §5 viewer — **stand-in** until renderer exists | **`appUrl`** — the live application they can open and use (like canvas / deployed app today) |
+| **End user** | Temporary: agent shares **`viewUrl`** (§5 inspector) — **stand-in** until renderer exists | **`appUrl`** — the live application they can open and use (like canvas / deployed app today) |
 | **Platform / agent / ops** | **`specId`**, `url`, `contentHash`, versions — internal artifact handle + audit | Same — spec remains the source document the renderer consumes; visible on ops dashboard, not the user headline |
 
 ```txt
 v0.1 loop (proof):
-  User prompt → agent → validate → save → spec at url (temporary “result”)
+  User prompt → agent → validate → save → user opens viewUrl (§5 inspector)
 
 v0.2+ loop (product):
   User prompt → agent → validate → save → render → appUrl
@@ -1789,10 +1792,10 @@ v0.2+ loop (product):
 | Transport failure on write | **Same as validate** — HTTP **400** + `INVALID_JSON` |
 | DB unavailable | **503** + machine-readable `{ error: "STORAGE_UNAVAILABLE", message: "…" }` |
 | Response shape | **Single flat object** — no nested `receipt`; each field appears once |
-| Saved spec fields | `specId`, `url`, `createdAt`, `contentHash`, `validationVersion`, `registryVersion`, `normalizedRui` |
+| Saved spec fields | `specId`, `url`, `viewUrl` (§5), `createdAt`, `contentHash`, `validationVersion`, `registryVersion`, `normalizedRui` |
 | `contentHash` | **`sha256:`** + hex digest of `JSON.stringify(normalizedRui)` |
 | Public **`url`** | **`${baseUrl}/api/specs/${specId}`** — platform retrieve link; computed via `buildSpecUrl(specId)`; not stored in Postgres |
-| Human **`viewUrl`** | **`${baseUrl}/specs/${specId}`** — optional §5 inspect page; not in §4 POST body (add when §5 ships) |
+| Human **`viewUrl`** | **`${baseUrl}/specs/${specId}`** — §5 inspector page; added to SavedSpec when §5 ships via `buildViewUrl(specId)` |
 | User-facing **`appUrl`** | **v0.2+** with renderer — what end users actually open; replaces spec `url` as the agent handoff |
 | Local files after save | **Not required** — platform is source of truth; no `.rui.json` on disk |
 | GET not found | **404** + `{ error: "NOT_FOUND", specId: "…" }` |
@@ -1861,7 +1864,8 @@ POST **201** and GET **200** return the **same single-level object**. The whole 
 ```txt
 SavedSpec {
   specId: string              // UUID — DB primary key; internal handle for render/eval/ops
-  url: string                 // buildSpecUrl(specId) — platform retrieve link (v0.1 handoff)
+  url: string                 // buildSpecUrl(specId) — API retrieve (agents, scripts)
+  viewUrl: string             // buildViewUrl(specId) — human inspect (§5)
   createdAt: string           // ISO 8601 UTC
   contentHash: string         // "sha256:…" — fingerprint of normalizedRui
   validationVersion: string   // "0.1" — validator at save time
@@ -1873,7 +1877,8 @@ SavedSpec {
 | Field | Role | Stored in DB? |
 |-------|------|---------------|
 | `specId` | Platform id — render, evals, dashboard | Yes (`specs.id`) |
-| `url` | Retrieve link — v0.1 temporary user/agent result | No — computed |
+| `url` | API retrieve link — agents, audit, scripts | No — computed |
+| `viewUrl` | Human inspector link — share with user after save (§5) | No — computed |
 | `createdAt` | When saved | Yes (`specs.created_at`) |
 | `contentHash` | Audit / eval fingerprint | Yes (`specs.content_hash`) |
 | `validationVersion` | Rules snapshot | Yes (`specs.validation_version`) |
@@ -1882,7 +1887,7 @@ SavedSpec {
 
 **No nested objects except `normalizedRui` itself** (the RUI tree). No duplicate fields.
 
-**URL builder:** `lib/db/urls.ts` — `buildSpecUrl(specId)` (see **`lib/db/` layout** above).
+**URL builders:** `lib/db/urls.ts` — `buildSpecUrl(specId)`, `buildViewUrl(specId)` (§5).
 
 ---
 
@@ -1893,7 +1898,7 @@ lib/db/
 ├── index.ts            # optional barrel — re-export insertSpec, getSpecById, SavedSpec (match lib/validate/)
 ├── client.ts           # sql`` helper from @vercel/postgres; fail fast if DATABASE_URL missing
 ├── hash.ts             # computeContentHash(normalizedRui)
-├── urls.ts             # buildSpecUrl(specId) via getBaseUrl()
+├── urls.ts             # buildSpecUrl(specId), buildViewUrl(specId) via getBaseUrl()
 ├── specs.ts            # insertSpec(), getSpecById(), isValidSpecId()
 ├── types.ts            # SavedSpec, SpecRecord, InsertSpecMeta, StoreFailure, …
 └── migrations/
@@ -1902,10 +1907,11 @@ lib/db/
 
 | Export | Role |
 |--------|------|
-| `insertSpec(normalizedRui, meta)` | INSERT; return flat `SavedSpec` — `url` computed via `buildSpecUrl` |
+| `insertSpec(normalizedRui, meta)` | INSERT; return flat `SavedSpec` — `url` + `viewUrl` computed |
 | `getSpecById(specId)` | SELECT; map row → flat `SavedSpec` or `null` |
 | `isValidSpecId(id)` | Valid UUID string check for GET route (see [defaults](#implementation-defaults-locked-for-implementer)) |
 | `buildSpecUrl(specId)` | `${getBaseUrl()}/api/specs/${specId}` |
+| `buildViewUrl(specId)` | `${getBaseUrl()}/specs/${specId}` (§5) |
 
 **`InsertSpecMeta`** (argument to `insertSpec` — from `validateSpec()` success):
 
@@ -1916,7 +1922,7 @@ InsertSpecMeta {
 }
 ```
 
-`insertSpec` generates `specId` (`crypto.randomUUID()`), computes `contentHash`, writes DB row, returns full `SavedSpec` including computed `url` and `createdAt`.
+`insertSpec` generates `specId` (`crypto.randomUUID()`), computes `contentHash`, writes DB row, returns full `SavedSpec` including computed `url`, `viewUrl` (§5), and `createdAt`.
 
 **Route handlers stay thin:** transport → `validateSpec()` → on success `insertSpec()` → JSON response.
 
@@ -1965,6 +1971,7 @@ Content-Type: application/json
 {
   "specId": "550e8400-e29b-41d4-a716-446655440000",
   "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "viewUrl": "https://rapidui.dev/specs/550e8400-e29b-41d4-a716-446655440000",
   "createdAt": "2026-05-26T12:00:00.000Z",
   "contentHash": "sha256:abc123…",
   "validationVersion": "0.1",
@@ -1973,7 +1980,7 @@ Content-Type: application/json
 }
 ```
 
-**Agent handoff (v0.1):** Confirm save succeeded; store `specId` internally. For the user, `url` is a **temporary** stand-in (“saved — inspect at `{url}`”) until v0.2 returns **`appUrl`**. Do not treat spec JSON as the final product — the RUI is input to the future renderer.
+**Agent handoff (v0.1):** Confirm save succeeded; store `specId` internally. For the **user**, share **`viewUrl`** (“saved — inspect at `{viewUrl}`”). Keep **`url`** for programmatic retrieve and audit. Do not treat raw spec JSON as the final product — the RUI is input to the future renderer.
 
 **Agent handoff (v0.2+):** Tell the user *“Your app is ready at `{appUrl}`.”* — `specId` / spec `url` stay on the platform dashboard for audit, not the user headline.
 
@@ -2015,6 +2022,7 @@ GET /api/specs/550e8400-e29b-41d4-a716-446655440000
 {
   "specId": "550e8400-e29b-41d4-a716-446655440000",
   "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "viewUrl": "https://rapidui.dev/specs/550e8400-e29b-41d4-a716-446655440000",
   "createdAt": "2026-05-26T12:00:00.000Z",
   "contentHash": "sha256:abc123…",
   "validationVersion": "0.1",
@@ -2023,7 +2031,7 @@ GET /api/specs/550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-Same flat shape as POST — `url` recomputed on every GET.
+Same flat shape as POST — `url` and `viewUrl` recomputed on every GET.
 
 #### Response — not found (HTTP 404)
 
@@ -2056,8 +2064,9 @@ Replace §3 workflow step 4 (“501 planned”) with:
 2. GET /api/schema
 3. Agent authors RUI JSON
 4. POST /api/validate  → loop on errors[] until valid: true
-5. POST /api/specs     → 201 SavedSpec (flat) — v0.1: share `url` as temporary result; v0.2+: user gets `appUrl`
-6. GET url             → same SavedSpec shape
+5. POST /api/specs     → 201 SavedSpec (flat) — v0.1: share `viewUrl` with user; keep `url` for agents
+6. GET url             → same SavedSpec shape (API retrieve)
+7. Open viewUrl        → §5 human inspector (block tree)
 ```
 
 Agents may POST directly to `/api/specs` without a prior validate call — store re-validates inline. **Do not** write `normalizedRui` to a local `.rui.json` after save.
@@ -2071,7 +2080,7 @@ Questions that don’t need another design pass — use these defaults:
 | Question | Default |
 |----------|---------|
 | **UUID validation on GET** | Accept any **valid UUID** string (standard regex). Generate ids with `crypto.randomUUID()` (v4). Do not enforce v4-only in the path param. |
-| **`201 Location` header** | **Skip for v0.1** — body field `url` is the handoff; add header later if needed. |
+| **`201 Location` header** | **Skip for v0.1** — body fields `url` + `viewUrl` are the handoff; add header later if needed. |
 | **`normalizedRui` on POST** | **Always include** — same flat SavedSpec as GET; redundant after validate is OK for v0.1. |
 | **Smoke test DB cleanup** | **No delete** — leave inserted rows in Postgres for v0.1. |
 | **`lib/db/index.ts` barrel** | **Optional but recommended** — match `lib/validate/index.ts` export pattern. |
@@ -2115,7 +2124,7 @@ scripts/                migrate.ts, smoke-specs.ts
 
 **Update:** agent docs (Step 6) — remove all 501 / “keep locally” messaging; add save step to getting-started.
 
-**Do not build:** listing, dedupe, auth, `eval_runs`, §5 viewer, renderer.
+**Do not build:** listing, dedupe, auth, `eval_runs`, §5 inspector, renderer.
 
 ---
 
@@ -2165,7 +2174,7 @@ scripts/                migrate.ts, smoke-specs.ts
 #### Step 6 — Update agent docs (remove 501 messaging)
 
 - [x] `lib/docs/content/workflow.md` — step 4 save flow + flat SavedSpec 201 example
-- [x] `lib/docs/content/getting-started.md` — add step 5 `POST /api/specs` + SavedSpec handoff (`url`)
+- [x] `lib/docs/content/getting-started.md` — add step 5 `POST /api/specs` + SavedSpec handoff (`url`; **§5 updates to `viewUrl`**)
 - [x] `lib/docs/content/instructions.md` — remove “keep locally until §4”
 - [x] `lib/docs/index.ts` — `api.specs` + `api.specById` full contract (POST 201, GET by id, flat SavedSpec)
 - [x] `lib/docs/llms.ts` — specs live, not planned
@@ -2206,7 +2215,8 @@ scripts/                migrate.ts, smoke-specs.ts
 - [x] `npm run smoke:validate`, `smoke:docs` pass
 - [x] Production curl verify on `rapidui.dev` (POST 201 + GET 200, 2026-05-27)
 - [x] Agent workflow docs no longer reference 501 / “keep locally”
-- [x] **§4 merged to production** — prod migrate + curl verify done; optional §5 viewer or §6 harness next
+- [x] **§4 merged to production** — prod migrate + curl verify done; §5 inspector or §6 harness next
+- [x] **§5 implemented locally** — inspector at `/specs/:id`, viewUrl on SavedSpec, agent eval + browser verify on `localhost:3000` (2026-05-27)
 
 **§4 status: Complete** — local + production verified (golden POST/GET on `rapidui.dev`, 2026-05-27).
 
@@ -2219,6 +2229,7 @@ scripts/                migrate.ts, smoke-specs.ts
 | `client.ts` DATABASE_URL pre-check | Removed — routes return **503** via `try/catch` on DB errors |
 | CLI env loading | `tsx --env-file=.env.local` on `db:migrate` / `smoke:specs` (no custom loader) |
 | `api.specs` docs shape | `specs` (POST) + `specById` (GET) siblings — no `status: "planned"` field |
+| Agent handoff in shipped docs | Uses **`url`** — **§5 Step 4** updates to **`viewUrl`** for human inspect |
 
 #### Post-merge checklist
 
@@ -2228,39 +2239,354 @@ scripts/                migrate.ts, smoke-specs.ts
 - [x] `curl -X POST https://rapidui.dev/api/specs -H "Content-Type: application/json" -d @lib/registry/golden/support-dashboard.rui.json` → **201** (2026-05-27)
 - [x] `curl https://rapidui.dev/api/specs/<specId>` → **200** (2026-05-27; e.g. `45d6f126-84e9-4803-b877-44685abc5de1`)
 
-> **Not in §4 (by design):** `GET /api/specs` listing, dedupe/idempotency by `contentHash`, validation tokens, auth, `eval_runs` table (§6), §5 viewer page, migrating `generated/*.rui.json` into DB, Drizzle/Prisma ORM.
+> **Not in §4 (by design):** `GET /api/specs` listing, dedupe/idempotency by `contentHash`, validation tokens, auth, `eval_runs` table (§6), §5 inspector page + `viewUrl` field (§5), migrating `generated/*.rui.json` into DB, Drizzle/Prisma ORM.
 
 ---
 
-## 5. RUI Viewer (optional)
+## 5. RUI Inspector (reviewer)
 
-**Purpose:** Minimal human inspection — not a renderer, not a dashboard.
+**Purpose:** Minimal **structural inspection** of a saved RUI — a type-colored block tree for human review. **Not** a renderer, **not** a dashboard, **not** live data from bindings.
 
-**Why optional:** Useful for demos; not required to prove agent RUI emission.
+**Why fifth:** §4 completes validate → save; the inspector closes the loop for humans and §6 eval review. Agents share `viewUrl` after save so you can open a saved spec and see what was produced — essential when comparing Option A / B / C variants without reading raw JSON.
 
-**Homepage (later):** When §5 ships, add a link from §3’s minimal `/` hub to the viewer (e.g. “Inspect a saved RUI”). Full marketing redesign stays out of scope until post–v0.1.
+**Prerequisites:** §4 (`getSpecById`, `buildSpecUrl`, `isValidSpecId`, flat SavedSpec).
 
-### Shows
+**Naming:** “Inspector” / “reviewer” in prose — avoids confusion with a future **preview** or **rendered app** (`appUrl` in v0.2+).
 
-- Raw RUI JSON (`normalizedRui`)
-- SavedSpec metadata (`createdAt`, `contentHash`, `validationVersion`, `registryVersion`) — not a nested “receipt” object
-- Validation status
-- Optional: simple block tree outline
+---
+
+### Platform artifact vs human inspect
+
+| Link | Path | Audience | Role |
+|------|------|----------|------|
+| **`url`** | `/api/specs/{specId}` | Agents, scripts, smoke tests | Retrieve flat SavedSpec JSON |
+| **`viewUrl`** | `/specs/{specId}` | Humans, demos, eval review | Structural block-tree inspector |
+
+```txt
+Agent completes save
+    → POST /api/specs → 201 SavedSpec (specId, url, viewUrl, …)
+    → Agent tells user: open viewUrl to inspect
+    → Browser: GET /specs/{specId} → server-rendered inspector
+```
+
+**Homepage:** No link required for v0.1 — `viewUrl` is the entry point from agent handoff. Optional later: one line on `/` (“Inspect a saved RUI”) when demos need discoverability.
+
+---
+
+### Decisions (locked for §5)
+
+| Decision | Choice |
+|----------|--------|
+| Route | **`GET /specs/[id]`** — App Router page at `app/specs/[id]/page.tsx` |
+| Rendering | **Server-rendered** — `getSpecById()` in RSC; no client fetch to API |
+| Caching | **`export const dynamic = "force-dynamic"`** on page — always read fresh from Postgres |
+| Primary UI | **Type-colored block tree** — mirrors RUI schema hierarchy |
+| Secondary UI | **Collapsible raw JSON** — `<details>` + pretty-printed `normalizedRui` (no client JS) |
+| Theme | **Light-only inspector chrome** — force light background (`bg-zinc-50`) so pastel blocks stay readable; ignore `prefers-color-scheme: dark` on this route |
+| Colors | **Fixed pastel palette by `type`** — same type → same color across all specs |
+| Nesting label | Show **type names** (Page, Section, Metric, …) — do **not** expose JSON key `children` in UI |
+| Section layout | Respect **`direction`**: `row` = horizontal child layout, `stack` = vertical |
+| Data binding display | **Static chips** — method + path + valuePath; **no** HTTP calls to bound endpoints |
+| Text truncation | **200 characters** max in Text blocks — ellipsis after |
+| Unknown block type | **Generic gray fallback** — show `type` + `id` + compact JSON snippet; never crash the page |
+| Auth | **None** — public page (same as §4) |
+| Invalid UUID (HTML) | **`notFound()`** — same as unknown id; HTML route always **404** (API keeps **400** for malformed UUID) |
+| Unknown spec id | **`notFound()`** — scoped `app/specs/[id]/not-found.tsx` |
+| DB unavailable | **`app/specs/[id]/error.tsx`** — minimal “store unavailable” message (503 semantics) |
+| Page title | **`generateMetadata`** — `{meta.title} — RUI Inspector` from `normalizedRui.meta.title` |
+| **`viewUrl` on SavedSpec** | **Add field** on POST 201 / GET 200 — computed via `buildViewUrl(specId)`; not stored in Postgres |
+| **`lib/db/index.ts`** | Re-export **`buildViewUrl`** alongside `buildSpecUrl` |
+| Component layout | **Start minimal** — `colors.ts` + `RuiInspector.tsx` (+ optional `BindingChip.tsx`); split into per-block files only if needed |
+| Smoke test | **In-process render** — import `RuiInspector`, render golden `SavedSpec` to string, assert block type labels; **no dev server required** |
+| Homepage link | **Deferred** — optional one-liner on `/` post-ship |
+| Side-by-side compare | **Out of scope** — single spec per page; compare by opening two tabs (§6 eval workflow) |
+
+---
+
+### SavedSpec extension (§5 adds `viewUrl`)
+
+§4 SavedSpec gains one computed field when §5 ships:
+
+```txt
+SavedSpec {
+  specId: string
+  url: string                 // buildSpecUrl — API retrieve (agents)
+  viewUrl: string             // buildViewUrl — human inspect (§5)
+  createdAt: string
+  contentHash: string
+  validationVersion: string
+  registryVersion: string
+  normalizedRui: Rui
+}
+```
+
+| Field | Builder | Example |
+|-------|---------|---------|
+| `url` | `buildSpecUrl(specId)` | `https://rapidui.dev/api/specs/{uuid}` |
+| `viewUrl` | `buildViewUrl(specId)` | `https://rapidui.dev/specs/{uuid}` |
+
+**`lib/db/urls.ts`:** add `buildViewUrl(specId)` alongside existing `buildSpecUrl`.
+
+**Agent handoff (v0.1):** Agents share **`viewUrl`** with the user for human review; keep **`url`** for programmatic retrieve and audit.
+
+> **API vs HTML errors:** The JSON API keeps **400** for malformed UUIDs on `GET /api/specs/:id`. The human inspector uses **`notFound()` (404)** for both malformed UUID and missing row — simpler UX, no special case in the page.
+
+---
+
+### Visual model
+
+Top-down, registry-faithful tree — not a mock UI:
+
+```txt
+┌─ Audit strip ─ specId, createdAt, contentHash (prefix), versions, link to API url
+├─ version: 0.1
+├─ meta ─ title, description
+├─ navigation ─ items (label → pageId)
+└─ pages
+     └─ [Page] page-support — Support Dashboard
+          └─ [Section] section-metrics — row
+               ├─ [Metric] Open Tickets + binding chip
+               └─ [Metric] Urgent + binding chip
+          └─ [Section] section-tickets — stack
+               ├─ [Text] "All tickets"
+               └─ [Table] Tickets
+                    ├─ binding: GET /api/tickets → items
+                    ├─ columns: id | subject | status | …
+                    └─ filter: status (3 options)
+```
+
+**Golden reference layout:** `lib/registry/golden/support-dashboard.rui.json` — inspector must render this structure readably.
+
+---
+
+### Type color palette (fixed)
+
+Deterministic colors keyed by node kind. Extend when registry adds block types (Options B/C).
+
+| Kind / `type` | UI role | Palette (Tailwind-ish) |
+|---------------|---------|------------------------|
+| `version` | Document version band | neutral zinc |
+| `meta` | App metadata | neutral gray |
+| `navigation` | Nav items | neutral slate |
+| `Page` | Screen container | soft blue (`blue-100` / border `blue-300`) |
+| `Section` | Grouping | soft lavender (`violet-100` / `violet-300`) |
+| `Metric` | KPI block | soft mint (`emerald-100` / `emerald-300`) |
+| `Text` | Static copy | soft peach (`orange-100` / `orange-300`) |
+| `Table` | Tabular block | soft yellow (`amber-100` / `amber-300`) |
+| `binding` | Sub-detail chip | soft pink (`pink-100` / `pink-300`) |
+| `columns` / `filter` | Table sub-parts | lighter amber chips inside Table |
+
+Colors live in one module — `lib/review/colors.ts` — so eval diffs stay consistent.
+
+---
+
+### Block content (what to show per node)
+
+Show **identity + salient props** — not full JSON at every level.
+
+| Node | Header | Body |
+|------|--------|------|
+| **version** | `version: 0.1` | — |
+| **meta** | Meta | `title`, `description` |
+| **navigation** | Navigation | each item: `label` → `pageId` |
+| **Page** | `Page` + `id` + `title` | optional `description` |
+| **Section** | `Section` + `id` + optional `title` | badge: `direction` (row \| stack); nested blocks |
+| **Metric** | `Metric` + `id` + `label` | optional `format`; binding chip |
+| **Text** | `Text` + `id` | `content` truncated at **200 chars** + ellipsis |
+| **Table** | `Table` + `id` + optional `title` | binding chip; column key chips; filter summary if present |
+| **unknown** | `type` + `id` | gray fallback box + compact JSON snippet |
+| **binding** | — | `{method} {path}` → `valuePath` (monospace) |
+| **columns** | — | `{key}` chips with optional `type` |
+| **filter** | — | `{field}` + option count |
+
+Multiple pages: stack vertically (one Page rectangle per entry in `pages[]`). No tab UI required for v0.1 unless needed for readability.
+
+---
+
+### Page layout (inspector chrome)
+
+```txt
+┌─────────────────────────────────────────────────────────────┐
+│ RUI Inspector                          RapidUI v0.1         │
+├─────────────────────────────────────────────────────────────┤
+│ specId · createdAt · sha256:abc… · validation 0.1           │
+│ API: [url] (link)                                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  [colored block tree — recursive from normalizedRui]        │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│ ▼ Raw JSON (collapsible)                                    │
+│   { "version": "0.1", … }                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Raw JSON:** native **`<details>` / `<summary>`** in RSC — pretty-printed `JSON.stringify(normalizedRui, null, 2)` inside `<pre>`. No client component for collapse in v0.1.
+
+**Styling:** Match homepage patterns (`app/page.tsx`) — zinc borders, `max-w-2xl` or wider for tree, Geist Mono for ids/paths/bindings. Inspector wrapper uses **light-only** chrome regardless of system dark mode.
+
+---
+
+### `lib/review/` layout
+
+Presentation-only — walks existing `Rui` types from `@/lib/registry`; no validation re-run on page (spec already validated at save).
+
+**Minimal v0.1 (preferred):**
+
+```txt
+lib/review/
+├── colors.ts           # TYPE_COLORS map — type/kind → Tailwind classes
+├── RuiInspector.tsx    # recursive tree — audit strip, meta/nav, pages, all block types
+└── BindingChip.tsx     # optional — extract if RuiInspector grows
+```
+
+**Optional split** (only if file gets unwieldy):
+
+```txt
+lib/review/
+├── colors.ts
+├── RuiInspector.tsx
+├── PageBlock.tsx
+├── SectionBlock.tsx
+├── MetricBlock.tsx | TextBlock.tsx | TableBlock.tsx
+├── BindingChip.tsx
+└── index.ts
+```
+
+| Piece | Role |
+|-------|------|
+| `RuiInspector` | Root — receives `SavedSpec`; renders audit strip + full block tree |
+| Recursive block render | Page → Section → Block; Section `direction` controls flex |
+| `BindingChip` | `{method} {path}` → `valuePath` in monospace |
+| Unknown `type` | Gray fallback — never throw |
+
+### App route files
+
+```txt
+app/specs/[id]/
+├── page.tsx            # force-dynamic; getSpecById; generateMetadata; RuiInspector
+├── not-found.tsx       # scoped 404 — invalid UUID or missing spec
+└── error.tsx           # DB / unexpected errors — “store unavailable”
+```
+
+**Route logic (`page.tsx`):**
+
+```txt
+if !isValidSpecId(id) → notFound()
+spec = await getSpecById(id)
+if !spec → notFound()
+return <RuiInspector spec={spec} />
+```
+
+DB errors bubble to `error.tsx` (same pattern as API **503** semantics).
+
+---
+
+### Handoff summary (implementing agent)
+
+**Read:** This §5 section + §4 SavedSpec + golden RUI.
+
+**Build:**
+
+```txt
+lib/db/urls.ts              # add buildViewUrl(specId)
+lib/db/types.ts               # add viewUrl to SavedSpec
+lib/db/specs.ts               # mapRecordToSavedSpec includes viewUrl
+lib/db/index.ts               # re-export buildViewUrl
+lib/review/                   # colors.ts + RuiInspector.tsx (+ optional BindingChip)
+app/specs/[id]/page.tsx       # force-dynamic, generateMetadata
+app/specs/[id]/not-found.tsx
+app/specs/[id]/error.tsx
+scripts/smoke-inspector.ts    # in-process render smoke (no dev server)
+package.json                  # add smoke:inspector script
+```
+
+**Update:** agent docs + §4 SavedSpec examples — `viewUrl` in JSON; getting-started tells user to open `viewUrl` (not `url`).
+
+**Do not build:** renderer, live binding fetch, side-by-side compare, auth, spec listing, homepage marketing.
+
+---
+
+### Implementation steps
+
+**Prerequisites:** §4 complete; golden spec POST-able locally.
+
+#### Step 1 — `viewUrl` on SavedSpec
+
+- [x] `buildViewUrl(specId)` in `lib/db/urls.ts`
+- [x] `viewUrl` on `SavedSpec` type; `mapRecordToSavedSpec` computes it
+- [x] Re-export `buildViewUrl` from `lib/db/index.ts`
+- [x] POST/GET responses include `viewUrl`
+- [x] Update `scripts/smoke-specs.ts` — assert `viewUrl` includes specId and `/specs/` path
+
+#### Step 2 — `lib/review/` core
+
+- [x] `colors.ts` — fixed palette per type/kind (light-mode pastels)
+- [x] `RuiInspector.tsx` — recursive tree; unknown block fallback
+- [x] Optional `BindingChip.tsx` if inline gets noisy
+- [x] Recursive walk: `pages → sections → blocks` using registry types
+- [x] Section `direction`: row vs stack layout for child blocks
+- [x] Text content truncated at 200 chars
+
+#### Step 3 — `GET /specs/[id]`
+
+- [x] `app/specs/[id]/page.tsx` — `export const dynamic = "force-dynamic"`
+- [x] `generateMetadata` from `normalizedRui.meta.title`
+- [x] Invalid UUID or not found → `notFound()`
+- [x] `app/specs/[id]/not-found.tsx` — scoped 404 copy
+- [x] `app/specs/[id]/error.tsx` — store unavailable message
+- [x] Light-only wrapper (`bg-zinc-50`); `<details>` raw JSON at bottom
+
+#### Step 4 — Agent docs (+ §4 example alignment)
+
+- [x] `lib/docs/content/getting-started.md` — share **`viewUrl`** with user (not `url`)
+- [x] `lib/docs/content/workflow.md` — save handoff mentions `viewUrl`
+- [x] `lib/docs/content/instructions.md` — SavedSpec fields include `viewUrl`
+- [x] `lib/docs/index.ts` — SavedSpec includes `viewUrl`; document human route `GET /specs/:id`
+- [x] `lib/docs/llms.ts` — viewUrl in specs bullet
+- [x] `scripts/smoke-docs.ts` — assert `viewUrl` in SavedSpec contract + inspector route documented
+
+#### Step 5 — Smoke + verify
+
+- [x] `scripts/smoke-inspector.ts` — build golden `SavedSpec` in-process, render `RuiInspector` via `react-dom/server` (`renderToStaticMarkup`), assert HTML contains `Page`, `Section`, `Metric`, `Table`, `Text`
+- [x] `npm run smoke:inspector` in `package.json`
+- [x] README — inspector route + smoke script documented
+- [ ] Production verify: POST golden on `rapidui.dev` → open `/specs/{specId}` in browser (manual — post-deploy)
+
+#### Step 6 — Commit
+
+- [x] Commit: `feat(inspector): RUI block-tree review at /specs/:id + viewUrl on SavedSpec`
+
+---
 
 ### Deliverables
 
-- [ ] `GET /specs/:id/view` or static page that fetches spec — TBD
-- [ ] Basic readable layout
+- [x] `buildViewUrl(specId)` + `viewUrl` on SavedSpec (POST/GET); exported from `lib/db/index.ts`
+- [x] `lib/review/` — type-colored block tree (`colors.ts` + `RuiInspector.tsx`)
+- [x] `GET /specs/[id]` — server-rendered inspector (`force-dynamic`, `generateMetadata`)
+- [x] `not-found.tsx` + `error.tsx` under `app/specs/[id]/`
+- [x] Collapsible raw `normalizedRui` JSON via `<details>`
+- [x] Agent docs updated (`viewUrl` handoff; §4 JSON examples aligned)
+- [x] `npm run smoke:inspector` — in-process render smoke
 
-### Details to fill in later
-
-- Server-rendered vs static SPA
-- Auth (if any)
-- Pretty-print vs tree view
+**§5 status: Complete** — local verified (agent eval + browser inspect on `localhost:3000`, 2026-05-27). Production browser check pending post-deploy.
 
 ### Done when
 
-- Saved spec is inspectable in browser without reading raw API responses manually
+- [x] Valid golden POST → SavedSpec includes `viewUrl` (`/specs/{specId}`)
+- [x] Opening `viewUrl` shows audit strip + version + meta + navigation + page tree
+- [x] Golden spec renders: 1 Page, 2 Sections (row + stack), 2 Metrics, 1 Text, 1 Table with binding/columns/filter visible
+- [x] Block types use fixed pastel colors on light background (Page ≠ Section ≠ Metric ≠ Table)
+- [x] Section with `direction: "row"` lays out child blocks horizontally
+- [x] Raw JSON available via `<details>` at page bottom
+- [x] Invalid UUID and unknown spec id → scoped 404 (`not-found.tsx`)
+- [x] DB failure → error page (503 semantics)
+- [x] Page title uses `normalizedRui.meta.title`
+- [x] Agent getting-started tells user to open **`viewUrl`** (not `url`) after save
+- [x] `npm run smoke:specs` + `npm run smoke:inspector` + `npm run smoke:docs` pass locally
+- [ ] Production: POST + manual browser check on `/specs/{specId}` (post-deploy)
+
+> **Not in §5 (by design):** React renderer, live API execution, side-by-side A/B/C compare UI, auth, `GET /api/specs` listing, homepage redesign, `appUrl`, eval_runs (§6).
 
 ---
 
@@ -2313,12 +2639,16 @@ rapid-ui/
 │   │   └── specs/
 │   │       ├── route.ts        # §4 POST
 │   │       └── [id]/route.ts   # §4 GET
-│   └── specs/[id]/page.tsx     # §5 optional viewer
+│   └── specs/[id]/             # §5 RUI inspector
+│       ├── page.tsx
+│       ├── not-found.tsx
+│       └── error.tsx
 ├── lib/
 │   ├── registry/               # §1 vocabulary source of truth
 │   ├── validate/               # §2 validation engine
 │   ├── docs/                   # §3 agent doc content + getDocsPayload()
-│   └── db/                     # §4 Postgres client + queries
+│   ├── db/                     # §4 Postgres client + queries
+│   └── review/                 # §5 inspector components (block tree)
 ├── eval/
 │   └── cases/                  # §6 eval case definitions
 └── ...
@@ -2338,8 +2668,8 @@ Base: `https://rapidui.dev`
 | GET | `/api/schema` | §1, §3 | Vocabulary / block discovery |
 | POST | `/api/validate` | §2 | Validate RUI; return errors or success |
 | POST | `/api/specs` | §4 | Store validated RUI (flat SavedSpec, 201) |
-| GET | `/api/specs/:id` | §4 | Retrieve flat SavedSpec |
-| GET | `/specs/:id` | §5 | Optional human viewer |
+| GET | `/api/specs/:id` | §4 | Retrieve flat SavedSpec (`url`, `viewUrl`, …) |
+| GET | `/specs/:id` | §5 | Human RUI inspector — type-colored block tree |
 
 ---
 
@@ -2368,7 +2698,7 @@ Track when each section is fully specified and implemented.
 | 2. Validation Engine | ☑ | ☑ | Pipeline, normalize, `POST /api/validate`, `npm run smoke:validate` |
 | 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
 | 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; production migrate + curl verify (2026-05-27) |
-| 5. RUI Viewer | ☐ | ☐ | |
+| 5. RUI Inspector | ☑ | ☑ | Block tree at `/specs/:id`, viewUrl on SavedSpec, local verified 2026-05-27; prod browser check post-deploy |
 | 6. Agent Test Harness | ☐ | ☐ | |
 
 ---
@@ -2453,3 +2783,6 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-26 | §4 | Implementer appendix — defaults table, pre-implementation checklist, handoff summary; urls.ts, getting-started, `[id]/route` in structure |
 | 2026-05-27 | §4 | **Implemented** — `lib/db/`, POST/GET `/api/specs`, smoke:specs, docs updated; local agent evals pass (Composer, Sonnet, GPT); commit + prod verify pending |
 | 2026-05-27 | §4 | **Production verified** — prod migrate applied; `curl` POST golden → 201, GET by `specId` → 200 on `rapidui.dev` |
+| 2026-05-27 | §5 | Full implementation spec — RUI Inspector at `/specs/:id`, type-colored block tree, `viewUrl` on SavedSpec, `lib/review/` |
+| 2026-05-27 | §5 | Pre-flight locked — HTML 404 for bad/missing ids, light-only chrome, `force-dynamic`, in-process smoke, minimal `lib/review/` layout; §4 SavedSpec examples + handoff updated for `viewUrl` |
+| 2026-05-27 | §5 | **Implemented** — `lib/review/`, `GET /specs/:id`, viewUrl on SavedSpec, smoke:inspector; local agent eval + browser verify pass; prod browser check post-deploy |

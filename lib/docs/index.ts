@@ -73,6 +73,7 @@ function getApiSection(baseUrl: string) {
           shape: {
             specId: "UUID",
             url: `${baseUrl}/api/specs/{specId}`,
+            viewUrl: `${baseUrl}/specs/{specId}`,
             createdAt: "ISO 8601 UTC",
             contentHash: "sha256:…",
             validationVersion: VALIDATION_VERSION,
@@ -80,7 +81,7 @@ function getApiSection(baseUrl: string) {
             normalizedRui: "<canonical RUI object>",
           },
           notes:
-            "Flat SavedSpec — no nested receipt. Re-validates inline; stores normalizedRui only.",
+            "Flat SavedSpec — no nested receipt. Re-validates inline; stores normalizedRui only. Share viewUrl with humans for block-tree review.",
         },
         validationFailed: {
           httpStatus: 200,
@@ -116,7 +117,7 @@ function getApiSection(baseUrl: string) {
         },
       },
       notes:
-        "A spec is a stored RUI. v0.1 url is a platform retrieve link — share as temporary handoff until appUrl ships with renderer.",
+        "A spec is a stored RUI. url is the API retrieve link; viewUrl is the human inspector (§5).",
     },
     specById: {
       method: "GET",
@@ -128,13 +129,14 @@ function getApiSection(baseUrl: string) {
           shape: {
             specId: "UUID",
             url: `${baseUrl}/api/specs/{specId}`,
+            viewUrl: `${baseUrl}/specs/{specId}`,
             createdAt: "ISO 8601 UTC",
             contentHash: "sha256:…",
             validationVersion: VALIDATION_VERSION,
             registryVersion: "0.1",
             normalizedRui: "<canonical RUI object>",
           },
-          notes: "Same flat SavedSpec as POST 201. url is recomputed on every GET.",
+          notes: "Same flat SavedSpec as POST 201. url and viewUrl are recomputed on every GET.",
         },
         notFound: {
           httpStatus: 404,
@@ -155,6 +157,13 @@ function getApiSection(baseUrl: string) {
           },
         },
       },
+    },
+    inspector: {
+      method: "GET",
+      path: "/specs/:id",
+      url: `${baseUrl}/specs/{specId}`,
+      notes:
+        "Human RUI inspector — server-rendered type-colored block tree. Public; no auth in v0.1.",
     },
   };
 }

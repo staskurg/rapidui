@@ -37,6 +37,8 @@ async function runSmokeSpecs(): Promise<void> {
 
   assert(saved.specId, "SavedSpec should include specId");
   assert(saved.url.includes(saved.specId), "SavedSpec url should include specId");
+  assert(saved.viewUrl.includes(saved.specId), "SavedSpec viewUrl should include specId");
+  assert(saved.viewUrl.includes("/specs/"), "SavedSpec viewUrl should use /specs/ path");
   assert(saved.createdAt.endsWith("Z"), "createdAt should be ISO 8601 UTC");
   assert(
     saved.contentHash.startsWith("sha256:"),

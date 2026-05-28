@@ -7,7 +7,7 @@ export type {
   SpecRecord,
   StoreFailure,
 } from "./types";
-export { buildSpecUrl } from "./urls";
+export { buildSpecUrl, buildViewUrl } from "./urls";
 
 export const STORAGE_UNAVAILABLE_RESPONSE = {
   error: "STORAGE_UNAVAILABLE" as const,

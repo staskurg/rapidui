@@ -42,6 +42,7 @@ After `POST /api/specs` returns **201**, use the flat response:
 {
   "specId": "550e8400-e29b-41d4-a716-446655440000",
   "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
+  "viewUrl": "https://rapidui.dev/specs/550e8400-e29b-41d4-a716-446655440000",
   "createdAt": "2026-05-26T12:00:00.000Z",
   "contentHash": "sha256:…",
   "validationVersion": "0.1",
@@ -50,4 +51,4 @@ After `POST /api/specs` returns **201**, use the flat response:
 }
 ```
 
-Share `url` as temporary proof-of-save. `GET url` returns the same SavedSpec shape.
+Share **`viewUrl`** with the user for human review (type-colored block tree). Use `url` for programmatic retrieve via `GET url`.
