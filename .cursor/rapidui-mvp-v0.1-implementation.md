@@ -182,7 +182,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 2 | [Validation Engine](#2-validation-engine--post-apivalidate) | §1 | **Complete** |
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (production verified 2026-05-27) |
-| 5 | [RUI Inspector (reviewer)](#5-rui-inspector-reviewer) | §4 | **Complete** (local verified 2026-05-27) |
+| 5 | [RUI Inspector (reviewer)](#5-rui-inspector-reviewer) | §4 | **Complete** (production verified 2026-05-28) |
 | 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
 
 ### Testing while building §0–§2 (before §3 docs)
@@ -2551,7 +2551,7 @@ package.json                  # add smoke:inspector script
 - [x] `scripts/smoke-inspector.ts` — build golden `SavedSpec` in-process, render `RuiInspector` via `react-dom/server` (`renderToStaticMarkup`), assert HTML contains `Page`, `Section`, `Metric`, `Table`, `Text`
 - [x] `npm run smoke:inspector` in `package.json`
 - [x] README — inspector route + smoke script documented
-- [ ] Production verify: POST golden on `rapidui.dev` → open `/specs/{specId}` in browser (manual — post-deploy)
+- [x] Production verify: POST golden on `rapidui.dev` → open `/specs/{specId}` in browser (manual — verified 2026-05-28)
 
 #### Step 6 — Commit
 
@@ -2569,7 +2569,7 @@ package.json                  # add smoke:inspector script
 - [x] Agent docs updated (`viewUrl` handoff; §4 JSON examples aligned)
 - [x] `npm run smoke:inspector` — in-process render smoke
 
-**§5 status: Complete** — local verified (agent eval + browser inspect on `localhost:3000`, 2026-05-27). Production browser check pending post-deploy.
+**§5 status: Complete** — local + production verified (agent eval, browser inspect on `localhost:3000`, POST + inspector on `rapidui.dev`, 2026-05-28).
 
 ### Done when
 
@@ -2584,7 +2584,7 @@ package.json                  # add smoke:inspector script
 - [x] Page title uses `normalizedRui.meta.title`
 - [x] Agent getting-started tells user to open **`viewUrl`** (not `url`) after save
 - [x] `npm run smoke:specs` + `npm run smoke:inspector` + `npm run smoke:docs` pass locally
-- [ ] Production: POST + manual browser check on `/specs/{specId}` (post-deploy)
+- [x] Production: POST + manual browser check on `/specs/{specId}` (verified 2026-05-28)
 
 > **Not in §5 (by design):** React renderer, live API execution, side-by-side A/B/C compare UI, auth, `GET /api/specs` listing, homepage redesign, `appUrl`, eval_runs (§6).
 
@@ -2698,7 +2698,7 @@ Track when each section is fully specified and implemented.
 | 2. Validation Engine | ☑ | ☑ | Pipeline, normalize, `POST /api/validate`, `npm run smoke:validate` |
 | 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
 | 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; production migrate + curl verify (2026-05-27) |
-| 5. RUI Inspector | ☑ | ☑ | Block tree at `/specs/:id`, viewUrl on SavedSpec, local verified 2026-05-27; prod browser check post-deploy |
+| 5. RUI Inspector | ☑ | ☑ | Block tree at `/specs/:id`, viewUrl on SavedSpec; local + production verified (2026-05-28) |
 | 6. Agent Test Harness | ☐ | ☐ | |
 
 ---
@@ -2786,3 +2786,4 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-27 | §5 | Full implementation spec — RUI Inspector at `/specs/:id`, type-colored block tree, `viewUrl` on SavedSpec, `lib/review/` |
 | 2026-05-27 | §5 | Pre-flight locked — HTML 404 for bad/missing ids, light-only chrome, `force-dynamic`, in-process smoke, minimal `lib/review/` layout; §4 SavedSpec examples + handoff updated for `viewUrl` |
 | 2026-05-27 | §5 | **Implemented** — `lib/review/`, `GET /specs/:id`, viewUrl on SavedSpec, smoke:inspector; local agent eval + browser verify pass; prod browser check post-deploy |
+| 2026-05-28 | §5 | **Production verified** — `curl` POST golden → 201 with `viewUrl`; inspector at `/specs/{specId}` returns 200; manual browser check pass on `rapidui.dev` |
