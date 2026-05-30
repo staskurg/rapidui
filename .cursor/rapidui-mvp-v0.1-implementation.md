@@ -181,10 +181,10 @@ Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `e
 ## Success Criteria (MVP v0.1)
 
 - [x] §0 complete — app deployed at `https://rapidui.dev`, Postgres provisioned
-- [ ] External agent discovers vocabulary from docs without verbal hand-holding
-- [ ] Agent produces a RUI for the support ticket dashboard scenario
+- [x] External agent discovers vocabulary from docs without verbal hand-holding
+- [x] Agent produces a RUI for the support ticket dashboard scenario
 - [x] `POST /api/validate` returns actionable, machine-readable errors
-- [ ] Agent converges to valid RUI within a bounded retry count (target: ≤5)
+- [x] Agent converges to valid RUI within a bounded retry count (target: ≤5)
 - [x] `POST /api/specs` persists validated RUI (flat SavedSpec)
 - [x] Optional: RUI inspectable in browser via `viewUrl` (§5)
 
@@ -219,7 +219,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (production verified 2026-05-27) |
 | 5 | [RUI Inspector (reviewer)](#5-rui-inspector-reviewer) | §4 | **Complete** (production verified 2026-05-28) |
-| 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§5 | **Ready for implementation** — spec locked 2026-05-30 |
+| 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§5 | **Complete** (production verified 2026-05-30) |
 
 ### Testing while building §0–§2 (before §3 docs)
 
@@ -2662,7 +2662,7 @@ package.json                  # add smoke:inspector script
 
 | Phase | Scope | Ship in |
 |-------|-------|---------|
-| **Phase 1** | Eval cases, manual runner, `eval_runs`, `eval/score.ts`, `log-eval-run.ts` | **§6 v0.1** |
+| **Phase 1** | Eval cases, manual runner, `eval_runs`, `eval/score.ts`, `log-eval-run.ts` | **§6 v0.1 — shipped 2026-05-30** |
 | **Phase 2** | Optional `X-RapidUI-*` headers, `api_events` table, retry count from platform side | **v0.2** (spec below; do not implement in §6 v0.1) |
 | **Phase 3** | API keys, `agent_sessions`, ops dashboard, LLM judge | **v1+** (deferred) |
 
@@ -2886,7 +2886,7 @@ CREATE INDEX IF NOT EXISTS eval_runs_completed_idx ON eval_runs (completed_at DE
 | `validate_count` | From `---EVAL_RESULT---` or future `api_events` |
 | `error_codes` | Deduped union from failed validate responses |
 | `final_spec_id` | UUID from successful `POST /api/specs` |
-| `view_url` | From SavedSpec or `buildViewUrl(specId)` |
+| `view_url` | From agent `viewUrl`, `--view-url`, or `{base_url}/specs/{specId}` in `eval:log` |
 | `blocks_found` | Block `type` values found in tree (score script computes) |
 | `score_details` | JSON: `{ missingBlocks, missingBindings, retryExceeded }` |
 | `notes` | Free-form human notes |
@@ -3012,22 +3012,22 @@ scripts/
 
 ### Manual runner checklist
 
-**Prod (required for §6 done)** — per agent:
+**Prod (required for §6 done)** — per agent (all three completed 2026-05-30):
 
-- [ ] Empty working directory (no RapidUI repo)
-- [ ] Generate prompt: `npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod` → paste to agent
-- [ ] Agent completes without reading local project files
-- [ ] Agent uses curl; validate loop ≤ 5 attempts
-- [ ] `POST /api/specs` → 201 with `final_spec_id` + `view_url`
-- [ ] Human opens `view_url` — optional §5 check
-- [ ] Run `npm run eval:log` from rapidui repo → row in Postgres
-- [ ] Confirm `eval/score.ts` passed for that row
+- [x] Empty working directory (no RapidUI repo)
+- [x] Generate prompt: `npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod` → paste to agent
+- [x] Agent completes without reading local project files
+- [x] Agent uses curl; validate loop ≤ 5 attempts
+- [x] `POST /api/specs` → 201 with `final_spec_id` + `view_url`
+- [x] Human opens `view_url` — optional §5 check
+- [x] Run `npm run eval:log` from rapidui repo → row in Postgres
+- [x] Confirm `eval/score.ts` passed for that row
 
 **Local (optional playground):**
 
-- [ ] Generate prompt with `--env=local`; same agent loop against localhost
-- [ ] Optional: agent prints `---EVAL_RESULT---` → paste to personal notes
-- [ ] No Postgres insert unless you explicitly run `eval:log`
+- [x] Generate prompt with `--env=local`; same agent loop against localhost
+- [x] Optional: agent prints `---EVAL_RESULT---` → paste to personal notes
+- [x] No Postgres insert unless you explicitly run `eval:log`
 
 ---
 
@@ -3178,7 +3178,7 @@ Phase 1 implements **requiredBlocks**, **requiredBindings**, **maxRetries** only
 
 **Do not build:** Phase 2/3 items, `POST /api/eval/log`, Option B/C cases, duplicated per-case prompt files.
 
-**After code ships (human):** three prod agent evals → `eval:log` each → SQL pass-rate query.
+**After code ships (human):** three prod agent evals → `eval:log` each → SQL pass-rate query. **Done 2026-05-30** — all three agents passed.
 
 **Phase 1 proves:** mechanism (docs → valid RUI → logged score). Generalization (thin/held-out cases) is **post–§6 optional** — see [Scaling path](#scaling-path--phase-1-today-vs-many-cases-b-c-).
 
@@ -3214,66 +3214,77 @@ package.json                  # eval:prompt, eval:score, eval:log; optional smok
 
 #### Step 1 — Eval case + manual prompts
 
-- [ ] `eval/cases/support-dashboard-v0.1.json` — locked schema per above
-- [ ] `eval/types.ts` — `EvalCase`, `SuccessCriteria`, `EvalResultBlock` (fields match `eval_runs`)
-- [ ] `lib/eval/renderPrompt.ts` — merge `case.prompt` into `eval/manual/wrapper_{prod,local}.txt` (`{{TASK}}`, `{{BASE_URL}}`)
-- [ ] `eval/manual/wrapper_prod.txt` + `wrapper_local.txt` — shared wrappers
-- [ ] `eval/manual/{cursor,claude,codex}/README.md` — invocation per agent CLI
-- [ ] `npm run eval:prompt` — print full prompt to stdout
+- [x] `eval/cases/support-dashboard-v0.1.json` — locked schema per above
+- [x] `eval/types.ts` — `EvalCase`, `SuccessCriteria`, `EvalResultBlock` (fields match `eval_runs`)
+- [x] `lib/eval/renderPrompt.ts` — merge `case.prompt` into `eval/manual/wrapper_{prod,local}.txt` (`{{TASK}}`, `{{BASE_URL}}`)
+- [x] `eval/manual/wrapper_prod.txt` + `wrapper_local.txt` — shared wrappers
+- [x] `eval/manual/{cursor,claude,codex}/README.md` — invocation per agent CLI
+- [x] `npm run eval:prompt` — print full prompt to stdout
 
 #### Step 2 — Scoring library
 
-- [ ] `lib/eval/loadCase.ts` — load case JSON by id
-- [ ] `lib/eval/collectBlocks.ts` — walk `Rui` → block types + binding paths
-- [ ] `lib/eval/scoreRun.ts` — deterministic pass/fail + `score_details`
-- [ ] `lib/eval/parseEvalResult.ts` — parse `---EVAL_RESULT---` from stdin (local paste workflow)
-- [ ] `eval/score.ts` — CLI: `--specId`, `--case`, optional `--validate-count`
-- [ ] `npm run eval:score` in `package.json`
+- [x] `lib/eval/loadCase.ts` — load case JSON by id
+- [x] `lib/eval/collectBlocks.ts` — walk `Rui` → block types + binding paths
+- [x] `lib/eval/scoreRun.ts` — deterministic pass/fail + `score_details`
+- [x] `lib/eval/parseEvalResult.ts` — parse `---EVAL_RESULT---` from stdin (local paste workflow)
+- [x] `eval/score.ts` — CLI: `--specId`, `--case`, optional `--validate-count`
+- [x] `npm run eval:score` in `package.json`
 
 #### Step 3 — Postgres `eval_runs` + log script
 
-- [ ] `lib/db/migrations/002_eval_runs.sql`
-- [ ] `lib/db/evalRuns.ts` — `insertEvalRun`, `listEvalRunsByCase` (minimal)
-- [ ] Extend `scripts/migrate.ts` to apply `002_eval_runs.sql` (after 001)
-- [ ] `scripts/log-eval-run.ts` — CLI flags or stdin EVAL_RESULT → score → insert
-- [ ] `npm run eval:log` in `package.json`
-- [ ] Optional: `scripts/smoke-eval.ts` + `npm run smoke:eval` — score golden SavedSpec against primary case
+- [x] `lib/db/migrations/002_eval_runs.sql`
+- [x] `lib/db/evalRuns.ts` — `insertEvalRun`, `listEvalRunsByCase` (minimal)
+- [x] Extend `scripts/migrate.ts` to apply `002_eval_runs.sql` (after 001)
+- [x] `scripts/log-eval-run.ts` — CLI flags or stdin EVAL_RESULT → score → insert
+- [x] `npm run eval:log` in `package.json`
+- [x] Optional: `scripts/smoke-eval.ts` + `npm run smoke:eval` — score golden SavedSpec against primary case
 
 #### Step 4 — Log prod runs + verify three agents
 
-- [ ] Re-run: Cursor, Claude, Codex on `support-dashboard-v0.1` @ **prod**
-- [ ] Each run: `eval:log` → `eval_runs` row + score pass
-- [ ] Query error code frequency — confirm empty or documented
-- [ ] Human opens each `view_url` — optional §5 review
+- [x] Re-run: Cursor, Claude, Codex on `support-dashboard-v0.1` @ **prod**
+- [x] Each run: `eval:log` → `eval_runs` row + score pass
+- [x] Query error code frequency — `UNKNOWN_PROP`, `INVALID_PROP_TYPE` (Cursor + Codex meta/nav fixes)
+- [x] Human opens each `view_url` — optional §5 review
 
 #### Step 5 — Docs + commit
 
-- [ ] README — eval folder layout, prod log workflow, local playground note
-- [ ] Commit: `feat(eval): agent test harness — cases, eval_runs, score script`
+- [x] README — eval folder layout, prod log workflow, local playground note
+- [x] Commit: `feat(eval): agent test harness — cases, eval_runs, score script` (`9ec5495`)
+- [x] Commit: `fix(eval): derive view_url from base-url when logging prod runs` (`d0e83e4`)
 
 ---
 
 ### Deliverables
 
-- [ ] `eval/cases/support-dashboard-v0.1.json`
-- [ ] `eval/manual/` — shared wrappers + per-agent README
-- [ ] `lib/eval/` + `eval/score.ts` — deterministic scoring
-- [ ] `eval_runs` Postgres table + migration 002
-- [ ] `scripts/log-eval-run.ts` + `npm run eval:log`
-- [ ] Three **prod** agents logged on primary case with scored outcomes
+- [x] `eval/cases/support-dashboard-v0.1.json`
+- [x] `eval/manual/` — shared wrappers + per-agent README
+- [x] `lib/eval/` + `eval/score.ts` — deterministic scoring
+- [x] `eval_runs` Postgres table + migration 002
+- [x] `scripts/log-eval-run.ts` + `npm run eval:log`
+- [x] Three **prod** agents logged on primary case with scored outcomes
 
-**§6 status: Spec complete — ready for implementation.**
+**§6 status: Complete** — local + production verified (three prod agent evals on `rapidui.dev`, 2026-05-30).
+
+### Production agent eval log (`support-dashboard-v0.1`)
+
+| Agent | `final_spec_id` | `validate_count` | `error_codes` | `passed` |
+|-------|-----------------|------------------|---------------|----------|
+| Claude CLI | `f055e529-6390-484d-a912-4c2cb4ac101b` | 1 | — | ✓ |
+| Cursor agent | `05cbc27c-7c94-4b38-9d57-38029b33c8f3` | 2 | `UNKNOWN_PROP` | ✓ |
+| Codex CLI | `b05e4325-d979-4982-ad75-a39d8c0ed921` | 2 | `UNKNOWN_PROP`, `INVALID_PROP_TYPE` | ✓ |
+
+All three agents authored distinct valid RUIs from `/api/schema` + eval prompt (no golden copy from public docs). Platform docs refactored during §6: **`/api/docs` is case-agnostic** — eval task/mock API live only in `eval/cases/` + `eval:prompt` wrapper.
 
 ### Done when
 
 **Mechanism (§6 v0.1 — required):**
 
-- [ ] `eval/cases/support-dashboard-v0.1.json` committed
-- [ ] `npm run eval:prompt`, `eval:score`, `eval:log` work locally
-- [ ] Cursor, Claude, and Codex each complete primary case on **prod** with **`eval_runs` row in Postgres**
-- [ ] `eval/score.ts` deterministic pass for each logged run
-- [ ] Error code frequency queryable from `eval_runs`
-- [ ] Manual workflow documented in `eval/manual/*/README.md`
+- [x] `eval/cases/support-dashboard-v0.1.json` committed
+- [x] `npm run eval:prompt`, `eval:score`, `eval:log` work locally
+- [x] Cursor, Claude, and Codex each complete primary case on **prod** with **`eval_runs` row in Postgres**
+- [x] `eval/score.ts` deterministic pass for each logged run
+- [x] Error code frequency queryable from `eval_runs`
+- [x] Manual workflow documented in `eval/manual/*/README.md`
 
 **Credibility (post–§6 — optional, not blocking MVP):**
 
@@ -3301,11 +3312,11 @@ package.json                  # eval:prompt, eval:score, eval:log; optional smok
 ### v0.1 implementation order (keep simple)
 
 ```txt
-1. eval/cases/support-dashboard-v0.1.json + eval/manual/ wrappers + eval:prompt
-2. lib/eval/ + eval/score.ts
-3. 002_eval_runs.sql + log-eval-run.ts + extend migrate.ts
-4. Re-run Cursor + Claude + Codex on prod → eval:log → Postgres
-5. README + commit
+1. [x] eval/cases/support-dashboard-v0.1.json + eval/manual/ wrappers + eval:prompt
+2. [x] lib/eval/ + eval/score.ts
+3. [x] 002_eval_runs.sql + log-eval-run.ts + extend migrate.ts
+4. [x] Re-run Cursor + Claude + Codex on prod → eval:log → Postgres
+5. [x] README + commit
 ```
 
 ---
@@ -3393,7 +3404,7 @@ Track when each section is fully specified and implemented.
 | 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
 | 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; production migrate + curl verify (2026-05-27) |
 | 5. RUI Inspector | ☑ | ☑ | Block tree at `/specs/:id`, viewUrl on SavedSpec; local + production verified (2026-05-28) |
-| 6. Agent Test Harness | ☑ | ☐ | Ready for implementation — case-generic harness, eval:prompt/score/log, mechanism vs credibility split |
+| 6. Agent Test Harness | ☑ | ☑ | eval:prompt/score/log, eval_runs, three prod agents passed (2026-05-30); case-agnostic platform docs |
 
 ---
 
@@ -3483,3 +3494,5 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-28 | §5 | **Production verified** — `curl` POST golden → 201 with `viewUrl`; inspector at `/specs/{specId}` returns 200; manual browser check pass on `rapidui.dev` |
 | 2026-05-30 | §6 | **Full implementation spec** — eval harness vs session observability; Phase 1–3 roadmap; eval case JSON, `eval_runs`, `eval/score.ts`, phased observability design |
 | 2026-05-30 | §6 | **Spec locked for implementation** — wrapper+renderPrompt model, npm scripts contract, implementer start here, mechanism vs credibility done-when |
+| 2026-05-30 | §6 | **Implemented** — eval cases, scoring, `eval_runs` migration, `eval:prompt`/`eval:score`/`eval:log`, `smoke:eval`; platform docs stripped of eval answer key |
+| 2026-05-30 | §6 | **Production verified** — Cursor, Claude, Codex each pass `support-dashboard-v0.1` on `rapidui.dev`; rows in `eval_runs`; commits `9ec5495`, `d0e83e4` |
