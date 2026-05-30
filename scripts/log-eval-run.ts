@@ -1,9 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
-
 import { getSpecById } from "../lib/db/specs";
 import { insertEvalRun } from "../lib/db/evalRuns";
-import { buildViewUrl } from "../lib/db/urls";
 import { parseEvalResult } from "../lib/eval/parseEvalResult";
 import {
   parseCliArgs,
@@ -74,8 +70,16 @@ async function main(): Promise<void> {
         : EVAL_BASE_URLS.prod;
     notes = typeof args.notes === "string" ? args.notes : undefined;
 
+    viewUrl =
+      typeof args["view-url"] === "string"
+        ? args["view-url"]
+        : `${baseUrl.replace(/\/$/, "")}/specs/${specId}`;
+
+    // Ensure spec exists in Postgres before logging
     const spec = await getSpecById(specId);
-    viewUrl = spec?.viewUrl ?? buildViewUrl(specId);
+    if (!spec) {
+      throw new Error(`Spec not found in Postgres: ${specId}`);
+    }
   }
 
   const score = await scoreRun({ specId, caseId, validateCount });
