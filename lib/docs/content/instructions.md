@@ -5,5 +5,4 @@
 - **Save** with `POST /api/specs` — returns **201** flat SavedSpec (`specId`, `url`, `viewUrl`, audit fields, `normalizedRui`); re-validates inline
 - **Handoff (v0.1):** share **`viewUrl`** with the user for human block-tree review; use `url` for programmatic retrieve via `GET url`
 - **Naming:** say **RUI** in prose; `/api/specs` is the HTTP resource for a stored RUI (a spec is a stored RUI)
-- **Demo:** for the support dashboard eval, bind `GET /api/tickets` (table, `valuePath: "items"`) and `GET /api/tickets/stats` (metrics, scalar `valuePath` per field)
-- **Reference:** compare against `examples.supportDashboard.goldenRui` in `GET /api/docs`
+- **Task intent:** comes from the user or session prompt — not from these platform docs. Author the RUI that matches the request using the vocabulary in `/api/schema`

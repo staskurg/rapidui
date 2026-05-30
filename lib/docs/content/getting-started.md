@@ -1,6 +1,6 @@
 # Getting started
 
-Copy-paste block for agent evals and external sessions.
+Platform docs for external agents. **Your task prompt is separate** — it describes what app to build. These docs describe *how* to speak RapidUI.
 
 ## Base URL
 
@@ -10,29 +10,24 @@ https://rapidui.dev
 
 ## Fetch order
 
-1. `GET https://rapidui.dev/llms.txt`
-2. `GET https://rapidui.dev/api/schema`
-3. Author RUI JSON
-4. `POST https://rapidui.dev/api/validate` — loop until `valid: true`
-5. `POST https://rapidui.dev/api/specs` — persist; receive flat SavedSpec (201)
+1. `GET /llms.txt` — discovery index
+2. `GET /api/docs` — workflow, API contracts, error catalog
+3. `GET /api/schema` — block vocabulary and binding rules
+4. Author RUI JSON that matches **your task prompt**
+5. `POST /api/validate` — loop until `valid: true`
+6. `POST /api/specs` — persist; receive flat SavedSpec (201)
 
-## Support dashboard prompt
+## Authoring
 
-```
-Generate a RUI for an internal support dashboard. Bind to GET /api/tickets (ticket list) and GET /api/tickets/stats (open and urgent counts).
-```
+Use only blocks and bindings from `/api/schema`. Structure: `Page` → `Section` → `Metric` | `Table` | `Text`.
 
-## Expected shape
+Binding patterns (apply to whatever API paths your task specifies):
 
-- Metric row: open tickets, urgent count (`GET /api/tickets/stats`)
-- Filterable Table: id, subject, status, assignee, created (`GET /api/tickets`, `valuePath: "items"`)
-- Blocks: at least `Metric` and `Table`
+- **Table** — `GET` binding with `valuePath` selecting the row array in the response
+- **Metric** — `GET` binding with `valuePath` selecting a scalar field in the response
+- **Text** — static copy; no binding
 
-## Golden reference
-
-The full golden RUI is in `/api/docs` → `sections` → `examples.supportDashboard.goldenRui`.
-
-Validate your output against `POST /api/validate` — do not emit React or JSX.
+Do not emit React or JSX.
 
 ## SavedSpec handoff (v0.1)
 

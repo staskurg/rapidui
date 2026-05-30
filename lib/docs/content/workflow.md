@@ -105,9 +105,3 @@ Same shape as `POST /api/validate` — fix `errors[]` and retry.
   "message": "RUI store is temporarily unavailable."
 }
 ```
-
-## Demo prompt (Option A)
-
-> Generate a RUI for an internal support dashboard. Bind to `GET /api/tickets` (ticket list) and `GET /api/tickets/stats` (open and urgent counts).
-
-See the `examples.supportDashboard` section in `/api/docs` for the golden reference RUI.

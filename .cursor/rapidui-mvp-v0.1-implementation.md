@@ -14,7 +14,7 @@ Skeleton document for building the **validate → correct → save** loop. Each 
 | 2 | **Demo scenario** | **Option A — Support / Ops Ticket Dashboard** (B & C added as eval cases later) |
 | 3 | **Deployment** | **Hosted from day one** — domain: **rapidui.dev** |
 | 4 | **API auth (v0.1)** | **None** — public endpoints for now |
-| 5 | **Agents for proof** | **Cursor agent** (primary, fast iteration) + **Claude** (external agent test case) |
+| 5 | **Agents for proof** | **Cursor agent** (primary) + **Claude** + **Codex** (external agent test cases) |
 | 6 | **Storage** | **Postgres** (Vercel Postgres or equivalent) — no local-only hacks |
 | 7 | **Docs delivery** | **API-served** via Next.js route handlers on Vercel |
 
@@ -75,6 +75,28 @@ The MVP hypothesis is **RUI reliability**, not UI aesthetics. Evals answer:
 3. Where did it **get stuck** (which error codes recur)?
 4. Does the RUI **match the prompt intent** (right blocks, right bindings)?
 
+### Two systems (do not merge for v0.1)
+
+| System | Purpose | v0.1 scope |
+|--------|---------|------------|
+| **Eval harness** (§6) | Controlled regression — known prompt, known pass/fail criteria | **Build now** |
+| **Session observability** | Production telemetry — unknown user intent, analytics, enterprise ops | **Design now; implement v0.2+** |
+
+Both share correlation primitives (`sessionId`, optional headers) later, but serve different questions:
+
+- **Eval run:** “Can agents speak RapidUI reliably on Option A?”
+- **Agent session:** “What are real users trying to build, and where does the registry fall short?”
+
+### Three ID types (do not conflate)
+
+| ID | Scope | Who creates | Purpose |
+|----|-------|-------------|---------|
+| **`sessionId`** | One agent working session | Agent (UUID at start) | Correlate validate retries + saves (v0.2+) |
+| **`evalRunId`** | One controlled test attempt | Platform or human | Regression tracking (§6) |
+| **`specId`** | One saved artifact | Platform on `POST /api/specs` | Inspect, render, audit (§4–§5) |
+
+A session may emit many validate calls and zero or many saves. An **eval run** points at the **final `specId`** you score. There is no single “UI ID for the whole session.”
+
 ### Two layers of scoring
 
 | Layer | How | When |
@@ -87,9 +109,9 @@ Deterministic scoring is enough to prove the platform. Semantic scoring tells yo
 ### v0.1 eval flow (manual + logged)
 
 ```txt
-Eval case (prompt + mock API context)
+Eval case (prompt + mock API context)          ← eval/cases/*.json
     ↓
-Agent reads GET /api/docs + GET /api/schema
+Agent reads GET /api/docs + GET /api/schema   ← no repo context (external prompt)
     ↓
 Agent generates a RUI → POST /api/validate (loop)
     ↓
@@ -97,34 +119,48 @@ On success → POST /api/specs
     ↓
 Human opens viewUrl (§5) — optional visual review
     ↓
-Log run to Postgres: agent, prompt_id, retries, errors[], pass/fail, duration
+Agent prints ---EVAL_RESULT--- block           ← local prompt only (optional paste to personal notes)
+    ↓
+scripts/log-eval-run.ts → Postgres eval_runs    ← prod runs only; one place for logs
+    ↓
+eval/score.ts verifies deterministic criteria ← required blocks, bindings, retries (authoritative pass/fail)
 ```
 
-**Cursor agent** runs this during development (fast debug). **Claude** runs the same cases headlessly to prove external agents work without Cursor context.
+**Cursor agent** runs this during development (fast debug). **Claude** and **Codex** run the same cases headlessly to prove external agents work without Cursor context.
 
 ### Eval system building blocks (sequenced)
 
 | Phase | What | Purpose |
 |-------|------|---------|
-| **v0.1** | Eval cases as JSON (prompt, mock API, expected block checklist) | Repeatable test definitions |
-| **v0.1** | `eval_runs` table in Postgres | Log every run — retries, errors, outcome |
-| **v0.1** | Manual runner (Cursor / Claude + checklist) | Prove loop before automating |
-| **v0.2** | `POST /api/eval/run` or CLI script | Trigger agent + score automatically |
-| **v0.2** | Batch mode: N prompts × 2 agents | Pass rate, avg retries, regression |
+| **v0.1 (§6)** | Eval cases as JSON + `eval/manual/` prompts | Repeatable test definitions in repo |
+| **v0.1 (§6)** | `eval_runs` table in Postgres | **Prod runs only** — single source of truth |
+| **v0.1 (§6)** | `eval/score.ts` + `scripts/log-eval-run.ts` | Deterministic pass/fail + insert row (no HTTP log endpoint) |
+| **v0.1 (§6)** | `---EVAL_RESULT---` in **local prompt only** | Paste to personal notes while playing on localhost |
+| **v0.1 (§6)** | Manual runner | Prove loop before automating |
+| **v0.2** | Optional request headers + `api_events` table | Per-request correlation without agent prompts |
+| **v0.2** | `POST /api/eval/run` or CLI batch runner | Trigger agent + score automatically |
+| **v0.2** | Batch mode: N prompts × 3 agents | Pass rate, avg retries, regression |
+| **v1** | `agent_sessions`, API keys, ops dashboard | Enterprise observability |
 | **v1** | LLM judge for intent rubric | Score semantic fit beyond validation |
 
-### Eval case shape (sketch)
+### Eval case shape (locked for v0.1)
 
-```txt
+```json
 {
-  id: "support-dashboard-v0.1",
-  prompt: "Generate a RUI for an internal support dashboard. Bind to GET /api/tickets and GET /api/tickets/stats.",
-  mockApi: { endpoints: [...] },
-  successCriteria: {
-    mustValidate: true,
-    maxRetries: 5,
-    requiredBlocks: ["Table", "Metric"],
-    requiredBindings: ["GET /api/tickets"]
+  "id": "support-dashboard-v0.1",
+  "title": "Option A — Support / Ops Ticket Dashboard",
+  "prompt": "Generate a RUI for an internal support dashboard. Bind to GET /api/tickets (ticket list) and GET /api/tickets/stats (open and urgent counts).",
+  "mockApi": {
+    "endpoints": [
+      { "method": "GET", "path": "/api/tickets", "description": "Ticket list; table valuePath: items" },
+      { "method": "GET", "path": "/api/tickets/stats", "description": "Open and urgent counts; scalar valuePath per metric" }
+    ]
+  },
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 5,
+    "requiredBlocks": ["Table", "Metric"],
+    "requiredBindings": ["GET /api/tickets"]
   }
 }
 ```
@@ -134,11 +170,11 @@ Log run to Postgres: agent, prompt_id, retries, errors[], pass/fail, duration
 - **Pass rate** — % of cases that reach valid RUI within max retries
 - **Avg retries** — lower is better; spikes mean docs or error messages need work
 - **Error code frequency** — which validation errors agents hit most (feeds doc improvements)
-- **Agent comparison** — Cursor vs Claude on same cases
+- **Agent comparison** — Cursor vs Claude vs Codex on same cases
 
 ### Where this lives in the implementation plan
 
-Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `eval_runs` can be added alongside **§4 RUI Store**. Full automation is explicitly **post-v0.1** unless time allows.
+Eval cases and logging extend **§6 Agent Test Harness**. Postgres schema for `eval_runs` ships in §6 (migration `002_eval_runs.sql`). Session observability (`api_events`, headers) is **specified in §6 as Phase 2 design** but implemented post–v0.1. Full automation is explicitly **post-v0.1** unless time allows.
 
 ---
 
@@ -183,7 +219,7 @@ Agent reads docs → generates a RUI (JSON, `*.rui.json`)
 | 3 | [Agent Documentation](#3-agent-documentation) | §1, §2 (`ERROR_CATALOG`, live validator) | **Complete** |
 | 4 | [RUI Store](#4-rui-store--post-apispecs) | §0 (Postgres), §2 | **Complete** (production verified 2026-05-27) |
 | 5 | [RUI Inspector (reviewer)](#5-rui-inspector-reviewer) | §4 | **Complete** (production verified 2026-05-28) |
-| 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§4 | Not started |
+| 6 | [Agent Test Harness](#6-agent-test-harness--evals) | §1–§5 | **Ready for implementation** — spec locked 2026-05-30 |
 
 ### Testing while building §0–§2 (before §3 docs)
 
@@ -2592,35 +2628,685 @@ package.json                  # add smoke:inspector script
 
 ## 6. Agent Test Harness & Evals
 
-**Purpose:** Repeatable proof that the hypothesis holds — not a one-off manual demo. Foundation for the eval system.
+**Purpose:** Repeatable proof that the hypothesis holds — not a one-off manual demo. Foundation for the eval system (regression lab), with a documented path to session observability (production telemetry).
 
-### Agents
+**Why sixth:** §1–§5 complete the platform loop (vocabulary → validate → save → inspect). §6 proves **external agents** can traverse that loop without repo context — the core MVP success criterion.
 
-| Agent | Role |
-|-------|------|
-| **Cursor agent** | Primary — fast iteration, debug docs/validation while building |
-| **Claude** | External proof — same eval cases, no Cursor context |
+**Prerequisites:** §3 (agent docs), §4 (`POST /api/specs`), §5 (`viewUrl` inspector).
 
-### Includes
+**Naming:** “Eval harness” = controlled test cases + logged outcomes. “Session observability” = per-request tracing for real usage — related but **not** §6 v0.1 scope.
 
-- [ ] Eval case definitions (prompt + mock API + success criteria) — see [Agent Eval Strategy](#agent-eval-strategy)
-- [ ] Primary case: **Option A — support ticket dashboard**
-- [ ] Secondary cases: Options B & C added as eval prompts when ready
-- [ ] Checklist: docs → generate → validate → fix → save
-- [ ] `eval_runs` table in Postgres (agent, prompt_id, retries, errors, pass/fail, duration)
-- [ ] Pass/fail criteria: valid RUI within ≤5 retries + required block checklist
+---
 
-### Details to fill in later
+### Two systems (eval harness vs session observability)
 
-- Eval case JSON schema
-- Manual runner workflow vs `POST /api/eval/run` (likely manual for v0.1)
-- How Claude is invoked (API script vs manual session)
-- CI integration — out for v0.1
+```txt
+┌─────────────────────────────────────────────────────────────────┐
+│  EVAL HARNESS (§6 v0.1 — build now)                             │
+│  Known prompt + successCriteria → eval_run row → score.ts       │
+│  Question: Can agents produce valid RUIs for Option A?          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │  shares correlation IDs (v0.2+)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SESSION OBSERVABILITY (Phase 2–3 — design now, build later)    │
+│  Optional headers → api_events → analytics dashboard            │
+│  Question: What are users building? Where does registry fail?   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Phased roadmap
+
+| Phase | Scope | Ship in |
+|-------|-------|---------|
+| **Phase 1** | Eval cases, manual runner, `eval_runs`, `eval/score.ts`, `log-eval-run.ts` | **§6 v0.1** |
+| **Phase 2** | Optional `X-RapidUI-*` headers, `api_events` table, retry count from platform side | **v0.2** (spec below; do not implement in §6 v0.1) |
+| **Phase 3** | API keys, `agent_sessions`, ops dashboard, LLM judge | **v1+** (deferred) |
+
+---
+
+### Decisions (locked for §6 v0.1)
+
+| Decision | Choice |
+|----------|--------|
+| Primary eval case | **Option A — support ticket dashboard** (`support-dashboard-v0.1`) |
+| Secondary cases | Options B & C — eval case JSON only when registry supports them |
+| Agents under test | **Cursor**, **Claude CLI**, **Codex CLI** — same prompt, no repo access |
+| Runner mode | **Manual** — human starts agent session with external prompt; no `POST /api/eval/run` in v0.1 |
+| Agent context | **Zero repo context** — prompt says “do not read local files”; discovery via `llms.txt` only |
+| Base URLs | **`wrapper_prod.txt`** → `https://rapidui.dev`; **`wrapper_local.txt`** → `http://localhost:3000` |
+| Prompt assembly | **`lib/eval/renderPrompt.ts`** + `npm run eval:prompt` — injects `case.prompt` into shared wrapper; **do not** duplicate case text in manual files |
+| Structured handoff | **`---EVAL_RESULT---` in local wrapper only** (`wrapper_local.txt`) — field names match `eval_runs`; optional paste to personal notes |
+| Prod logging | **`scripts/log-eval-run.ts`** from repo — `--specId`, `--case`, `--agent`, `--validate-count`; **Postgres is the only log** |
+| Local logging | **No Postgres row** — local is for play; optional EVAL_RESULT paste to personal notes only |
+| Scoring | **Deterministic only** — `eval/score.ts` checks saved spec + case criteria; no LLM judge |
+| `eval_runs` insert | **`scripts/log-eval-run.ts`** — scores first, then inserts; **`POST /api/eval/log` deferred to v0.2** |
+| Pass/fail | **`eval/score.ts` is authoritative** — not agent self-report |
+| Visual review | Human opens **`viewUrl`** (§5) — optional; not part of automated score |
+| MVP “done” matrix | **Prod required** (`rapidui.dev`) for all three agents; **local optional** (dev playground) |
+| In-repo eval layout | `eval/cases/`, `eval/manual/`, `eval/score.ts`, `lib/eval/`, `scripts/log-eval-run.ts` |
+| `eval_runs.id` | **`crypto.randomUUID()` in app** — same pattern as §4 `specId` |
+| DB migration | **`002_eval_runs.sql`** — separate from `001_specs.sql` |
+| CI / batch runner | **Out of scope** for v0.1 |
+| Session headers / `api_events` | **Designed in §6 Phase 2** — not implemented in v0.1 |
+| Auth / agent identity | **Deferred** to v1 |
+
+---
+
+### Prod vs local workflow
+
+| | **Prod** (`wrapper_prod.txt`) | **Local** (`wrapper_local.txt`) |
+|--|------------------------------|--------------------------------|
+| **Purpose** | MVP proof — counts toward §6 done | Playground while developing |
+| **Log to Postgres** | **Yes** — via `scripts/log-eval-run.ts` | **No** |
+| **Agent output** | Print `final_spec_id` + `view_url` when done (plain text) | Print full `---EVAL_RESULT---` block (optional paste to personal notes) |
+| **Scoring** | Run `eval/score.ts` as part of log script | Optional — same script if you want a quick check |
+
+**No duplicate logs:** Postgres `eval_runs` is the only persisted eval history in the repo. Personal notes (Apple Notes, etc.) are optional scratch for local runs only — not committed, not a second source of truth.
+
+---
+
+### Agents under test
+
+| Agent | Invocation | Role |
+|-------|------------|------|
+| **Cursor agent** | Generate prompt via `npm run eval:prompt -- --case=… --env=prod`; paste in empty dir | Primary — fast iteration while building platform |
+| **Claude CLI** | Same generated prompt in empty dir | External proof — no Cursor context |
+| **Codex CLI** | Same generated prompt in empty dir | External proof — second vendor |
+
+All three use **curl only** for HTTP (per wrapper). **Prod:** agent prints `final_spec_id` + `view_url` (plain text). **Local:** agent prints `---EVAL_RESULT---` block (see below).
+
+---
+
+### Eval loop (v0.1)
+
+**Prod (MVP proof):**
+
+```txt
+eval/cases/support-dashboard-v0.1.json
+    ↓
+npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod  → paste to agent (empty dir)
+    ↓
+Agent: GET /llms.txt → validate loop → POST /api/specs → 201
+    ↓
+Human: open viewUrl — optional §5 review
+    ↓
+Agent prints final_spec_id + view_url
+    ↓
+In rapidui repo: npm run eval:log -- --specId=… --case=… --agent=… --validate-count=…
+    ↓
+Script runs eval/score.ts → inserts eval_runs row (passed from score, not agent)
+```
+
+**Local (playground):**
+
+```txt
+Same agent loop against http://localhost:3000
+    ↓
+Agent prints ---EVAL_RESULT--- (optional paste to personal notes)
+    ↓
+No Postgres insert unless you explicitly run eval:log
+```
+
+---
+
+### `---EVAL_RESULT---` block (local prompt only)
+
+Structured footer for **local** runs — field names **match `eval_runs` Postgres columns** so paste → parse → insert is mechanical. Not required on prod (log script takes `specId` directly).
+
+```txt
+---EVAL_RESULT---
+eval_case_id: support-dashboard-v0.1
+agent: cursor | claude | codex
+base_url: http://localhost:3000
+validate_count: <number>
+error_codes: [<comma-separated codes or empty>]
+final_spec_id: <uuid or null>
+view_url: <full /specs/{id} url or null>
+blocks_found: [<block types used, e.g. Table, Metric>]
+---END---
+```
+
+| Field | Maps to `eval_runs` | Who sets it |
+|-------|---------------------|---------------|
+| `eval_case_id` | `eval_case_id` | Prompt / case JSON |
+| `agent` | `agent` | Agent |
+| `base_url` | `base_url` | Prompt variant |
+| `validate_count` | `validate_count` | Agent counts validate POSTs |
+| `error_codes` | `error_codes` | Agent — union from failed validates |
+| `final_spec_id` | `final_spec_id` | From POST /api/specs 201 `specId` |
+| `view_url` | `view_url` | From POST /api/specs 201 `viewUrl` |
+| `blocks_found` | `blocks_found` | Agent self-report; **recomputed** by score script from spec |
+
+**Not in EVAL_RESULT (set by platform, not agent):**
+
+| Field | Set by |
+|-------|--------|
+| `id` | `crypto.randomUUID()` in `log-eval-run.ts` |
+| `passed` | `eval/score.ts` — authoritative |
+| `score_details` | `eval/score.ts` — `{ missingBlocks, missingBindings, retryExceeded }` |
+| `completed_at` | Postgres default |
+| `notes` | Optional — human or Cursor when logging |
+
+**Prod prompt ending (simpler):** ask agent to print only:
+
+```txt
+final_spec_id: <uuid>
+view_url: <url>
+validate_count: <number>
+error_codes: [<codes or empty>]
+```
+
+Then run `npm run eval:log` with those flags — no fenced block required.
+
+---
+
+### Eval case JSON (`eval/cases/`)
+
+Machine-readable definition — source of truth for prompt text, mock API context, and deterministic criteria.
+
+**File:** `eval/cases/support-dashboard-v0.1.json`
+
+```json
+{
+  "id": "support-dashboard-v0.1",
+  "title": "Option A — Support / Ops Ticket Dashboard",
+  "prompt": "Generate a RUI for an internal support dashboard. Bind to GET /api/tickets (ticket list) and GET /api/tickets/stats (open and urgent counts).",
+  "mockApi": {
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/tickets",
+        "description": "Ticket list; Table binding valuePath: items"
+      },
+      {
+        "method": "GET",
+        "path": "/api/tickets/stats",
+        "description": "Open and urgent counts; Metric scalar valuePath per field"
+      }
+    ]
+  },
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 5,
+    "requiredBlocks": ["Table", "Metric"],
+    "requiredBindings": ["GET /api/tickets"]
+  }
+}
+```
+
+**Future cases (not v0.1):**
+
+| Case id | Scenario | When |
+|---------|----------|------|
+| `crud-admin-v0.2` | Option B — list + create | Registry + docs ready |
+| `approval-queue-v0.2` | Option C — pending inbox | Registry + docs ready |
+
+---
+
+### Postgres schema — `eval_runs`
+
+Migration: `lib/db/migrations/002_eval_runs.sql`
+
+```sql
+CREATE TABLE IF NOT EXISTS eval_runs (
+  id                UUID PRIMARY KEY,
+  eval_case_id      TEXT NOT NULL,
+  agent             TEXT NOT NULL,
+  base_url          TEXT NOT NULL,
+  started_at        TIMESTAMPTZ,
+  completed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  passed            BOOLEAN NOT NULL,
+  validate_count    INT NOT NULL DEFAULT 0,
+  error_codes       TEXT[] NOT NULL DEFAULT '{}',
+  final_spec_id     UUID REFERENCES specs(id),
+  view_url          TEXT,
+  blocks_found      TEXT[] NOT NULL DEFAULT '{}',
+  score_details     JSONB,
+  notes             TEXT
+);
+
+CREATE INDEX IF NOT EXISTS eval_runs_case_idx ON eval_runs (eval_case_id);
+CREATE INDEX IF NOT EXISTS eval_runs_agent_idx ON eval_runs (agent);
+CREATE INDEX IF NOT EXISTS eval_runs_passed_idx ON eval_runs (passed);
+CREATE INDEX IF NOT EXISTS eval_runs_completed_idx ON eval_runs (completed_at DESC);
+```
+
+`id` is assigned in app code via `crypto.randomUUID()` at insert — same pattern as §4 `specs.id`.
+
+| Column | Source |
+|--------|--------|
+| `eval_case_id` | `eval/cases/*.json` → `id` |
+| `agent` | `cursor` \| `claude` \| `codex` |
+| `base_url` | From prompt variant |
+| `passed` | Set by `eval/score.ts` deterministic result (authoritative) |
+| `validate_count` | From `---EVAL_RESULT---` or future `api_events` |
+| `error_codes` | Deduped union from failed validate responses |
+| `final_spec_id` | UUID from successful `POST /api/specs` |
+| `view_url` | From SavedSpec or `buildViewUrl(specId)` |
+| `blocks_found` | Block `type` values found in tree (score script computes) |
+| `score_details` | JSON: `{ missingBlocks, missingBindings, retryExceeded }` |
+| `notes` | Free-form human notes |
+
+**Analytics queries (v0.1):**
+
+```sql
+-- Pass rate by agent
+SELECT agent, COUNT(*) FILTER (WHERE passed) * 100.0 / COUNT(*) AS pass_rate
+FROM eval_runs WHERE eval_case_id = 'support-dashboard-v0.1' GROUP BY agent;
+
+-- Error code frequency
+SELECT unnest(error_codes) AS code, COUNT(*) FROM eval_runs GROUP BY code ORDER BY count DESC;
+```
+
+---
+
+### What `eval/score.ts` does (plain language)
+
+**One job:** given a saved spec and an eval case, answer **pass or fail** using rules only — no LLM, no human judgment.
+
+```txt
+Input:  --specId=<uuid>  --case=support-dashboard-v0.1  [--validate-count=N]
+
+Steps:
+  1. Load the saved RUI from Postgres (or GET /api/specs/:id)
+  2. Load successCriteria from eval/cases/{case}.json
+  3. Walk the RUI tree — collect every block type (Table, Metric, …) and binding paths
+  4. Compare:
+       • requiredBlocks present?
+       • requiredBindings present?
+       • validate_count ≤ maxRetries (if provided)?
+  5. Output:
+       • passed: true | false
+       • score_details: { missingBlocks, missingBindings, retryExceeded }
+       • blocks_found: recomputed from spec (authoritative over agent report)
+  6. Exit code 0 (pass) or 1 (fail) — usable in scripts / CI later
+```
+
+**Why separate from the agent?** Agents lie, guess, or miscount retries. The platform owns pass/fail by reading the **actual saved artifact** in Postgres.
+
+**Who calls it?**
+
+| Caller | When |
+|--------|------|
+| `scripts/log-eval-run.ts` | Before every Postgres insert — `passed` comes from score, never from agent |
+| You manually | `npm run eval:score -- --specId=… --case=…` — quick check without logging |
+| Smoke test | Golden spec + primary case → must pass |
+
+---
+
+### Deterministic scoring (`eval/score.ts`)
+
+Implementation of the above. Thin CLI wrapper around `lib/eval/scoreRun.ts`.
+
+```bash
+npm run eval:score -- --specId=<uuid> --case=support-dashboard-v0.1 [--validate-count=3]
+```
+
+**Authority:** `eval/score.ts` sets `passed` and `score_details` — never trust agent self-report.
+
+---
+
+### In-repo layout
+
+```txt
+eval/
+├── cases/
+│   └── support-dashboard-v0.1.json    # source of truth for task prompt + criteria
+├── manual/
+│   ├── wrapper_prod.txt               # shared — {{TASK}}, {{BASE_URL}}, output format
+│   ├── wrapper_local.txt
+│   ├── cursor/README.md               # how to invoke in Cursor
+│   ├── claude/README.md
+│   └── codex/README.md
+├── score.ts                           # CLI wrapper → lib/eval/scoreRun
+└── types.ts                           # EvalCase, EvalRunInput, ScoreDetails
+
+lib/eval/
+├── loadCase.ts                        # read eval/cases/{id}.json
+├── renderPrompt.ts                    # wrapper + case → full agent prompt
+├── collectBlocks.ts                   # walk Rui → types + bindings
+├── scoreRun.ts                        # compare spec vs successCriteria
+└── parseEvalResult.ts                 # parse ---EVAL_RESULT--- (local stdin)
+
+lib/db/
+├── evalRuns.ts                        # insertEvalRun, listEvalRunsByCase
+└── migrations/
+    └── 002_eval_runs.sql
+
+scripts/
+├── log-eval-run.ts                    # score → insert eval_runs
+└── render-eval-prompt.ts              # thin CLI → renderPrompt (optional; or eval:prompt in score.ts sibling)
+```
+
+**`POST /api/eval/log` — deferred to v0.2**
+
+| Benefit (why it exists as an idea) | Why we skip it for v0.1 |
+|------------------------------------|-------------------------|
+| Remote agent could POST results without repo checkout | You log from the **rapidui repo** via Cursor + script — simpler |
+| Single HTTP call = score + insert | `log-eval-run.ts` already does both locally |
+| Future: external CI runner | v0.2 when automation needs it; may need auth |
+
+**v0.1 logging:** `npm run eval:log` only — no new API route, no second log destination.
+
+---
+
+### npm scripts (§6)
+
+| Script | Command | Purpose |
+|--------|---------|---------|
+| `eval:prompt` | `npm run eval:prompt -- --case=<id> --env=prod\|local` | Print full agent prompt to stdout |
+| `eval:score` | `npm run eval:score -- --specId=<uuid> --case=<id> [--validate-count=N]` | Deterministic pass/fail; exit 0/1 |
+| `eval:log` | `npm run eval:log -- --specId=<uuid> --case=<id> --agent=cursor\|claude\|codex --validate-count=N [--error-codes=a,b] [--base-url=…]` | Score → insert `eval_runs` |
+| `db:migrate` | extend existing script | Apply `002_eval_runs.sql` after `001_specs.sql` |
+| `smoke:eval` | optional | Golden spec saved + score against primary case passes |
+
+**`eval:log` contract:** always calls `scoreRun` first; inserts row with `passed` and `score_details` from score — never from agent.
+
+**`requiredBindings` match rule:** each entry `"GET /api/tickets"` matches a binding where `method === "GET"` and `path === "/api/tickets"` (exact path).
+
+---
+
+### Manual runner checklist
+
+**Prod (required for §6 done)** — per agent:
+
+- [ ] Empty working directory (no RapidUI repo)
+- [ ] Generate prompt: `npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod` → paste to agent
+- [ ] Agent completes without reading local project files
+- [ ] Agent uses curl; validate loop ≤ 5 attempts
+- [ ] `POST /api/specs` → 201 with `final_spec_id` + `view_url`
+- [ ] Human opens `view_url` — optional §5 check
+- [ ] Run `npm run eval:log` from rapidui repo → row in Postgres
+- [ ] Confirm `eval/score.ts` passed for that row
+
+**Local (optional playground):**
+
+- [ ] Generate prompt with `--env=local`; same agent loop against localhost
+- [ ] Optional: agent prints `---EVAL_RESULT---` → paste to personal notes
+- [ ] No Postgres insert unless you explicitly run `eval:log`
+
+---
+
+### Phase 2 design — correlation bridge (v0.2, do not implement in §6 v0.1)
+
+When per-request tracing is needed without agent prompt access:
+
+**Optional headers** (document in `/api/docs`; agents send voluntarily):
+
+```txt
+X-RapidUI-Session-Id: <uuid>       — stable for one agent session
+X-RapidUI-Eval-Case: <case id>     — only for controlled evals
+X-RapidUI-Intent: <short string>   — optional user goal summary
+```
+
+**`api_events` table (sketch):**
+
+```sql
+CREATE TABLE api_events (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  occurred_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  endpoint      TEXT NOT NULL,
+  session_id    TEXT,
+  eval_case_id  TEXT,
+  intent        TEXT,
+  valid         BOOLEAN,
+  error_codes   TEXT[],
+  spec_id       UUID,
+  duration_ms   INT
+);
+```
+
+Middleware on `POST /api/validate` and `POST /api/specs`: if headers present, append row (fire-and-forget). Enables platform-side retry counts and error frequency without manual transcription.
+
+---
+
+### Phase 3 design — enterprise observability (v1+, deferred)
+
+- API keys → agent vendor / tenant identity
+- `agent_sessions` table — open-ended user work, outcome, frustration signals
+- Operational dashboard — use cases, registry gaps, validation heatmaps
+- LLM judge for semantic intent scoring (see [Agent Eval Strategy](#agent-eval-strategy))
+
+See [Deferred (post–v0.1)](#deferred-postv0.1).
+
+---
+
+### Scaling path — Phase 1 today vs many cases (B, C, …)
+
+Phase 1 is intentionally **case-agnostic infrastructure**. Adding Option B, C, or future scenarios should be **data**, not a rewrite of scoring, logging, or Postgres.
+
+#### What stays the same (no code changes per new case)
+
+| Piece | Why it scales |
+|-------|----------------|
+| **`eval_runs` table** | Already keyed by `eval_case_id` — one row per (case × agent × run) |
+| **`eval/score.ts`** | `--case=<id>` loads any file from `eval/cases/` |
+| **`log-eval-run.ts`** | Same CLI — only `--case` changes |
+| **Eval loop flow** | Identical: prompt → validate → save → log → score |
+| **Multiple valid RUIs** | Criteria are **checklists** (`requiredBlocks`, `requiredBindings`), not “match golden byte-for-byte” — agents can produce different valid RUIs for the same case |
+
+#### What you add per new case (data only)
+
+```txt
+eval/cases/crud-admin-v0.2.json       ← new file
+eval/cases/approval-queue-v0.2.json   ← new file
+… Option D, E later — same JSON shape
+```
+
+Each case JSON carries its own `prompt`, `mockApi`, and `successCriteria`. Registry + docs must ship **before** the case (Form/Button for B, action bindings for C, etc.) — same dependency as vocabulary growth in §1.
+
+#### What to avoid (prompt file explosion)
+
+**Do not** copy six manual prompt files per case (3 agents × prod/local) — that does not scale.
+
+**Phase 1 implementation should:**
+
+- Treat **`eval/cases/*.json` as source of truth** for prompt text
+- **`eval/manual/`** holds **shared wrappers** (`wrapper_prod.txt`, `wrapper_local.txt`) — case task injected via `renderPrompt.ts`
+- `lib/eval/renderPrompt.ts` — merge wrapper + case → full prompt (stdout or file)
+
+Adding Option B then becomes: **one JSON file + registry work** — not a harness rewrite.
+
+#### How Phase 2 connects (eval expansion at scale)
+
+When cases × agents grows, manual logging breaks down. Phase 2 adds **automation on top of the same tables**:
+
+| Phase 2 capability | Solves at scale |
+|--------------------|-----------------|
+| `X-RapidUI-Eval-Case` header + `api_events` | Platform counts retries / errors per case — no manual transcription |
+| Batch runner (`eval:batch` or CI) | Run N cases × 3 agents unattended |
+| `POST /api/eval/log` | Remote runner inserts scored rows without repo checkout |
+| Regression queries | `pass rate by eval_case_id` — already indexed in Phase 1 |
+
+Phase 2 does **not** replace Phase 1 schema — it **automates the same loop**.
+
+#### How Phase 3 connects (different axis — production, not regression)
+
+Phase 3 is **not** “more eval cases.” It answers questions Phase 1 cannot:
+
+| Phase 3 capability | Purpose |
+|--------------------|---------|
+| `agent_sessions` + API keys | Real user/agent traffic — unknown prompts |
+| Ops dashboard | “What are people building?” → informs **which new eval cases to add** |
+| LLM judge | Cases where checklist pass/fail is insufficient (layout quality, UX intent) |
+
+**Progression:**
+
+```txt
+Phase 1  →  Prove agents speak RUI on known cases (A, then B, C…)
+Phase 2  →  Run many cases × agents without manual steps
+Phase 3  →  Learn from production → add new cases → feed back into Phase 1 + 2
+```
+
+#### Extending `successCriteria` (when B/C need more than blocks + bindings)
+
+Add fields **additively** in case JSON — `scoreRun.ts` ignores unknown keys, implements known ones:
+
+| Future field | Example use |
+|--------------|-------------|
+| `requiredBlocks` | Option A — Table + Metric |
+| `requiredBindings` | `GET /api/tickets` |
+| `minBlockCount` | Table with ≥ N columns |
+| `requiredBlockTypes` with `{ type, min }` | Option B — at least one Form |
+| `semanticRubric` | Phase 3 LLM judge reference id |
+
+Phase 1 implements **requiredBlocks**, **requiredBindings**, **maxRetries** only — enough for A–C deterministic scoring.
+
+#### Verdict before implementation
+
+| Question | Answer |
+|----------|--------|
+| Will B/C require rewriting the harness? | **No** — add case JSON + registry |
+| Will agents producing different valid RUIs break scoring? | **No** — checklist scoring, not golden diff |
+| Does Phase 2 fit the progression? | **Yes** — automates same `eval_runs` + `score.ts` |
+| Does Phase 3 fit the progression? | **Yes** — discovers new cases; does not duplicate Phase 1 |
+| Phase 1 guardrail | **Case-driven prompts** — no Option A strings hardcoded in score/log code |
+
+---
+
+### Implementer start here
+
+**Goal (Phase 1):** Prove the **platform eval loop** end-to-end — case JSON → agent prompt → validate → save → score → Postgres. One primary case (`support-dashboard-v0.1`); infrastructure must be **case-generic** (`--case` everywhere).
+
+**Read first:** [Agent Eval Strategy](#agent-eval-strategy) → this §6 through [npm scripts (§6)](#npm-scripts-6) → §4 `lib/db/specs.ts` (`getSpecById`) for the score script.
+
+**Build order:** [v0.1 implementation order](#v0.1-implementation-order-keep-simple) at section end.
+
+**Do not build:** Phase 2/3 items, `POST /api/eval/log`, Option B/C cases, duplicated per-case prompt files.
+
+**After code ships (human):** three prod agent evals → `eval:log` each → SQL pass-rate query.
+
+**Phase 1 proves:** mechanism (docs → valid RUI → logged score). Generalization (thin/held-out cases) is **post–§6 optional** — see [Scaling path](#scaling-path--phase-1-today-vs-many-cases-b-c-).
+
+---
+
+### Handoff summary (implementing agent)
+
+**Read:** This §6 section + [Agent Eval Strategy](#agent-eval-strategy).
+
+**Build (v0.1 only):**
+
+```txt
+eval/cases/support-dashboard-v0.1.json
+eval/manual/wrapper_prod.txt + wrapper_local.txt + {cursor,claude,codex}/README.md
+lib/eval/                     # loadCase, renderPrompt, collectBlocks, scoreRun, parseEvalResult
+eval/score.ts
+lib/db/evalRuns.ts
+lib/db/migrations/002_eval_runs.sql
+scripts/log-eval-run.ts
+scripts/migrate.ts            # extend for 002_eval_runs.sql
+package.json                  # eval:prompt, eval:score, eval:log; optional smoke:eval
+```
+
+**Update:** README — eval workflow (prod log script; local optional notes).
+
+**Do not build (v0.1):** `POST /api/eval/log`, `api_events`, session headers, auth, automated runner, CI batch, LLM judge, ops dashboard, committed run notes files.
+
+---
+
+### Implementation steps
+
+**Prerequisites:** §5 complete; ad-hoc prod agent runs already proved the loop (Cursor, Claude, Codex — re-run through scored pipeline for clean `eval_runs`).
+
+#### Step 1 — Eval case + manual prompts
+
+- [ ] `eval/cases/support-dashboard-v0.1.json` — locked schema per above
+- [ ] `eval/types.ts` — `EvalCase`, `SuccessCriteria`, `EvalResultBlock` (fields match `eval_runs`)
+- [ ] `lib/eval/renderPrompt.ts` — merge `case.prompt` into `eval/manual/wrapper_{prod,local}.txt` (`{{TASK}}`, `{{BASE_URL}}`)
+- [ ] `eval/manual/wrapper_prod.txt` + `wrapper_local.txt` — shared wrappers
+- [ ] `eval/manual/{cursor,claude,codex}/README.md` — invocation per agent CLI
+- [ ] `npm run eval:prompt` — print full prompt to stdout
+
+#### Step 2 — Scoring library
+
+- [ ] `lib/eval/loadCase.ts` — load case JSON by id
+- [ ] `lib/eval/collectBlocks.ts` — walk `Rui` → block types + binding paths
+- [ ] `lib/eval/scoreRun.ts` — deterministic pass/fail + `score_details`
+- [ ] `lib/eval/parseEvalResult.ts` — parse `---EVAL_RESULT---` from stdin (local paste workflow)
+- [ ] `eval/score.ts` — CLI: `--specId`, `--case`, optional `--validate-count`
+- [ ] `npm run eval:score` in `package.json`
+
+#### Step 3 — Postgres `eval_runs` + log script
+
+- [ ] `lib/db/migrations/002_eval_runs.sql`
+- [ ] `lib/db/evalRuns.ts` — `insertEvalRun`, `listEvalRunsByCase` (minimal)
+- [ ] Extend `scripts/migrate.ts` to apply `002_eval_runs.sql` (after 001)
+- [ ] `scripts/log-eval-run.ts` — CLI flags or stdin EVAL_RESULT → score → insert
+- [ ] `npm run eval:log` in `package.json`
+- [ ] Optional: `scripts/smoke-eval.ts` + `npm run smoke:eval` — score golden SavedSpec against primary case
+
+#### Step 4 — Log prod runs + verify three agents
+
+- [ ] Re-run: Cursor, Claude, Codex on `support-dashboard-v0.1` @ **prod**
+- [ ] Each run: `eval:log` → `eval_runs` row + score pass
+- [ ] Query error code frequency — confirm empty or documented
+- [ ] Human opens each `view_url` — optional §5 review
+
+#### Step 5 — Docs + commit
+
+- [ ] README — eval folder layout, prod log workflow, local playground note
+- [ ] Commit: `feat(eval): agent test harness — cases, eval_runs, score script`
+
+---
+
+### Deliverables
+
+- [ ] `eval/cases/support-dashboard-v0.1.json`
+- [ ] `eval/manual/` — shared wrappers + per-agent README
+- [ ] `lib/eval/` + `eval/score.ts` — deterministic scoring
+- [ ] `eval_runs` Postgres table + migration 002
+- [ ] `scripts/log-eval-run.ts` + `npm run eval:log`
+- [ ] Three **prod** agents logged on primary case with scored outcomes
+
+**§6 status: Spec complete — ready for implementation.**
 
 ### Done when
 
-- Cursor and Claude each complete the primary eval case with logged outcome in Postgres
-- Error code frequency visible from logged runs (informs doc fixes)
+**Mechanism (§6 v0.1 — required):**
+
+- [ ] `eval/cases/support-dashboard-v0.1.json` committed
+- [ ] `npm run eval:prompt`, `eval:score`, `eval:log` work locally
+- [ ] Cursor, Claude, and Codex each complete primary case on **prod** with **`eval_runs` row in Postgres**
+- [ ] `eval/score.ts` deterministic pass for each logged run
+- [ ] Error code frequency queryable from `eval_runs`
+- [ ] Manual workflow documented in `eval/manual/*/README.md`
+
+**Credibility (post–§6 — optional, not blocking MVP):**
+
+- [ ] Thin-prompt or held-out case added to `eval/cases/` when ready to test generalization beyond golden-aligned Option A
+
+> **Not in §6 v0.1 (by design):** `POST /api/eval/log`, committed run notes / `notes.md`, `api_events`, session headers, auth, automated `POST /api/eval/run`, CI batch, LLM judge, ops dashboard, Options B & C eval cases.
+
+---
+
+### Decisions (resolved)
+
+| # | Decision |
+|---|----------|
+| 1 | **No external eval folder** — all prompts and cases live in repo `eval/` only |
+| 2 | **No `POST /api/eval/log` in v0.1** — `scripts/log-eval-run.ts` from repo; HTTP endpoint deferred v0.2 |
+| 3 | **Single log destination** — Postgres `eval_runs` only; personal notes (Apple Notes) for local scratch, not committed |
+| 4 | **Prod required for MVP done**; local is optional playground |
+| 5 | **`---EVAL_RESULT---` in local prompt only** — field names match `eval_runs` columns; prod uses CLI flags + simple agent output |
+| 6 | **Phase 2 headers optional** until v0.2 |
+| 7 | **`eval_runs.id` via `crypto.randomUUID()`** in app — match §4 |
+| 8 | **`eval/score.ts` authoritative** — `--specId` + `--case`; EVAL_RESULT supplies metadata for log script only |
+
+---
+
+### v0.1 implementation order (keep simple)
+
+```txt
+1. eval/cases/support-dashboard-v0.1.json + eval/manual/ wrappers + eval:prompt
+2. lib/eval/ + eval/score.ts
+3. 002_eval_runs.sql + log-eval-run.ts + extend migrate.ts
+4. Re-run Cursor + Claude + Codex on prod → eval:log → Postgres
+5. README + commit
+```
 
 ---
 
@@ -2647,10 +3333,17 @@ rapid-ui/
 │   ├── registry/               # §1 vocabulary source of truth
 │   ├── validate/               # §2 validation engine
 │   ├── docs/                   # §3 agent doc content + getDocsPayload()
-│   ├── db/                     # §4 Postgres client + queries
+│   ├── db/                     # §4 Postgres client + queries + evalRuns (§6)
+│   ├── eval/                   # §6 loadCase, renderPrompt, scoreRun, …
 │   └── review/                 # §5 inspector components (block tree)
-├── eval/
-│   └── cases/                  # §6 eval case definitions
+├── eval/                       # §6 cases, manual wrappers, score CLI
+│   ├── cases/
+│   ├── manual/
+│   ├── score.ts
+│   └── types.ts
+├── scripts/
+│   ├── log-eval-run.ts         # §6
+│   └── migrate.ts              # 001 + 002
 └── ...
 ```
 
@@ -2679,10 +3372,11 @@ Base: `https://rapidui.dev`
 - Rendered app URLs (separate from rapidui.dev API platform)
 - Live API execution against bound endpoints
 - API auth & multi-tenancy
+- **Phase 2 eval:** optional `X-RapidUI-*` request headers + `api_events` table + `POST /api/eval/log` (designed in §6)
 - Automated eval runner (`POST /api/eval/run`) + CI batch runs
 - LLM judge for semantic/intent scoring
-- Operational dashboard, analytics, error surfacing in rendered apps
-- Agent identity / credential propagation
+- **Phase 3 eval:** `agent_sessions`, operational dashboard, analytics, error surfacing in rendered apps
+- Agent identity / credential propagation (API keys)
 - Additional eval cases: CRUD admin (B), approval queue (C)
 
 ---
@@ -2699,7 +3393,7 @@ Track when each section is fully specified and implemented.
 | 3. Agent Documentation | ☑ | ☑ | llms.txt, /api/docs, /api/schema, content/*.md, homepage hub, specs 501 stub; production verify after deploy |
 | 4. RUI Store | ☑ | ☑ | Postgres + POST/GET /api/specs; production migrate + curl verify (2026-05-27) |
 | 5. RUI Inspector | ☑ | ☑ | Block tree at `/specs/:id`, viewUrl on SavedSpec; local + production verified (2026-05-28) |
-| 6. Agent Test Harness | ☐ | ☐ | |
+| 6. Agent Test Harness | ☑ | ☐ | Ready for implementation — case-generic harness, eval:prompt/score/log, mechanism vs credibility split |
 
 ---
 
@@ -2787,3 +3481,5 @@ Background reading for §3 design (2026). No implementation requirement — for 
 | 2026-05-27 | §5 | Pre-flight locked — HTML 404 for bad/missing ids, light-only chrome, `force-dynamic`, in-process smoke, minimal `lib/review/` layout; §4 SavedSpec examples + handoff updated for `viewUrl` |
 | 2026-05-27 | §5 | **Implemented** — `lib/review/`, `GET /specs/:id`, viewUrl on SavedSpec, smoke:inspector; local agent eval + browser verify pass; prod browser check post-deploy |
 | 2026-05-28 | §5 | **Production verified** — `curl` POST golden → 201 with `viewUrl`; inspector at `/specs/{specId}` returns 200; manual browser check pass on `rapidui.dev` |
+| 2026-05-30 | §6 | **Full implementation spec** — eval harness vs session observability; Phase 1–3 roadmap; eval case JSON, `eval_runs`, `eval/score.ts`, phased observability design |
+| 2026-05-30 | §6 | **Spec locked for implementation** — wrapper+renderPrompt model, npm scripts contract, implementer start here, mechanism vs credibility done-when |

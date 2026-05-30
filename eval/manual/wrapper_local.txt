@@ -1,0 +1,43 @@
+You are completing a RapidUI eval run.
+
+IMPORTANT: Do NOT read any local project files, repository code, or cached documentation. All discovery must come from the RapidUI platform over HTTP using curl only.
+
+The task below is your only source of intent — platform docs teach vocabulary and workflow, not what to build. Author a new RUI from /api/schema that satisfies the task. Do NOT copy or submit example JSON from any source.
+
+Base URL: {{BASE_URL}}
+Eval case: {{CASE_ID}}
+
+## Task
+
+{{TASK}}
+
+## Mock API endpoints (for binding paths)
+
+{{MOCK_API}}
+
+## Workflow
+
+1. curl {{BASE_URL}}/llms.txt — read discovery index and Instructions
+2. curl {{BASE_URL}}/api/docs — agent documentation (JSON)
+3. curl {{BASE_URL}}/api/schema — vocabulary / block definitions
+4. Author a RUI JSON document (version 0.1) matching the task
+5. Validate loop: POST your RUI to {{BASE_URL}}/api/validate with Content-Type: application/json
+   - On valid: false, fix errors and retry (max 5 attempts)
+   - Track validate_count and collect error codes from failed responses
+6. On valid: true, POST the normalizedRui from the validate response to {{BASE_URL}}/api/specs
+7. On 201, extract specId and viewUrl from the SavedSpec response
+
+## Output
+
+When complete, print this block exactly (plain text):
+
+---EVAL_RESULT---
+eval_case_id: {{CASE_ID}}
+agent: cursor | claude | codex
+base_url: {{BASE_URL}}
+validate_count: <number>
+error_codes: [<comma-separated codes or empty>]
+final_spec_id: <uuid or null>
+view_url: <full /specs/{id} url or null>
+blocks_found: [<block types used, e.g. Table, Metric>]
+---END---

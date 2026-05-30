@@ -37,7 +37,7 @@ Apply the specs table migration before using the store (local + production). CLI
 npm run db:migrate
 ```
 
-Idempotent — safe to re-run (`CREATE TABLE IF NOT EXISTS`).
+Idempotent — safe to re-run (`CREATE TABLE IF NOT EXISTS`). Applies `001_specs.sql` and `002_eval_runs.sql`.
 
 ## RUI store
 
@@ -64,7 +64,29 @@ npm run smoke:validate   # validation engine
 npm run smoke:docs       # agent docs payload
 npm run smoke:specs      # Postgres store (requires DATABASE_URL + migration)
 npm run smoke:inspector  # in-process RUI inspector render (no dev server)
+npm run smoke:eval       # score golden RUI against primary eval case (requires DATABASE_URL)
 ```
+
+## Agent eval harness (§6)
+
+Repeatable proof that external agents can traverse validate → save without repo context.
+
+```bash
+# Generate agent prompt (prod or local)
+npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod
+
+# Deterministic pass/fail against saved spec
+npm run eval:score -- --specId=<uuid> --case=support-dashboard-v0.1 --validate-count=3
+
+# Score + insert eval_runs row (prod runs)
+npm run eval:log -- --specId=<uuid> --case=support-dashboard-v0.1 --agent=cursor --validate-count=3
+```
+
+**Prod workflow:** generate prompt → run agent in empty dir → optional `view_url` review → `eval:log` from this repo.
+
+**Local workflow:** use `--env=local` with `npm run dev`; agent prints `---EVAL_RESULT---` for optional personal notes. Pipe to `eval:log --stdin` to score + log from pasted output.
+
+Eval cases live in `eval/cases/`. Manual runner docs: `eval/manual/{cursor,claude,codex}/README.md`.
 
 ## Health check
 
@@ -84,7 +106,8 @@ lib/validate/     # §2 validation engine
 lib/docs/         # §3 agent documentation content + payloads
 lib/db/           # §4 Postgres client
 lib/review/       # §5 RUI inspector components (block tree)
-eval/cases/       # §6 eval case definitions
+eval/             # §6 eval cases, manual wrappers, score CLI
+eval/cases/       # eval case definitions (prompt + successCriteria)
 ```
 
 ## Documentation

@@ -19,11 +19,18 @@ assert(blockTypes.includes("Metric"), "Schema should include Metric");
 assert(blockTypes.includes("Table"), "Schema should include Table");
 assert(blockTypes.includes("Text"), "Schema should include Text");
 
-// Docs payload
+// Docs payload — platform docs only; no eval case content
 const docs = getDocsPayload();
 assert(docs.docsVersion === "0.1", "Docs version should be 0.1");
 assert(docs.baseUrl.length > 0, "Docs should include baseUrl");
-assert(docs.sections.length >= 7, "Docs should include all sections");
+assert(docs.sections.length === 6, "Docs should include six case-agnostic sections");
+
+const sectionIds = docs.sections.map((s) => s.id);
+assert(!sectionIds.includes("examples"), "Docs must not include eval examples section");
+assert(
+  !JSON.stringify(docs).includes("/api/tickets"),
+  "Public docs must not embed eval-case API paths",
+);
 
 const errorsSection = docs.sections.find((s) => s.id === "errors");
 assert(errorsSection?.format === "json", "Errors section should be JSON");
@@ -32,14 +39,6 @@ assert(
     errorsSection.content.length === Object.keys(ERROR_CATALOG).length,
   "Errors section should mirror ERROR_CATALOG",
 );
-
-const examplesSection = docs.sections.find((s) => s.id === "examples");
-assert(examplesSection?.format === "json", "Examples section should be JSON");
-const examples = examplesSection?.content as {
-  supportDashboard?: { goldenRui?: unknown; mockApi?: unknown };
-};
-assert(examples?.supportDashboard?.goldenRui, "Examples should include golden RUI");
-assert(examples?.supportDashboard?.mockApi, "Examples should include mockApi");
 
 const apiSection = docs.sections.find((s) => s.id === "api");
 const api = apiSection?.content as {
@@ -82,13 +81,17 @@ assert(llms.includes("/api/docs"), "llms.txt should link to /api/docs");
 assert(llms.includes("/api/schema"), "llms.txt should link to /api/schema");
 assert(llms.includes("viewUrl"), "llms.txt should mention viewUrl");
 assert(llms.includes("/specs/"), "llms.txt should document inspector route");
+assert(
+  !llms.includes("/api/tickets"),
+  "llms.txt must not embed eval-case API paths",
+);
 
-// Golden RUI still validates
+// Golden RUI (repo-only regression fixture — not served in /api/docs)
 const goldenResult = validateSpec(goldenRui);
 assert(goldenResult.valid, "Golden RUI should validate");
 
 console.log("Docs smoke test passed:");
 console.log("- getSchemaPayload: version 0.1, Metric/Table/Text blocks");
-console.log("- getDocsPayload: sections, errors catalog, examples, api validate/specs/specById");
+console.log("- getDocsPayload: case-agnostic sections, no eval examples");
 console.log("- getLlmsTxt: required llmstxt.org sections");
-console.log("- golden RUI validates");
+console.log("- golden RUI validates (repo fixture only)");

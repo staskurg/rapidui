@@ -1,16 +1,11 @@
-import goldenRui from "@/lib/registry/golden/support-dashboard.rui.json";
 import { RUI_FILE_EXTENSION } from "@/lib/registry";
 import { ERROR_CATALOG } from "@/lib/validate/messages";
 import { VALIDATION_VERSION } from "@/lib/validate/version";
 
 import { getBaseUrl } from "@/lib/base-url";
 import { readDoc } from "./load";
-import { getSupportDashboardMockApi } from "./mock-api";
 
 export const DOCS_VERSION = "0.1";
-
-const SUPPORT_DASHBOARD_PROMPT =
-  "Generate a RUI for an internal support dashboard. Bind to GET /api/tickets (ticket list) and GET /api/tickets/stats (open and urgent counts).";
 
 function getApiSection(baseUrl: string) {
   return {
@@ -176,16 +171,6 @@ function getErrorsSection() {
   }));
 }
 
-function getExamplesSection() {
-  return {
-    supportDashboard: {
-      prompt: SUPPORT_DASHBOARD_PROMPT,
-      mockApi: getSupportDashboardMockApi(),
-      goldenRui,
-    },
-  };
-}
-
 /** Builds the JSON payload for GET /api/docs (§3). */
 export function getDocsPayload() {
   const baseUrl = getBaseUrl();
@@ -210,7 +195,6 @@ export function getDocsPayload() {
       { id: "nesting", format: "markdown" as const, content: readDoc("nesting") },
       { id: "api", format: "json" as const, content: getApiSection(baseUrl) },
       { id: "errors", format: "json" as const, content: getErrorsSection() },
-      { id: "examples", format: "json" as const, content: getExamplesSection() },
       {
         id: "gettingStarted",
         format: "markdown" as const,

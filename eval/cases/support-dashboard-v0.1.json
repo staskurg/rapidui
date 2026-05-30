@@ -1,0 +1,25 @@
+{
+  "id": "support-dashboard-v0.1",
+  "title": "Option A — Support / Ops Ticket Dashboard",
+  "prompt": "Generate a RUI for an internal support dashboard. Bind to GET /api/tickets (ticket list) and GET /api/tickets/stats (open and urgent counts).",
+  "mockApi": {
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/tickets",
+        "description": "Ticket list; Table binding valuePath: items"
+      },
+      {
+        "method": "GET",
+        "path": "/api/tickets/stats",
+        "description": "Open and urgent counts; Metric scalar valuePath per field"
+      }
+    ]
+  },
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 5,
+    "requiredBlocks": ["Table", "Metric"],
+    "requiredBindings": ["GET /api/tickets"]
+  }
+}

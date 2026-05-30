@@ -1,6 +1,8 @@
 export { sql } from "./client";
 export { computeContentHash } from "./hash";
+export { insertEvalRun, listEvalRunsByCase } from "./evalRuns";
 export { getSpecById, insertSpec, isValidSpecId } from "./specs";
+export type { InsertEvalRunInput, EvalRunRecord } from "./evalRuns";
 export type {
   InsertSpecMeta,
   SavedSpec,

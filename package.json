@@ -12,6 +12,10 @@
     "smoke:docs": "tsx scripts/smoke-docs.ts",
     "smoke:specs": "tsx --env-file=.env.local scripts/smoke-specs.ts",
     "smoke:inspector": "tsx scripts/smoke-inspector.ts",
+    "smoke:eval": "tsx --env-file=.env.local scripts/smoke-eval.ts",
+    "eval:prompt": "tsx scripts/render-eval-prompt.ts",
+    "eval:score": "tsx --env-file=.env.local eval/score.ts",
+    "eval:log": "tsx --env-file=.env.local scripts/log-eval-run.ts",
     "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts"
   },
   "dependencies": {
