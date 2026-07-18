@@ -83,7 +83,7 @@ Full definitions: reference **§15**.
 
 **Reference:** §4 (monorepo, domains), §9 Area 0, §10 (tables sketch), §15 S1/S9, §16 (deferrals)
 
-**Status:** Not started — repo is still on v0.1 infra. Expand below is the execution plan; check boxes as work lands.
+**Status:** Complete (verified 2026-07-18 — local + prod + Render).
 
 ### Goal
 
@@ -355,15 +355,15 @@ Route: `POST /api/observe/ingest/agent` → 200 `{ "ok": true }` | 400 RFC 9457 
 
 ### Checklist
 
-- [ ] **Fresh Neon** — new empty database provisioned; `DATABASE_URL` updated on Vercel + local (not the v0.1 prod database)
-- [ ] Neon live; local + Vercel connect successfully against the **new** DB
-- [ ] `@neondatabase/serverless` replaces `@vercel/postgres`; store smokes pass on fresh DB
-- [ ] All five tables exist after `db:migrate` (`specs`, `eval_runs`, `api_events`, `agent_runs`, `agent_turns`)
-- [ ] `agent/` runs locally (`GET /health`)
-- [ ] Render deploy succeeds; `agent.rapidui.dev/health` responds
-- [ ] CORS allows `rapidui.dev` (+ localhost dev) → agent (preflight verified)
-- [ ] Ingest route stub returns 200 / validates payload shape
-- [ ] `.env.example` documents all required vars (platform + agent comments)
+- [x] **Fresh Neon** — new empty database provisioned; `DATABASE_URL` updated on Vercel + local (not the v0.1 prod database)
+- [x] Neon live; local + Vercel connect successfully against the **new** DB
+- [x] `@neondatabase/serverless` replaces `@vercel/postgres`; store smokes pass on fresh DB
+- [x] All five tables exist after `db:migrate` (`specs`, `eval_runs`, `api_events`, `agent_runs`, `agent_turns`)
+- [x] `agent/` runs locally (`GET /health` + CORS preflight on `localhost:3000`)
+- [x] Render deploy succeeds; `agent.rapidui.dev/health` responds
+- [x] CORS allows `rapidui.dev` (+ localhost dev) → agent (preflight verified)
+- [x] Ingest route stub returns 200 / validates payload shape (local + prod)
+- [x] `.env.example` documents all required vars (platform + agent comments)
 
 ---
 

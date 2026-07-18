@@ -3,7 +3,7 @@ name = "rapidui-agent"
 version = "0.1.0"
 description = "RapidUI Agent — FastAPI chat service (Render)"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
