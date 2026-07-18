@@ -4,7 +4,7 @@ FastAPI service for the RapidUI v0.2 chat agent. Deployed on **Render** at `agen
 
 Phase 0 ships **`GET /health`** and CORS only. `POST /chat` (Pydantic AI) lands in Phase 4.
 
-**Python:** pin **3.12** locally and on Render (`agent/.python-version`, `runtime.txt`, `PYTHON_VERSION=3.12.0`).
+**Python:** pin **3.12.13** locally and on Render (`agent/.python-version`, `PYTHON_VERSION=3.12.13`).
 
 **Important:** create the venv inside `agent/` only — never at the repo root.
 
@@ -20,7 +20,7 @@ uvicorn main:app --reload --port 8000
 
 If `python3.12` is missing: `brew install python@3.12`
 
-Verify: `python --version` → **Python 3.12.x**
+Verify: `python --version` → **Python 3.12.13**
 
 ```bash
 curl http://localhost:8000/health
@@ -34,7 +34,7 @@ curl http://localhost:8000/health
 | Root directory | `agent/` |
 | Build command | `pip install -r requirements.txt` |
 | Start command | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
-| **Python version** | **3.12.0** — set env `PYTHON_VERSION=3.12.0` on Render (or use `runtime.txt`) |
+| **Python version** | **3.12.13** — set env `PYTHON_VERSION=3.12.13` on Render |
 
 Optional: use `render.yaml` in this directory as a blueprint.
 
