@@ -1,0 +1,133 @@
+{
+  "version": "0.2",
+  "app": {
+    "title": "Draft Review"
+  },
+  "entities": [
+    {
+      "id": "ent-drafts",
+      "label": "Inbox",
+      "entrypoints": ["op-inbox"],
+      "operationIds": ["op-inbox", "op-read-draft"]
+    }
+  ],
+  "operations": [
+    {
+      "id": "op-inbox",
+      "entityId": "ent-drafts",
+      "type": "browse",
+      "title": "Inbox",
+      "route": "/inbox",
+      "presentation": {
+        "layout": "table",
+        "columns": [
+          { "key": "id", "label": "ID", "format": "string" },
+          { "key": "preview", "label": "Preview", "format": "string" },
+          { "key": "ticketId", "label": "Ticket", "format": "string" },
+          { "key": "model", "label": "Model", "format": "string" },
+          { "key": "confidence", "label": "Confidence", "format": "number" }
+        ],
+        "filter": {
+          "field": "status",
+          "label": "Status",
+          "options": [
+            { "value": "pending", "label": "Pending" },
+            { "value": "approved", "label": "Approved" },
+            { "value": "rejected", "label": "Rejected" }
+          ]
+        }
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/drafts",
+          "valuePath": "items"
+        }
+      }
+    },
+    {
+      "id": "op-read-draft",
+      "entityId": "ent-drafts",
+      "type": "read",
+      "title": "Review draft",
+      "route": "/inbox/{draftId}",
+      "params": ["draftId"],
+      "context": {
+        "breadcrumb": { "label": "Inbox", "operation": "op-inbox" }
+      },
+      "presentation": {
+        "layout": "detail",
+        "sections": [
+          {
+            "title": "Summary",
+            "fields": [
+              { "key": "ticketId", "label": "Source ticket", "format": "string" },
+              { "key": "model", "label": "Model", "format": "string" },
+              { "key": "confidence", "label": "Confidence", "format": "number" },
+              { "key": "status", "label": "Status", "format": "string" }
+            ]
+          },
+          {
+            "title": "Draft reply",
+            "fields": [
+              { "key": "body", "label": "Reply", "format": "text" }
+            ]
+          },
+          {
+            "title": "Context",
+            "fields": [
+              { "key": "ticketSubject", "label": "Ticket subject", "format": "string" },
+              { "key": "customerMessage", "label": "Customer message", "format": "text" }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "op-approve",
+            "type": "act",
+            "label": "Approve",
+            "variant": "primary",
+            "invoke": {
+              "method": "POST",
+              "path": "/api/drafts/{draftId}/approve"
+            },
+            "outcomes": {
+              "success": { "navigate": "op-inbox" },
+              "error": { "stay": true }
+            }
+          },
+          {
+            "id": "op-reject",
+            "type": "act",
+            "label": "Reject",
+            "variant": "danger",
+            "invoke": {
+              "method": "POST",
+              "path": "/api/drafts/{draftId}/reject"
+            },
+            "outcomes": {
+              "success": { "navigate": "op-inbox" },
+              "error": { "stay": true }
+            }
+          }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/drafts/{draftId}"
+        }
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "op-inbox",
+      "to": "op-read-draft",
+      "trigger": "row",
+      "map": { "draftId": "id" }
+    }
+  ]
+}

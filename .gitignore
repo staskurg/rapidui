@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+agent/.venv/
+agent/**/__pycache__/
 
 # debug
 npm-debug.log*
@@ -41,3 +43,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env*

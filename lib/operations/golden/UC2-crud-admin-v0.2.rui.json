@@ -1,0 +1,251 @@
+{
+  "version": "0.2",
+  "app": {
+    "title": "User Admin"
+  },
+  "entities": [
+    {
+      "id": "ent-users",
+      "label": "Users",
+      "entrypoints": ["op-browse-users"],
+      "operationIds": [
+        "op-browse-users",
+        "op-read-user",
+        "op-create-user",
+        "op-update-user"
+      ],
+      "scope": {
+        "selectors": [
+          {
+            "id": "companyId",
+            "label": "Company",
+            "type": "select",
+            "required": true,
+            "binding": {
+              "read": {
+                "method": "GET",
+                "path": "/api/companies",
+                "valuePath": "items",
+                "labelKey": "name",
+                "valueKey": "id"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "operations": [
+    {
+      "id": "op-browse-users",
+      "entityId": "ent-users",
+      "type": "browse",
+      "title": "Users",
+      "route": "/users",
+      "presentation": {
+        "layout": "table",
+        "columns": [
+          { "key": "id", "label": "ID", "format": "string" },
+          { "key": "email", "label": "Email", "format": "string" },
+          { "key": "role", "label": "Role", "format": "badge" },
+          { "key": "active", "label": "Active", "format": "badge" }
+        ],
+        "filter": {
+          "field": "role",
+          "label": "Role",
+          "options": [
+            { "value": "admin", "label": "Admin" },
+            { "value": "member", "label": "Member" }
+          ]
+        }
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/users?companyId={scope.companyId}",
+          "valuePath": "items"
+        }
+      }
+    },
+    {
+      "id": "op-read-user",
+      "entityId": "ent-users",
+      "type": "read",
+      "title": "User",
+      "route": "/users/{userId}",
+      "params": ["userId"],
+      "context": {
+        "breadcrumb": { "label": "Users", "operation": "op-browse-users" }
+      },
+      "presentation": {
+        "layout": "detail",
+        "sections": [
+          {
+            "title": "Profile",
+            "fields": [
+              { "key": "email", "label": "Email", "format": "string" },
+              { "key": "role", "label": "Role", "format": "string" },
+              { "key": "active", "label": "Active", "format": "string" },
+              { "key": "notes", "label": "Notes", "format": "text" }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "op-delete-user",
+            "type": "delete",
+            "label": "Delete",
+            "variant": "danger",
+            "confirm": {
+              "message": "Delete this user? This cannot be undone."
+            },
+            "write": {
+              "method": "DELETE",
+              "path": "/api/users/{userId}?companyId={scope.companyId}"
+            },
+            "outcomes": {
+              "success": { "navigate": "op-browse-users" },
+              "error": { "stay": true }
+            }
+          }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/users/{userId}?companyId={scope.companyId}"
+        }
+      }
+    },
+    {
+      "id": "op-create-user",
+      "entityId": "ent-users",
+      "type": "create",
+      "title": "Create user",
+      "route": "/users/new",
+      "context": {
+        "breadcrumb": { "label": "Users", "operation": "op-browse-users" }
+      },
+      "presentation": {
+        "layout": "form",
+        "fields": [
+          { "name": "email", "label": "Email", "type": "email", "required": true },
+          {
+            "name": "role",
+            "label": "Role",
+            "type": "select",
+            "required": true,
+            "options": [
+              { "value": "admin", "label": "Admin" },
+              { "value": "member", "label": "Member" }
+            ]
+          },
+          { "name": "notes", "label": "Notes", "type": "textarea" },
+          { "name": "active", "label": "Active", "type": "checkbox", "default": true }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "write": {
+          "method": "POST",
+          "path": "/api/users?companyId={scope.companyId}",
+          "bodyMap": {
+            "email": "email",
+            "role": "role",
+            "notes": "notes",
+            "active": "active"
+          }
+        }
+      },
+      "outcomes": {
+        "success": { "navigate": "op-browse-users" },
+        "error": { "stay": true },
+        "cancel": { "navigate": "op-browse-users" }
+      }
+    },
+    {
+      "id": "op-update-user",
+      "entityId": "ent-users",
+      "type": "update",
+      "title": "Edit user",
+      "route": "/users/{userId}/edit",
+      "params": ["userId"],
+      "context": {
+        "breadcrumb": { "label": "Users", "operation": "op-browse-users" }
+      },
+      "presentation": {
+        "layout": "form",
+        "fields": [
+          { "name": "email", "label": "Email", "type": "email", "required": true },
+          {
+            "name": "role",
+            "label": "Role",
+            "type": "select",
+            "required": true,
+            "options": [
+              { "value": "admin", "label": "Admin" },
+              { "value": "member", "label": "Member" }
+            ]
+          },
+          { "name": "notes", "label": "Notes", "type": "textarea" },
+          { "name": "active", "label": "Active", "type": "checkbox" }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/users/{userId}?companyId={scope.companyId}"
+        },
+        "write": {
+          "method": "PATCH",
+          "path": "/api/users/{userId}?companyId={scope.companyId}",
+          "bodyMap": {
+            "email": "email",
+            "role": "role",
+            "notes": "notes",
+            "active": "active"
+          }
+        }
+      },
+      "outcomes": {
+        "success": { "navigate": "op-read-user" },
+        "error": { "stay": true },
+        "cancel": { "navigate": "op-read-user" }
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "op-browse-users",
+      "to": "op-read-user",
+      "trigger": "row",
+      "map": { "userId": "id" }
+    },
+    {
+      "from": "op-browse-users",
+      "to": "op-create-user",
+      "trigger": "cta",
+      "label": "New User",
+      "placement": "toolbar"
+    },
+    {
+      "from": "op-read-user",
+      "to": "op-update-user",
+      "trigger": "link",
+      "label": "Edit"
+    },
+    {
+      "from": "op-create-user",
+      "to": "op-browse-users",
+      "trigger": "cancel"
+    },
+    {
+      "from": "op-update-user",
+      "to": "op-read-user",
+      "trigger": "cancel"
+    }
+  ]
+}

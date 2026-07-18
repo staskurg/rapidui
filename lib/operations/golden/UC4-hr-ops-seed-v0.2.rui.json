@@ -1,0 +1,313 @@
+{
+  "version": "0.2",
+  "app": {
+    "title": "HR Ops"
+  },
+  "entities": [
+    {
+      "id": "ent-employees",
+      "label": "People",
+      "entrypoints": ["op-browse-employees"],
+      "operationIds": [
+        "op-browse-employees",
+        "op-read-employee",
+        "op-create-employee"
+      ]
+    },
+    {
+      "id": "ent-onboarding",
+      "label": "Onboarding",
+      "entrypoints": ["op-create-onboarding"],
+      "operationIds": ["op-create-onboarding"]
+    },
+    {
+      "id": "ent-time-off",
+      "label": "Time off",
+      "entrypoints": ["op-browse-time-off"],
+      "operationIds": ["op-browse-time-off", "op-read-time-off"]
+    }
+  ],
+  "operations": [
+    {
+      "id": "op-browse-employees",
+      "entityId": "ent-employees",
+      "type": "browse",
+      "title": "Employees",
+      "route": "/people",
+      "presentation": {
+        "layout": "table",
+        "columns": [
+          { "key": "id", "label": "ID", "format": "string" },
+          { "key": "name", "label": "Name", "format": "string" },
+          { "key": "department", "label": "Department", "format": "string" },
+          { "key": "status", "label": "Status", "format": "badge" }
+        ],
+        "filter": {
+          "field": "status",
+          "label": "Status",
+          "options": [
+            { "value": "active", "label": "Active" },
+            { "value": "on_leave", "label": "On leave" },
+            { "value": "terminated", "label": "Terminated" }
+          ]
+        }
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/employees",
+          "valuePath": "items"
+        }
+      }
+    },
+    {
+      "id": "op-read-employee",
+      "entityId": "ent-employees",
+      "type": "read",
+      "title": "Employee",
+      "route": "/people/{employeeId}",
+      "params": ["employeeId"],
+      "context": {
+        "breadcrumb": { "label": "People", "operation": "op-browse-employees" }
+      },
+      "presentation": {
+        "layout": "detail",
+        "sections": [
+          {
+            "title": "Profile",
+            "fields": [
+              { "key": "name", "label": "Name", "format": "string" },
+              { "key": "email", "label": "Email", "format": "string" },
+              { "key": "department", "label": "Department", "format": "string" },
+              { "key": "status", "label": "Status", "format": "string" },
+              { "key": "startDate", "label": "Start date", "format": "date" }
+            ]
+          }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/employees/{employeeId}"
+        }
+      }
+    },
+    {
+      "id": "op-create-employee",
+      "entityId": "ent-employees",
+      "type": "create",
+      "title": "Add employee",
+      "route": "/people/new",
+      "context": {
+        "breadcrumb": { "label": "People", "operation": "op-browse-employees" }
+      },
+      "presentation": {
+        "layout": "form",
+        "fields": [
+          { "name": "name", "label": "Name", "type": "text", "required": true },
+          { "name": "email", "label": "Email", "type": "email", "required": true },
+          {
+            "name": "department",
+            "label": "Department",
+            "type": "select",
+            "required": true,
+            "options": [
+              { "value": "engineering", "label": "Engineering" },
+              { "value": "support", "label": "Support" },
+              { "value": "sales", "label": "Sales" }
+            ]
+          },
+          { "name": "startDate", "label": "Start date", "type": "text", "required": true }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "write": {
+          "method": "POST",
+          "path": "/api/employees",
+          "bodyMap": {
+            "name": "name",
+            "email": "email",
+            "department": "department",
+            "startDate": "startDate"
+          }
+        }
+      },
+      "outcomes": {
+        "success": { "navigate": "op-browse-employees" },
+        "error": { "stay": true },
+        "cancel": { "navigate": "op-browse-employees" }
+      }
+    },
+    {
+      "id": "op-create-onboarding",
+      "entityId": "ent-onboarding",
+      "type": "create",
+      "title": "Start onboarding",
+      "route": "/onboarding/new",
+      "presentation": {
+        "layout": "form",
+        "fields": [
+          { "name": "employeeId", "label": "Employee ID", "type": "text", "required": true },
+          {
+            "name": "track",
+            "label": "Track",
+            "type": "select",
+            "required": true,
+            "options": [
+              { "value": "standard", "label": "Standard" },
+              { "value": "executive", "label": "Executive" }
+            ]
+          },
+          { "name": "startDate", "label": "Start date", "type": "text", "required": true },
+          { "name": "notes", "label": "Notes", "type": "textarea" }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "write": {
+          "method": "POST",
+          "path": "/api/onboarding",
+          "bodyMap": {
+            "employeeId": "employeeId",
+            "track": "track",
+            "startDate": "startDate",
+            "notes": "notes"
+          }
+        }
+      },
+      "outcomes": {
+        "success": { "navigate": "op-create-onboarding" },
+        "error": { "stay": true },
+        "cancel": { "stay": true }
+      }
+    },
+    {
+      "id": "op-browse-time-off",
+      "entityId": "ent-time-off",
+      "type": "browse",
+      "title": "Time off requests",
+      "route": "/time-off",
+      "presentation": {
+        "layout": "table",
+        "columns": [
+          { "key": "id", "label": "ID", "format": "string" },
+          { "key": "employeeName", "label": "Employee", "format": "string" },
+          { "key": "type", "label": "Type", "format": "string" },
+          { "key": "startDate", "label": "Start", "format": "date" },
+          { "key": "endDate", "label": "End", "format": "date" },
+          { "key": "status", "label": "Status", "format": "badge" }
+        ],
+        "filter": {
+          "field": "status",
+          "label": "Status",
+          "options": [
+            { "value": "pending", "label": "Pending" },
+            { "value": "approved", "label": "Approved" },
+            { "value": "denied", "label": "Denied" }
+          ]
+        }
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/time-off-requests",
+          "valuePath": "items"
+        }
+      }
+    },
+    {
+      "id": "op-read-time-off",
+      "entityId": "ent-time-off",
+      "type": "read",
+      "title": "Time off request",
+      "route": "/time-off/{requestId}",
+      "params": ["requestId"],
+      "context": {
+        "breadcrumb": { "label": "Time off", "operation": "op-browse-time-off" }
+      },
+      "presentation": {
+        "layout": "detail",
+        "sections": [
+          {
+            "title": "Request",
+            "fields": [
+              { "key": "employeeName", "label": "Employee", "format": "string" },
+              { "key": "type", "label": "Type", "format": "string" },
+              { "key": "startDate", "label": "Start", "format": "date" },
+              { "key": "endDate", "label": "End", "format": "date" },
+              { "key": "reason", "label": "Reason", "format": "text" },
+              { "key": "status", "label": "Status", "format": "string" }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "op-approve-time-off",
+            "type": "act",
+            "label": "Approve",
+            "variant": "primary",
+            "invoke": {
+              "method": "POST",
+              "path": "/api/time-off-requests/{requestId}/approve"
+            },
+            "outcomes": {
+              "success": { "navigate": "op-browse-time-off" },
+              "error": { "stay": true }
+            }
+          },
+          {
+            "id": "op-deny-time-off",
+            "type": "act",
+            "label": "Deny",
+            "variant": "danger",
+            "invoke": {
+              "method": "POST",
+              "path": "/api/time-off-requests/{requestId}/deny"
+            },
+            "outcomes": {
+              "success": { "navigate": "op-browse-time-off" },
+              "error": { "stay": true }
+            }
+          }
+        ]
+      },
+      "data": {
+        "mode": "api",
+        "read": {
+          "method": "GET",
+          "path": "/api/time-off-requests/{requestId}"
+        }
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "op-browse-employees",
+      "to": "op-read-employee",
+      "trigger": "row",
+      "map": { "employeeId": "id" }
+    },
+    {
+      "from": "op-browse-employees",
+      "to": "op-create-employee",
+      "trigger": "cta",
+      "label": "Add employee",
+      "placement": "toolbar"
+    },
+    {
+      "from": "op-create-employee",
+      "to": "op-browse-employees",
+      "trigger": "cancel"
+    },
+    {
+      "from": "op-browse-time-off",
+      "to": "op-read-time-off",
+      "trigger": "row",
+      "map": { "requestId": "id" }
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "version": "0.2",
+  "app": {
+    "title": "Ops Summary"
+  },
+  "entities": [
+    {
+      "id": "ent-incidents",
+      "label": "Incidents",
+      "entrypoints": ["op-browse-incidents"],
+      "operationIds": ["op-browse-incidents"]
+    },
+    {
+      "id": "ent-teams",
+      "label": "Teams",
+      "entrypoints": ["op-browse-teams"],
+      "operationIds": ["op-browse-teams"]
+    }
+  ],
+  "operations": [
+    {
+      "id": "op-browse-incidents",
+      "entityId": "ent-incidents",
+      "type": "browse",
+      "title": "Incidents",
+      "route": "/incidents",
+      "presentation": {
+        "layout": "table",
+        "columns": [
+          { "key": "id", "label": "ID", "format": "string" },
+          { "key": "severity", "label": "Severity", "format": "badge" },
+          { "key": "status", "label": "Status", "format": "badge" },
+          { "key": "owner", "label": "Owner", "format": "string" }
+        ],
+        "filter": {
+          "field": "status",
+          "label": "Status",
+          "options": [
+            { "value": "open", "label": "Open" },
+            { "value": "resolved", "label": "Resolved" }
+          ]
+        },
+        "header": {
+          "metrics": [
+            { "key": "openCount", "label": "Open", "value": 42 },
+            { "key": "resolvedToday", "label": "Resolved today", "value": 17 },
+            { "key": "avgResolutionHours", "label": "Avg resolution (h)", "value": 4.2 }
+          ]
+        }
+      },
+      "data": {
+        "mode": "static",
+        "records": [
+          {
+            "id": "INC-1001",
+            "severity": "high",
+            "status": "open",
+            "owner": "alice"
+          },
+          {
+            "id": "INC-1002",
+            "severity": "medium",
+            "status": "open",
+            "owner": "bob"
+          },
+          {
+            "id": "INC-0998",
+            "severity": "low",
+            "status": "resolved",
+            "owner": "carol"
+          }
+        ]
+      }
+    },
+    {
+      "id": "op-browse-teams",
+      "entityId": "ent-teams",
+      "type": "browse",
+      "title": "Teams",
+      "route": "/teams",
+      "presentation": {
+        "layout": "table",
+        "columns": [
+          { "key": "name", "label": "Team", "format": "string" },
+          { "key": "lead", "label": "Lead", "format": "string" },
+          { "key": "headcount", "label": "Headcount", "format": "number" },
+          { "key": "region", "label": "Region", "format": "string" }
+        ],
+        "header": {
+          "metrics": [
+            { "key": "teamCount", "label": "Teams", "value": 3 },
+            { "key": "totalHeadcount", "label": "Total people", "value": 48 }
+          ]
+        }
+      },
+      "data": {
+        "mode": "static",
+        "records": [
+          { "name": "Platform", "lead": "dana", "headcount": 18, "region": "US" },
+          { "name": "Support", "lead": "erin", "headcount": 22, "region": "EU" },
+          { "name": "AI Ops", "lead": "frank", "headcount": 8, "region": "US" }
+        ]
+      }
+    }
+  ],
+  "transitions": []
+}

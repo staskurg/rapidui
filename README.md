@@ -26,18 +26,18 @@ npx vercel env pull .env.local
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | Vercel Postgres connection string (required for RUI store) |
+| `DATABASE_URL` | **Neon Postgres** pooled connection string — fresh v0.2 database (required for RUI store + Observe tables) |
 | `RAPIDUI_BASE_URL` | Canonical public URL for absolute links in API responses (e.g. `https://rapidui.dev`). Set in Vercel production. Preview/local fall back to `VERCEL_URL` / `localhost`. |
 
-## Database migration
+## Database (Neon)
 
-Apply the specs table migration before using the store (local + production). CLI scripts load env from `.env.local` via Node's `--env-file` — run `vercel env pull .env.local` first:
+v0.2 uses a **fresh empty Neon database** — no migration of v0.1 production data. Provision a new Neon project/database, set `DATABASE_URL` on Vercel, then apply migrations:
 
 ```bash
 npm run db:migrate
 ```
 
-Idempotent — safe to re-run (`CREATE TABLE IF NOT EXISTS`). Applies `001_specs.sql` and `002_eval_runs.sql`.
+Idempotent — safe to re-run (`CREATE TABLE IF NOT EXISTS`). Applies `001`–`005` (`specs`, `eval_runs`, `api_events`, `agent_runs`, `agent_turns`).
 
 ## RUI store
 
@@ -100,11 +100,13 @@ Use the apex domain (`rapidui.dev`) as the canonical API base URL. `www.rapidui.
 ## Project structure
 
 ```txt
-app/api/          # API route handlers
+app/api/          # API route handlers (incl. /api/observe/ingest/agent)
+agent/            # RapidUI Agent — FastAPI on Render (agent.rapidui.dev)
 lib/registry/     # §1 vocabulary registry (RUI schemas)
 lib/validate/     # §2 validation engine
 lib/docs/         # §3 agent documentation content + payloads
-lib/db/           # §4 Postgres client
+lib/db/           # Postgres client (@neondatabase/serverless)
+lib/observe/      # Observe ingest schemas + write helpers
 lib/review/       # §5 RUI inspector components (block tree)
 eval/             # §6 eval cases, manual wrappers, score CLI
 eval/cases/       # eval case definitions (prompt + successCriteria)
@@ -126,3 +128,5 @@ Implementation plan and MVP scope live in `.cursor/`:
 ## Deployment
 
 Pushes to `main` auto-deploy to Vercel at `https://rapidui.dev`.
+
+**RapidUI Agent** (Phase 0+): separate Render web service from `agent/` — see [agent/README.md](agent/README.md).
