@@ -15,6 +15,24 @@ Eval case: {{CASE_ID}}
 
 {{MOCK_API}}
 
+## Telemetry (v0.2)
+
+Generate once per session (use the same id on every validate and save call):
+
+  SESSION_ID=$(uuidgen)    # macOS/Linux; or any stable unique string
+
+On every POST /api/validate and POST /api/specs, include these headers:
+
+  -H "X-RapidUI-Session-Id: $SESSION_ID"
+  -H "X-RapidUI-Agent: cursor"          # or claude | codex
+  -H "X-RapidUI-Eval-Case: {{CASE_ID}}"
+
+Optional:
+
+  -H "X-RapidUI-Intent: short goal label"
+
+Events appear in Observe (/observe/api in Phase 3). v0.2 eval case ids (e.g. crud-admin-v0.2) land in Phase 2.
+
 ## Workflow
 
 1. curl {{BASE_URL}}/llms.txt — read discovery index and Instructions

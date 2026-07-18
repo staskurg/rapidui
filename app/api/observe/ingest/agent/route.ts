@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   agentIngestPayloadSchema,
-  validateAgentIngestPayload,
+  ingestAgentTelemetry,
 } from "@/lib/observe/writes";
 
 export async function POST(request: Request) {
@@ -43,16 +43,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    validateAgentIngestPayload(parsed.data);
+    const { runId } = await ingestAgentTelemetry(parsed.data);
+    return NextResponse.json({ ok: true, runId }, { status: 200 });
   } catch (error) {
+    console.error("[observe] Agent ingest failed:", error);
     return NextResponse.json(
       {
-        error: "INVALID_INGEST_PAYLOAD",
-        message: error instanceof Error ? error.message : "Invalid payload.",
+        error: "INGEST_FAILED",
+        message: "Failed to persist agent telemetry.",
       },
-      { status: 400 },
+      { status: 500 },
     );
   }
-
-  return NextResponse.json({ ok: true }, { status: 200 });
 }

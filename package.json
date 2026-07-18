@@ -13,6 +13,7 @@
     "smoke:specs": "tsx --env-file=.env.local scripts/smoke-specs.ts",
     "smoke:inspector": "tsx scripts/smoke-inspector.ts",
     "smoke:eval": "tsx --env-file=.env.local scripts/smoke-eval.ts",
+    "smoke:observe": "tsx --env-file=.env.local scripts/smoke-observe.ts",
     "eval:prompt": "tsx scripts/render-eval-prompt.ts",
     "eval:score": "tsx --env-file=.env.local eval/score.ts",
     "eval:log": "tsx --env-file=.env.local scripts/log-eval-run.ts",

@@ -57,3 +57,5 @@ Allowed origins: `https://rapidui.dev`, `http://localhost:3000` (main UI dev).
 | `RAPIDUI_AGENT_PROMPT_VERSION` | Optional | Default `v1` — loads `prompts/{version}.txt` |
 
 The agent does **not** connect to Neon directly in v0.2. Telemetry POSTs to `https://rapidui.dev/api/observe/ingest/agent` (Phase 1).
+
+**Ingest contract:** [lib/observe/INGEST.md](../lib/observe/INGEST.md) — JSON payload shape, upsert rules, examples. Phase 4 FastAPI handler implements the POST after each chat turn/run.

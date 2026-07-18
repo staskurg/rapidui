@@ -3,9 +3,54 @@ import { ERROR_CATALOG } from "@/lib/validate/messages";
 import { VALIDATION_VERSION } from "@/lib/validate/version";
 
 import { getBaseUrl } from "@/lib/base-url";
+import { TELEMETRY_HEADERS } from "@/lib/observe/headers";
 import { readDoc } from "./load";
 
 export const DOCS_VERSION = "0.1";
+
+const OPTIONAL_TELEMETRY_HEADERS = [
+  {
+    name: TELEMETRY_HEADERS.sessionId,
+    required: false,
+    description:
+      "Stable id for one agent session — correlates validate/save events in Observe.",
+    example: "550e8400-e29b-41d4-a716-446655440000",
+  },
+  {
+    name: TELEMETRY_HEADERS.agent,
+    required: false,
+    description:
+      "Agent identifier for analytics (e.g. claude, cursor, codex, rapidui-agent).",
+    example: "claude",
+  },
+  {
+    name: TELEMETRY_HEADERS.evalCaseId,
+    required: false,
+    description: "Eval case id when running a controlled eval (v0.2 cases in Phase 2).",
+    example: "crud-admin-v0.2",
+  },
+  {
+    name: TELEMETRY_HEADERS.intent,
+    required: false,
+    description: "Optional short label for the user goal or use case.",
+    example: "UC2 users admin",
+  },
+] as const;
+
+function getTelemetrySection(baseUrl: string) {
+  return {
+    description:
+      "Optional HTTP headers on POST /api/validate and POST /api/specs. Platform records api_events for Observe — agents do not need Observe URLs.",
+    headers: OPTIONAL_TELEMETRY_HEADERS,
+    exampleCurl: `curl -X POST ${baseUrl}/api/validate \\
+  -H "Content-Type: application/json" \\
+  -H "${TELEMETRY_HEADERS.sessionId}: <session-uuid>" \\
+  -H "${TELEMETRY_HEADERS.agent}: claude" \\
+  -d @my-spec.rui.json`,
+    ingestNote:
+      "RapidUI Agent (FastAPI) posts run/turn summaries to POST /api/observe/ingest/agent — see lib/observe/INGEST.md in the repo.",
+  };
+}
 
 function getApiSection(baseUrl: string) {
   return {
@@ -16,6 +61,7 @@ function getApiSection(baseUrl: string) {
       contentType: "application/json",
       body: "Raw RUI JSON (version 0.1)",
       maxBodyBytes: 262144,
+      optionalHeaders: OPTIONAL_TELEMETRY_HEADERS,
       responses: {
         success: {
           httpStatus: 200,
@@ -62,6 +108,7 @@ function getApiSection(baseUrl: string) {
       contentType: "application/json",
       body: "Raw RUI JSON (version 0.1) — same shape as POST /api/validate",
       maxBodyBytes: 262144,
+      optionalHeaders: OPTIONAL_TELEMETRY_HEADERS,
       responses: {
         success: {
           httpStatus: 201,
@@ -178,6 +225,7 @@ export function getDocsPayload() {
   return {
     docsVersion: DOCS_VERSION,
     baseUrl,
+    telemetry: getTelemetrySection(baseUrl),
     rui: {
       fileExtension: RUI_FILE_EXTENSION,
       description:

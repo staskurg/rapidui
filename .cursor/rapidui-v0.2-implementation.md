@@ -371,71 +371,318 @@ Route: `POST /api/observe/ingest/agent` → 200 `{ "ok": true }` | 400 RFC 9457 
 
 **Reference:** §4 (telemetry flow), §9 Area 1, §10 (`api_events`), §12, §14 (headers)
 
+**Status:** Complete (verified 2026-07-18 — local Neon + smoke tests).
+
 ### Goal
 
-Platform records **every validate/save** from all agents (external + ours). Agent ingest route accepts run/turn rows from FastAPI.
+Platform records **every validate/save** from all agents (external + ours). Agent ingest route persists `agent_runs` / `agent_turns` from FastAPI. Satisfies ship criterion **S3** (telemetry + documented headers).
 
 ### Depends on
 
-Phase 0.
+Phase 0 (`api_events`, `agent_runs`, `agent_turns` tables exist; ingest route stub; `lib/observe/schemas.ts`).
 
 ### Unlocks
 
-Phase 3 (Observe API), Path B external-agent demo, Phase 4 agent telemetry POST.
+Phase 3 (Observe API dashboard), Path B external-agent demo (**S8**), Phase 4 agent telemetry POST.
 
-### Scope
+---
 
-- `api_events` table + **`insertApiEvent()`** in `lib/observe/` (Zod-validated)
-- Middleware on `POST /api/validate` and `POST /api/specs` — in-process Neon write
-- **`POST /api/observe/ingest/agent`** — full implementation for `agent_runs` / `agent_turns`
-- Shared write logic in `lib/observe/writes.ts` (single schema)
-- Optional request headers — read in middleware, store on `api_events`:
-  - `X-RapidUI-Session-Id`
-  - `X-RapidUI-Agent`
-  - `X-RapidUI-Eval-Case`
-  - `X-RapidUI-Intent`
-- Document headers in `/api/docs` + update `eval/manual/wrapper_*.txt`
-- Optional stretch: `POST /api/eval/log` → `eval_runs` (O3)
+### Repo audit (2026-07-18)
 
-### Key paths
+| Area | Current state | Phase 1 action |
+|------|---------------|----------------|
+| **`api_events` table** | Migration `003` applied in Phase 0 | Wire `insertApiEvent()` — no schema change |
+| **`agent_runs` / `agent_turns`** | Migrations `004`–`005` applied | Implement upsert inserts in `writes.ts` |
+| **`lib/observe/schemas.ts`** | `agentIngestPayloadSchema` only | Add `apiEventInputSchema`, export header name constants |
+| **`lib/observe/writes.ts`** | Stub `insertAgentRun` / `insertAgentTurn` throw; ingest validates only | Implement all three insert/upsert functions |
+| **`lib/observe/headers.ts`** | Missing | Parse optional `X-RapidUI-*` headers from `Request` |
+| **`lib/observe/telemetry.ts`** | Missing | `recordApiEvent()` helper — timing + field mapping; called from route handlers |
+| **`POST /api/validate`** | Validates only; no telemetry | Call `recordApiEvent()` before every response |
+| **`POST /api/specs`** | Validates + saves; no telemetry | Same — log `spec_id` on 201 |
+| **`POST /api/observe/ingest/agent`** | Zod validate → `{ ok: true }`; no DB | Call `ingestAgentTelemetry()` → upsert run + turns |
+| **`GET /api/docs`** | v0.1 block-tree docs; no headers | Add **`telemetry`** section + optional headers on validate/specs API entries (**header docs only** — full operations rewrite is Phase 2) |
+| **`eval/manual/wrapper_*.txt`** | v0.1 workflow; no session headers | Add telemetry header block + curl `-H` examples |
+| **`agent/README.md`** | Points at ingest URL (Phase 1) | Link to shared ingest schema doc |
+| **`scripts/smoke-observe.ts`** | Missing | New smoke: api_events insert + ingest upsert |
+| **`POST /api/eval/log`** | Does not exist; CLI `eval:log` works | **Out of scope** — defer to Phase 7 stretch **O3** |
+
+**v0.1 behavior that must keep working:** validate/specs responses unchanged; telemetry failures must **not** break API responses.
+
+---
+
+### Resolved open questions
+
+| Question | Decision |
+|----------|----------|
+| **“Middleware” vs route handlers** | **Route-handler instrumentation**, not root `middleware.ts`. Body must be parsed for `valid` / `error_codes`; handler owns `duration_ms`. Reference §4 “middleware” = platform layer outside the LLM — implement as shared helper called from `app/api/validate/route.ts` and `app/api/specs/route.ts`. |
+| **Which endpoints log `api_events`** | **`POST /api/validate`** and **`POST /api/specs` only** — every request, including transport failures (HTTP 400). Do **not** log `GET /api/specs/:id`. |
+| **Telemetry insert failure** | **Non-blocking.** Wrap insert in try/catch; `console.error`; always return the same HTTP response the route would return without telemetry. |
+| **`valid` / `error_codes` mapping** | Transport failure (400): `valid: null`, `error_codes: ['INVALID_JSON']` (or first transport code). Semantic failure (200, `valid: false`): `valid: false`, codes from `errors[].code`. Success validate: `valid: true`, empty codes. Specs 201: `valid: true`, `spec_id` set. Specs 200 valid:false: same as validate failure. Specs 503: `valid: true`, `spec_id: null` (validation passed, storage failed). |
+| **`duration_ms`** | `Date.now()` delta from start of route handler to just before response (includes validation + DB save). |
+| **Optional headers** | Read if present; store as nullable TEXT columns. No validation of UUID format for `session_id` — agents may use any non-empty string. Trim whitespace; empty string → `null`. |
+| **Header names (locked)** | `X-RapidUI-Session-Id`, `X-RapidUI-Agent`, `X-RapidUI-Eval-Case`, `X-RapidUI-Intent` — per reference §12, §14. |
+| **Ingest auth / rate limiting** | **None** — reference §3 #26. Public ingest endpoint; same as Phase 0 stub. |
+| **Ingest upsert semantics** | `agent_runs`: **`INSERT … ON CONFLICT (session_id) DO UPDATE`** — merge non-null fields from payload; preserve `started_at` on conflict; set `finished_at` when `run.outcome` or `run.finished_at` provided. `agent_turns`: **`INSERT … ON CONFLICT (run_id, turn_index) DO UPDATE`** — replace turn metrics. Route ensures a run row exists before inserting turns (create minimal run if only `turns[]` sent). |
+| **`run.outcome` values** | `'saved' \| 'failed' \| 'abandoned'` — Zod enum already in `schemas.ts`. Store as TEXT in DB. |
+| **`started_at` / `finished_at` in ingest** | Optional ISO strings in payload; if omitted, DB defaults (`started_at` = first insert time; `finished_at` set only when outcome/finished_at sent). Phase 4 FastAPI may send explicit timestamps later. |
+| **Shared ingest schema location** | **`lib/observe/INGEST.md`** — canonical JSON examples + field table; `agent/README.md` links here. Keeps contract in platform tree (single source of truth per §4). |
+| **`POST /api/eval/log`** | **Defer to Phase 7 (O3).** Phase 1 keeps **`npm run eval:log`** CLI only. Eval runs do not need new columns until eval lab. |
+| **`eval_runs` column extensions** | **Phase 7 only** — no migration in Phase 1. |
+| **Docs rewrite for operations schema** | **Phase 2.** Phase 1 adds telemetry headers to existing v0.1 `/api/docs` payload only. |
+| **Wrapper v0.2 case ids** | Phase 1: document headers + session id generation. Case id placeholders stay `{{CASE_ID}}` until Phase 2 eval cases land; mention v0.2 case ids in comment only. |
+
+---
+
+### Architecture (Phase 1)
 
 ```txt
-lib/observe/
-app/api/validate/  app/api/specs/  (middleware)
-app/api/observe/ingest/agent/
-eval/manual/wrapper_*.txt
+POST /api/validate | /api/specs
+        │
+        ▼
+  route handler (existing validate/save logic)
+        │
+        ├──► HTTP response to agent (unchanged)
+        │
+        └──► recordApiEvent() ──► insertApiEvent() ──► Neon api_events
+                    ▲
+                    └── parseTelemetryHeaders(request)
+
+
+POST /api/observe/ingest/agent  (from Render FastAPI in Phase 4)
+        │
+        ▼
+  Zod validate body
+        │
+        └──► ingestAgentTelemetry()
+                  ├── upsert agent_runs (by session_id)
+                  └── upsert agent_turns (by run_id + turn_index)
 ```
 
-### Data model (implement here)
+---
 
-**`api_events`** — see reference §10 sketch.
+### Task list (build order)
 
-**`agent_runs`** (summary per session): `session_id`, `started_at`, `finished_at`, `outcome`, `spec_id`, `validate_attempts`, `model`, `provider`, `prompt_version`, `eval_case_id`, `total_tokens`, `latency_ms`, `intent`, `error_summary`.
+#### A — Shared observe layer
 
-**`agent_turns`**: `run_id`, `turn_index`, `latency_ms`, `input_tokens`, `output_tokens`, `had_validate_call`, `had_save`.
+1. **`lib/observe/headers.ts`** — export header name constants + `parseTelemetryHeaders(request: Request)` returning `{ sessionId, agent, evalCaseId, intent } | null fields`.
+2. **Extend `lib/observe/schemas.ts`** — add `apiEventInputSchema` + exported type `ApiEventInput` (fields matching `api_events` columns except `id` / `occurred_at`).
+3. **Implement `insertApiEvent(input: ApiEventInput)`** in `writes.ts` — Zod parse → `INSERT INTO api_events … RETURNING id`.
+4. **`lib/observe/telemetry.ts`** — export `recordApiEvent({ request, endpoint, result, httpStatus, specId?, startedAt })` — maps `ValidationResult` → `valid` + `error_codes`, merges headers, calls `insertApiEvent` in try/catch.
 
-Document ingest JSON schema in repo (shared with `agent/`).
+#### B — Wire validate/save routes
+
+5. **`app/api/validate/route.ts`** — `const startedAt = Date.now()` at top; after result known, `await recordApiEvent(...)` before each `return` (200 success, 200 invalid, 400 transport).
+6. **`app/api/specs/route.ts`** — same pattern; pass `specId: saved.specId` on 201; handle 200 valid:false, 503, 400.
+
+#### C — Agent ingest (full implementation)
+
+7. **Implement `upsertAgentRun(sessionId, run?)`** — returns `{ id, sessionId }`.
+8. **Implement `upsertAgentTurn(runId, turn)`** — returns `{ id }`.
+9. **Implement `ingestAgentTelemetry(payload: AgentIngestPayload)`** — orchestrates run + turns array in one transaction-like sequence (sequential awaits OK for v0.2).
+10. **Update `app/api/observe/ingest/agent/route.ts`** — call `ingestAgentTelemetry`; return `{ ok: true, runId }` on success; 500 only if DB throws (ingest is service path — unlike public API, a 500 on DB failure is acceptable; log error).
+11. **Remove or repurpose `validateAgentIngestPayload`** — redundant with Zod; keep only if extra business rules needed.
+
+#### D — Documentation + eval wrappers
+
+12. **`lib/observe/INGEST.md`** — full ingest contract (JSON examples, upsert behavior, field tables for `agent_runs` + `agent_turns`).
+13. **Update `lib/docs/index.ts`** — add `telemetry` object to docs payload: header names, purpose, example curl; add `optionalHeaders` array on validate/specs API sections.
+14. **Update `eval/manual/wrapper_local.txt` and `wrapper_prod.txt`** — new **Telemetry** section: generate `SESSION_ID=$(uuidgen)` (or equivalent), pass four headers on every validate/save curl.
+15. **Update `agent/README.md`** — link to `../lib/observe/INGEST.md`; note Phase 4 will POST this shape.
+
+#### E — Smoke + verify
+
+16. **`scripts/smoke-observe.ts`** — (1) POST validate with headers against local or `BASE_URL`; query `api_events` count ≥ 1; (2) POST ingest sample payload; verify `agent_runs` + `agent_turns` rows.
+17. **`package.json`** — add `"smoke:observe": "tsx --env-file=.env.local scripts/smoke-observe.ts"`.
+
+---
+
+### Files to create / modify
+
+**Create**
+
+```txt
+lib/observe/headers.ts
+lib/observe/telemetry.ts
+lib/observe/INGEST.md
+scripts/smoke-observe.ts
+```
+
+**Modify**
+
+```txt
+lib/observe/schemas.ts          # apiEventInputSchema
+lib/observe/writes.ts           # insertApiEvent, upsertAgentRun/Turn, ingestAgentTelemetry
+app/api/validate/route.ts       # recordApiEvent calls
+app/api/specs/route.ts          # recordApiEvent calls
+app/api/observe/ingest/agent/route.ts
+lib/docs/index.ts               # telemetry + optionalHeaders in API sections
+eval/manual/wrapper_local.txt
+eval/manual/wrapper_prod.txt
+agent/README.md
+package.json                    # smoke:observe script
+```
+
+---
+
+### `insertApiEvent` input (Zod)
+
+Maps 1:1 to `api_events` (Phase 0 migration — no DDL change):
+
+| Field | Type | Source |
+|-------|------|--------|
+| `endpoint` | `'/api/validate' \| '/api/specs'` | Route constant |
+| `session_id` | `string \| null` | `X-RapidUI-Session-Id` |
+| `agent` | `string \| null` | `X-RapidUI-Agent` |
+| `eval_case_id` | `string \| null` | `X-RapidUI-Eval-Case` |
+| `intent` | `string \| null` | `X-RapidUI-Intent` |
+| `valid` | `boolean \| null` | `true` / `false` / `null` (transport) |
+| `error_codes` | `string[] \| null` | `errors[].code` or `null` when valid |
+| `spec_id` | `uuid \| null` | POST /api/specs 201 only |
+| `duration_ms` | `number` | Handler timing |
+
+`id` and `occurred_at` — DB defaults.
+
+---
+
+### Agent ingest JSON contract (canonical — also in `INGEST.md`)
+
+**Endpoint:** `POST /api/observe/ingest/agent`  
+**Auth:** none  
+**Success:** `200 { "ok": true, "runId": "<uuid>" }`  
+**Validation error:** `400` with `INVALID_INGEST_PAYLOAD`
+
+#### Minimal (run summary only — Phase 4 end-of-session)
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "run": {
+    "outcome": "saved",
+    "spec_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "validate_attempts": 2,
+    "model": "o4-mini",
+    "provider": "openai",
+    "prompt_version": "v1",
+    "eval_case_id": "crud-admin-v0.2",
+    "total_tokens": 4200,
+    "latency_ms": 18500,
+    "intent": "UC2",
+    "error_summary": null,
+    "finished_at": "2026-07-18T20:15:00.000Z"
+  }
+}
+```
+
+#### Per-turn update (mid-session — Phase 4 after each assistant reply)
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "turns": [
+    {
+      "turn_index": 0,
+      "latency_ms": 3200,
+      "input_tokens": 800,
+      "output_tokens": 450,
+      "had_validate_call": true,
+      "had_save": false
+    }
+  ]
+}
+```
+
+#### Combined (single POST)
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "run": { "outcome": "saved", "spec_id": "…", "validate_attempts": 1 },
+  "turns": [{ "turn_index": 0, "latency_ms": 5000, "had_validate_call": true, "had_save": true }]
+}
+```
+
+**Upsert rules:**
+
+- Same `session_id` across all POSTs for one chat session.
+- `session_id` on `agent_runs` is **UNIQUE** — later POSTs merge into the same row.
+- `(run_id, turn_index)` on `agent_turns` is **UNIQUE** — re-posting a turn overwrites metrics.
+- `spec_id` in ingest must reference an existing `specs.id` if provided (FK) — Phase 4 saves before ingest.
+
+---
+
+### Telemetry headers (for `/api/docs` + wrappers)
+
+| Header | Required | Example | Stored on |
+|--------|----------|---------|-----------|
+| `X-RapidUI-Session-Id` | Recommended | `550e8400-e29b-41d4-a716-446655440000` | `api_events.session_id`; joins to `agent_runs.session_id` |
+| `X-RapidUI-Agent` | Recommended | `claude`, `cursor`, `codex`, `rapidui-agent` | `api_events.agent` |
+| `X-RapidUI-Eval-Case` | Eval runs only | `crud-admin-v0.2` | `api_events.eval_case_id` |
+| `X-RapidUI-Intent` | Optional | `UC2 users admin` | `api_events.intent` |
+
+**Wrapper addition (sketch):**
+
+```txt
+## Telemetry (v0.2)
+
+Generate once per session:
+  SESSION_ID=<uuid>
+
+On every POST /api/validate and POST /api/specs, include:
+  -H "X-RapidUI-Session-Id: $SESSION_ID"
+  -H "X-RapidUI-Agent: claude"
+  -H "X-RapidUI-Eval-Case: {{CASE_ID}}"
+```
+
+---
+
+### Test plan (before checking boxes)
+
+| Step | Command / action | Expected |
+|------|------------------|----------|
+| Unit path | `npm run smoke:observe` | Pass — api_event + ingest rows |
+| Validate telemetry | `curl -X POST localhost:3000/api/validate -H 'Content-Type: application/json' -H 'X-RapidUI-Session-Id: test-1' -H 'X-RapidUI-Agent: manual' -d @fixture.json` | 200 + row in `api_events` with session/agent |
+| Invalid JSON | POST validate with body `{` | 400 + `api_events` row with `valid` null |
+| Save telemetry | POST golden RUI to `/api/specs` with same session header | 201 + row with `spec_id` populated |
+| Ingest run | `curl -X POST localhost:3000/api/observe/ingest/agent -H 'Content-Type: application/json' -d '{"session_id":"ingest-1","run":{"outcome":"saved"}}'` | 200 `{ ok: true, runId }` + `agent_runs` row |
+| Ingest turns | Same session + `turns:[{turn_index:0,had_validate_call:true}]` | `agent_turns` row linked to run |
+| Ingest upsert | Repeat POST with updated `validate_attempts` | Single `agent_runs` row updated |
+| Ingest bad payload | POST `{}` | 400 |
+| Docs | `curl localhost:3000/api/docs \| jq '.sections'` or smoke:docs | Telemetry section present |
+| Non-blocking | Temporarily break `DATABASE_URL` → validate still returns 200/400 | Response unchanged; error logged |
+| Prod spot-check | Repeat one curl against `rapidui.dev` | Row visible in Neon console |
+
+**SQL spot-check:**
+
+```sql
+SELECT endpoint, session_id, agent, valid, error_codes, spec_id, duration_ms
+FROM api_events ORDER BY occurred_at DESC LIMIT 5;
+
+SELECT session_id, outcome, validate_attempts FROM agent_runs ORDER BY started_at DESC LIMIT 5;
+```
+
+---
 
 ### Out of scope
 
 - Observe dashboards (Phases 3, 6)
-- FastAPI agent (Phase 4)
-- Operations schema changes
-
-### Open questions
-
-- Ingest auth / rate limiting (v0.2: none per reference §3 #26)
-- `POST /api/eval/log` vs CLI-only for eval runs (stretch O3)
-- `eval_runs` column extensions — minimal in Phase 1 if needed for logging; full in Phase 7
+- FastAPI agent / `POST /chat` (Phase 4)
+- Operations schema or v0.2 `/api/docs` rewrite (Phase 2)
+- `POST /api/eval/log` (Phase 7 — **O3**)
+- `eval_runs` column migrations (Phase 7)
+- Ingest auth, rate limiting, IP allowlists
+- `POST /api/observe/ingest/api-event` (optional future — not needed for v0.2)
 
 ### Checklist
 
-- [ ] Validate/save requests insert `api_events` rows
-- [ ] Headers persisted when present; documented in `/api/docs`
-- [ ] Ingest API accepts agent run + turn payloads; rows in Neon
-- [ ] Ingest JSON schema documented under `agent/` or `lib/observe/`
-- [ ] External agent wrapper templates updated for v0.2 headers
-- [ ] Manual test: one validate + save with headers → row visible in DB
+- [x] `insertApiEvent()` writes Zod-validated rows to `api_events`
+- [x] `POST /api/validate` and `POST /api/specs` call `recordApiEvent()` on every response path
+- [x] Telemetry insert failure does not change API HTTP responses
+- [x] Optional headers persisted when present; documented in `/api/docs`
+- [x] `ingestAgentTelemetry()` upserts `agent_runs` + `agent_turns`
+- [x] Ingest contract documented in `lib/observe/INGEST.md`; linked from `agent/README.md`
+- [x] `eval/manual/wrapper_*.txt` include session header instructions
+- [x] `npm run smoke:observe` passes locally
+- [x] Manual test: validate + save with headers → `api_events` rows; ingest POST → agent tables
 
 ---
 

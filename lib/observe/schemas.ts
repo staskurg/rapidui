@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+export const API_ENDPOINTS = ["/api/validate", "/api/specs"] as const;
+
+export type ApiEndpoint = (typeof API_ENDPOINTS)[number];
+
+export const apiEventInputSchema = z.object({
+  endpoint: z.enum(API_ENDPOINTS),
+  session_id: z.string().nullable(),
+  agent: z.string().nullable(),
+  eval_case_id: z.string().nullable(),
+  intent: z.string().nullable(),
+  valid: z.boolean().nullable(),
+  error_codes: z.array(z.string()).nullable(),
+  spec_id: z.string().uuid().nullable(),
+  duration_ms: z.number().int().nonnegative(),
+});
+
 const agentRunPayloadSchema = z.object({
   outcome: z.enum(["saved", "failed", "abandoned"]).optional(),
   spec_id: z.string().uuid().optional(),
@@ -31,6 +47,7 @@ export const agentIngestPayloadSchema = z.object({
   turns: z.array(agentTurnPayloadSchema).optional(),
 });
 
+export type ApiEventInput = z.infer<typeof apiEventInputSchema>;
 export type AgentIngestPayload = z.infer<typeof agentIngestPayloadSchema>;
 export type AgentRunPayload = z.infer<typeof agentRunPayloadSchema>;
 export type AgentTurnPayload = z.infer<typeof agentTurnPayloadSchema>;

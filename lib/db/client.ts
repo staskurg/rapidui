@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 
-type SqlValue = string | number | boolean | null | undefined;
+type SqlValue = string | number | boolean | Date | string[] | null | undefined;
 
 type QueryResult = {
   rows: Record<string, unknown>[];
