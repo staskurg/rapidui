@@ -1,5 +1,5 @@
 export { ERROR_CATALOG, formatError } from "./messages";
-export type { ErrorContext, ErrorTemplate } from "./messages";
+export type { ErrorContext } from "./messages";
 export { normalizeRui } from "./normalize";
 export { validateSpec } from "./pipeline";
 export {
@@ -20,7 +20,7 @@ import { validateSpec } from "./pipeline";
 import { parseTransportRequest } from "./transport";
 import type { ValidationResult } from "./types";
 
-/** Phase 1 transport + phases 2–5 validation. */
+/** Operations-first RUI validation (v0.2). */
 export async function validateFromRequest(
   request: Request,
 ): Promise<ValidationResult> {

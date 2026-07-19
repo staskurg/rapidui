@@ -1,123 +1,132 @@
-import type { RuleCode } from "@/lib/registry";
+import type { RuleCode } from "@/lib/operations";
 
-export type ErrorTemplate = {
-  message: string;
-  hint: string;
-};
+export type { RuleCode };
 
 export type ErrorContext = {
   id?: string;
-  type?: string;
+  operationId?: string;
+  entityId?: string;
   prop?: string;
-  pageId?: string;
   field?: string;
-  valuePath?: string;
-  blockType?: string;
+  transitionIndex?: number;
+  from?: string;
+  to?: string;
+  trigger?: string;
+  param?: string;
+  path?: string;
 };
 
-export const ERROR_CATALOG: Record<RuleCode, ErrorTemplate> = {
+export const ERROR_CATALOG: Record<RuleCode, { message: string; hint: string }> = {
   INVALID_JSON: {
     message: "Request body must be valid JSON.",
     hint: "Send Content-Type: application/json with the spec object as the raw body.",
   },
   VERSION_MISMATCH: {
-    message: 'RUI version must be "0.1".',
-    hint: 'Set `version` to `"0.1"` to match the registry.',
+    message: 'RUI version must be "0.2".',
+    hint: 'Set `version` to `"0.2"`. v0.1 page/block documents are not supported.',
   },
   DUPLICATE_ID: {
-    message: 'Duplicate node id "{id}".',
-    hint: "Each Page, Section, and block id must be unique across the entire spec.",
+    message: 'Duplicate id "{id}".',
+    hint: "Each entity, operation, and embedded action id must be unique across the spec.",
   },
   INVALID_ID_FORMAT: {
     message: 'Invalid id "{id}".',
-    hint: "Use lowercase kebab-case: `^[a-z][a-z0-9-]*$`, 1–64 chars (e.g. `table-tickets`).",
+    hint: "Use lowercase kebab-case: `^[a-z][a-z0-9-]*$`, 1–64 chars (e.g. `op-browse-users`).",
   },
   UNKNOWN_TYPE: {
-    message: 'Unknown node type "{type}".',
-    hint: "Use Page, Section, Metric, Table, or Text for v0.1.",
+    message: 'Unknown operation type "{prop}".',
+    hint: "Use browse, read, create, update, or delete.",
   },
   MISSING_REQUIRED_PROP: {
     message: 'Missing required property "{prop}".',
-    hint: "Add the property per the spec shape (top-level: `version`, `meta`, `navigation`, `pages`; see GET /api/schema).",
+    hint: "See GET /api/schema for required fields per operation type.",
   },
   INVALID_PROP_TYPE: {
     message: 'Invalid value for "{prop}".',
-    hint: "Check type and allowed enum values in the schema.",
+    hint: "Check type and allowed enum values in GET /api/schema.",
   },
   UNKNOWN_PROP: {
     message: 'Unknown property "{prop}".',
-    hint: "Remove extra properties; v0.1 uses strict schemas.",
+    hint: "Remove extra properties; v0.2 uses strict schemas.",
   },
-  EMPTY_PAGES: {
-    message: "RUI must include at least one page.",
-    hint: "Add a `pages` array with one or more Page nodes.",
+  INVALID_TRANSITION_REF: {
+    message: 'Transition references unknown operation "{prop}".',
+    hint: "Set from/to to existing operation ids.",
   },
-  EMPTY_NAVIGATION: {
-    message: "Navigation must include at least one item.",
-    hint: "Add `navigation.items` linking to each page via `pageId`.",
+  INVALID_ENTITY_REF: {
+    message: 'Operation "{operationId}" references unknown entity "{entityId}".',
+    hint: "Set entityId to an existing entities[].id and list the operation in entity.operationIds.",
   },
-  INVALID_NAV_PAGE_ID: {
-    message: 'Navigation pageId "{pageId}" does not match any page.',
-    hint: "Set `pageId` to an existing `pages[].id`.",
+  INVALID_TRANSITION_TRIGGER: {
+    message: 'Invalid transition trigger "{trigger}" on {from} → {to}.',
+    hint: "Use row (browse→read), link, cta (browse→create), or cancel (form back).",
   },
-  ORPHAN_PAGE: {
-    message: 'Page "{id}" is not linked from navigation.',
-    hint: "Add a navigation item with `pageId` matching this page.",
+  INVALID_TRANSITION_MAP: {
+    message: 'Transition map key "{param}" is invalid for {from} → {to}.',
+    hint: "Map keys must match target params; values must match browse column keys.",
   },
-  INVALID_PAGE_CHILD: {
-    message: "Page children must be Section nodes.",
-    hint: "Only Section nodes allowed under Page.",
+  MISSING_DATA_BINDING: {
+    message: 'Operation "{operationId}" is missing a required data binding.',
+    hint: "api mode: browse/read need read; create/delete need write; update needs read+write.",
   },
-  INVALID_SECTION_CHILD: {
-    message: "Section children must be Metric, Table, or Text.",
-    hint: "Blocks only under Section — no nested sections.",
+  STATIC_API_CONFLICT: {
+    message: 'Operation "{operationId}" uses static mode but declares API bindings.',
+    hint: "Use data.mode static with records only, or api with bindings — not both.",
   },
-  INVALID_NESTING: {
-    message: "Sections cannot be nested inside sections.",
-    hint: "Use Page → Section → Block structure only.",
+  ROUTE_PARAM_MISMATCH: {
+    message: 'Operation "{operationId}" route placeholders do not match params[].',
+    hint: "Every {param} in route must appear in params[] and vice versa.",
   },
-  EMPTY_PAGE: {
-    message: "Page must contain at least one section.",
-    hint: "Add a Section to `children`.",
+  INVALID_FORM_FIELD: {
+    message: 'Invalid form field on operation "{operationId}".',
+    hint: "Field names must be unique; select fields need options; bodyMap keys must match field names.",
   },
-  EMPTY_SECTION: {
-    message: "Section must contain at least one block.",
-    hint: "Add Metric, Table, or Text to `children`.",
+  INVALID_EMBEDDED_ACTION: {
+    message: 'Embedded action on operation "{operationId}" is invalid.',
+    hint: "Only read.presentation.actions[] supports act and delete with invoke/write bindings.",
+  },
+  INVALID_DELETE_METHOD: {
+    message: 'Delete binding on "{operationId}" must use method DELETE.',
+    hint: 'Set write.method or embedded delete write.method to "DELETE".',
+  },
+  INVALID_BREADCRUMB: {
+    message: 'Invalid breadcrumb on operation "{operationId}".',
+    hint: "Breadcrumb belongs on read/update only; operation must reference a reachable browse or entrypoint.",
+  },
+  ORPHAN_OPERATION: {
+    message: 'Operation "{operationId}" is unreachable from entity entrypoints.',
+    hint: "Add transitions from entrypoints or list as entities[].entrypoints.",
+  },
+  MISSING_ROUTE: {
+    message: 'Operation "{operationId}" must declare route and matching params.',
+    hint: "Every operation needs route; params[] must match {placeholders} in route.",
+  },
+  MISSING_OUTCOME: {
+    message: 'Operation "{operationId}" is missing required outcomes.',
+    hint: "Mutations need success, error, cancel; embedded actions need success and error.",
+  },
+  MISSING_CTA_TRANSITION: {
+    message: 'Entity "{entityId}" has browse and create but no cta transition.',
+    hint: "Add transitions[] with trigger cta from browse to create.",
+  },
+  SCOPE_PLACEHOLDER_MISSING: {
+    message: 'Operation "{operationId}" must reference scope placeholder {param}.',
+    hint: "Use {scope.<selectorId>} in API paths when the entity declares scope.selectors.",
   },
   INVALID_COLUMNS: {
-    message: "Table must have at least one column with unique keys.",
-    hint: "Define `columns[]` with unique `key` per column.",
-  },
-  MISSING_BINDING: {
-    message: "{blockType} requires a read binding.",
-    hint: 'Add `binding` with `type: "read"`, `method: "GET"`, and `path`.',
-  },
-  MISSING_VALUE_PATH: {
-    message: "Metric binding requires valuePath.",
-    hint: 'Set `valuePath` to the scalar field (e.g. `"openCount"`).',
-  },
-  INVALID_BINDING: {
-    message: "Invalid read binding.",
-    hint: 'Use `type: "read"`, `method: "GET"`, `path` starting with `/`.',
+    message: 'Browse operation "{operationId}" must have at least one column with unique keys.',
+    hint: "Define presentation.columns[] with unique key per column.",
   },
   INVALID_FILTER_FIELD: {
-    message: 'Filter field "{field}" does not match a column key.',
-    hint: "Set `filter.field` to an existing column `key`.",
-  },
-  PLANNED_NOT_SUPPORTED: {
-    message: '"{type}" is planned for a future version.',
-    hint: "v0.1 supports Metric, Table, Text and read (GET) bindings only.",
-  },
-  INVALID_VALUE_PATH: {
-    message: 'Invalid valuePath "{valuePath}".',
-    hint: 'Use dot segments only (e.g. `"data.items"`), no JSONPath or brackets.',
+    message: 'Filter field "{field}" on "{operationId}" does not match a column key.',
+    hint: "Set filter.field to an existing column key.",
   },
 };
 
 function interpolate(template: string, context: ErrorContext): string {
   return template.replace(/\{(\w+)\}/g, (_, key: keyof ErrorContext) => {
     const value = context[key];
-    return value ?? `{${key}}`;
+    return value !== undefined ? String(value) : `{${key}}`;
   });
 }
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 const agentLinks = [
   { href: "/llms.txt", label: "llms.txt", description: "Agent discovery index" },
   { href: "/api/docs", label: "/api/docs", description: "Full agent documentation (JSON)" },
-  { href: "/api/schema", label: "/api/schema", description: "Vocabulary and block definitions" },
+  { href: "/api/schema", label: "/api/schema", description: "Operations vocabulary and schema rules" },
   {
     href: "/api/validate",
     label: "POST /api/validate",

@@ -1,4 +1,4 @@
-import type { Rui } from "@/lib/registry";
+import type { Rui } from "@/lib/operations";
 
 /** Flat saved spec returned by POST 201 and GET 200. */
 export type SavedSpec = {

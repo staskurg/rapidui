@@ -25,7 +25,8 @@
           { "key": "preview", "label": "Preview", "format": "string" },
           { "key": "ticketId", "label": "Ticket", "format": "string" },
           { "key": "model", "label": "Model", "format": "string" },
-          { "key": "confidence", "label": "Confidence", "format": "number" }
+          { "key": "confidence", "label": "Confidence", "format": "number" },
+          { "key": "status", "label": "Status", "format": "badge" }
         ],
         "filter": {
           "field": "status",

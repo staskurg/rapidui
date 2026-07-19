@@ -2,7 +2,12 @@
 export type EvalCase = {
   id: string;
   title: string;
+  mode?: "guided" | "single-shot";
   prompt: string;
+  conversationScript?: Array<{
+    trigger: "after_agent_reply";
+    content: string;
+  }>;
   mockApi?: {
     endpoints: Array<{
       method: string;
@@ -10,29 +15,38 @@ export type EvalCase = {
       description: string;
     }>;
   };
+  seedGolden?: string;
   successCriteria: SuccessCriteria;
 };
 
 export type SuccessCriteria = {
   mustValidate?: boolean;
   maxRetries?: number;
-  requiredBlocks?: string[];
-  requiredBindings?: string[];
+  maxUserTurns?: number;
+  requiredOperations?: string[];
+  requiredEmbeddedActions?: string[];
+  requiredTransitions?: string[];
+  requiredDataPaths?: string[];
 };
 
 /** Deterministic score breakdown — stored in eval_runs.score_details. */
 export type ScoreDetails = {
-  missingBlocks?: string[];
-  missingBindings?: string[];
+  missingOperations?: string[];
+  missingEmbeddedActions?: string[];
+  missingTransitions?: string[];
+  missingDataPaths?: string[];
   retryExceeded?: boolean;
+  userTurnsExceeded?: boolean;
   specNotFound?: boolean;
 };
 
 export type ScoreResult = {
   passed: boolean;
   scoreDetails: ScoreDetails;
-  blocksFound: string[];
-  bindingsFound: string[];
+  operationsFound: string[];
+  embeddedActionsFound: string[];
+  transitionsFound: string[];
+  dataPathsFound: string[];
 };
 
 /** Parsed ---EVAL_RESULT--- block (local runs). Field names match eval_runs columns. */
@@ -44,7 +58,7 @@ export type EvalResultBlock = {
   errorCodes: string[];
   finalSpecId: string | null;
   viewUrl: string | null;
-  blocksFound: string[];
+  operationsFound: string[];
 };
 
 export type AgentKind = "cursor" | "claude" | "codex";

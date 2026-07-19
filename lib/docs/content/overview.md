@@ -1,17 +1,17 @@
 # What RapidUI is
 
-RapidUI is an **agent-first platform** for generating, validating, and storing **RUIs** — JSON documents that describe an app's screens, blocks, and data bindings.
+RapidUI is an **agent-first platform** for generating, validating, and storing **RUIs** — JSON documents that describe operational UI workflows.
 
-A **RUI** (`.rui.json`) is **not** React code, not a component library, and not a rendered UI. It is a structured specification that agents produce and the platform validates.
+A **RUI** (`.rui.json`) is **not** React code. It is a structured specification: **entities**, **operations** (browse, read, create, update, delete), **transitions**, and **data bindings**. Agents produce RUIs; the platform validates them; a future renderer compiles them to screens.
 
-## v0.1 scope
+## v0.2 scope
 
-- **In scope:** Read-only bindings (`GET`), blocks `Metric`, `Table`, `Text`, layout `Page` → `Section` → block, validation API, vocabulary schema
-- **Out of scope:** Renderer, live API execution, write/action bindings, auth, MCP server
+- **In scope:** Operations-first schema (`version: "0.2"`), entities + entrypoints, presentations (`table`, `form`, `detail`, `confirm`), explicit transitions (`row`, `link`, `cta`, `cancel`), outcomes on mutations, embedded `act`/`delete` on detail screens, `static` and `api` data modes
+- **Out of scope:** Renderer, live API execution, charts, modals, v0.1 page/block documents
 
 ## Naming: RUI vs spec
 
-Use **RUI** in all prose when referring to the JSON artifact. The HTTP path **`/api/specs`** stores a validated RUI — **a spec is a stored RUI**. Request bodies for validate and store use the raw RUI JSON shape, not a wrapper like `{ "rui": … }`.
+Use **RUI** in prose for the JSON artifact. **`POST /api/specs`** stores a validated RUI — **a spec is a stored RUI**. Request bodies are the raw RUI object, not `{ "rui": … }`.
 
 ## Base URL
 

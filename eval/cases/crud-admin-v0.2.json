@@ -1,0 +1,64 @@
+{
+  "id": "crud-admin-v0.2",
+  "title": "Use case 2 — Users CRUD admin",
+  "mode": "guided",
+  "prompt": "I need an admin UI for our Users API.",
+  "mockApi": {
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/users",
+        "description": "List users; browse binding valuePath items; company scope via query param"
+      },
+      {
+        "method": "GET",
+        "path": "/api/users/{userId}",
+        "description": "Get one user for read/detail"
+      },
+      {
+        "method": "POST",
+        "path": "/api/users",
+        "description": "Create user"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/users/{userId}",
+        "description": "Update user"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/users/{userId}",
+        "description": "Delete user from detail screen"
+      },
+      {
+        "method": "GET",
+        "path": "/api/companies",
+        "description": "Company scope selector options"
+      }
+    ]
+  },
+  "conversationScript": [
+    {
+      "trigger": "after_agent_reply",
+      "content": "Full CRUD. DELETE on detail. Company scope selector on the list — paths use {scope.companyId}."
+    },
+    {
+      "trigger": "after_agent_reply",
+      "content": "Yes, build it."
+    }
+  ],
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 5,
+    "maxUserTurns": 4,
+    "requiredOperations": ["browse", "read", "create", "update"],
+    "requiredEmbeddedActions": ["delete"],
+    "requiredTransitions": ["row", "cta", "cancel"],
+    "requiredDataPaths": [
+      "GET /api/users",
+      "POST /api/users",
+      "PATCH /api/users/{userId}",
+      "DELETE /api/users/{userId}"
+    ]
+  }
+}

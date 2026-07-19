@@ -690,76 +690,409 @@ SELECT session_id, outcome, validate_attempts FROM agent_runs ORDER BY started_a
 
 **Reference:** §6 (use cases), §7 (full schema), §9 Area 2, §14 (eval cases, scoring), §18
 
+**Status:** Complete (verified 2026-07-19 — all smokes + build pass).
+
 ### Goal
 
-Greenfield **operations-first** RUI v0.2 — validator, agent docs, goldens, and eval cases. This unblocks meaningful agent output and inspector work.
+Greenfield **operations-first** RUI v0.2 — Zod schemas, semantic validator (O1–O20), agent docs, golden fixtures, and eval cases. Satisfies ship criterion **S2**. Unblocks Phase 4 agent output and Phase 5 inspector data model.
 
 ### Depends on
 
-Phase 0 (Postgres stable).
+Phase 0 (Postgres stable). Independent of Phase 1 telemetry (can run in parallel, but Phase 1 is already complete).
 
 ### Unlocks
 
-Phases 4, 5; all v0.2 eval cases; use cases 1–3 (+ optional 4).
+Phases 4, 5; all v0.2 eval cases; use cases 1–3 (+ optional UC4 / O1).
 
-### Scope
+---
 
-- **Remove** v0.1 Page/Block registry (`lib/registry/*`)
-- **Add** `lib/operations/*` — Zod schemas: `entities[]`, `operations[]`, `transitions[]`, `outcomes`, presentations, embedded actions
-- `version: "0.2"` only — **reject v0.1** at validate
-- Semantic rules **O1–O20** (reference §7); errors cite `operationId` / `transition`
-- Rewrite `lib/validate/*`
-- Golden RUIs: `lib/operations/golden/UC1`–`UC4` (filenames per reference §14)
-- Eval cases: `static-browse-v0.2`, `crud-admin-v0.2`, `ai-review-queue-v0.2`, optional `spec-update-v0.2`
-  - Each: `mode`, `prompt`, optional **`conversationScript`** (guided), `successCriteria`
-- Extend `eval/score.ts` — outcome checklist + process caps
-- Retire `eval/cases/support-dashboard-v0.1.json`
-- Rewrite agent docs: `llms.txt`, `/api/docs`, workflow — operations-first
-- Update `GET /api/schema` — `operationTypes`, `presentationLayouts`, `flowPatterns`, `embeddedActionTypes`, `transitionTriggers` incl. `cta`, `cancel`
+### Repo audit (2026-07-19)
 
-### v0.2 schema bounds (must enforce)
+| Area | Current state | Phase 2 action |
+|------|---------------|----------------|
+| **`lib/registry/*`** | v0.1 Page → Section → block model; powers validate, `/api/schema`, docs, eval scoring, RuiInspector | **Remove** after `lib/operations/*` wired; migrate all imports |
+| **`lib/operations/golden/`** | **Staged** — UC1–UC4 `.rui.json` files exist (804 lines total) | Audit against O1–O20 once validator exists; fix goldens if needed |
+| **`lib/validate/*`** | v0.1 pipeline: `RuiSchema`, planned-gate, semantic checks for pages/navigation/tables | **Rewrite** — operations Zod parse + O1–O20 semantic modules |
+| **`GET /api/schema`** | Returns `blocks`, `layouts`, `bindings`, `planned` | Replace payload with operations vocabulary (reference §7) |
+| **`lib/docs/*`** | v0.1 prose (`Page`/`Section`/blocks); `DOCS_VERSION = "0.1"` | Rewrite markdown + API section for operations-first workflow |
+| **`llms.txt`** | Block-tree discovery text | Rewrite for operations + flow patterns |
+| **`eval/cases/`** | Only `support-dashboard-v0.1.json` (block-based criteria) | Add 3 required v0.2 cases; retire v0.1 case |
+| **`eval/score.ts` / `lib/eval/scoreRun.ts`** | Scores `requiredBlocks` / `requiredBindings` via `collectBlocks.ts` | Replace with operation-aware scoring (`requiredOperations`, etc.) |
+| **`eval/manual/wrapper_*.txt`** | Telemetry headers done (Phase 1); still says “block definitions” in workflow | Update workflow steps for operations discovery |
+| **`scripts/smoke-*`** | Registry, validate, docs, eval, inspector smokes all assume v0.1 golden | Rewrite against UC goldens + v0.2 schema |
+| **`lib/review/RuiInspector.tsx`** | Block-tree renderer | **Not** full rewrite (Phase 5) — add minimal v0.2 JSON fallback so app compiles and `/specs/:id` shows saved JSON |
+| **Golden vs validator today** | UC goldens use `"version": "0.2"` — **fail** current validator (`VERSION_MISMATCH` expects `"0.1"`) | Expected; Phase 2 flips this |
 
-| Component | In scope |
-|-----------|----------|
-| Operations | `browse`, `read`, `create`, `update`, `delete` |
-| Embedded actions | `act`, `delete` on `read.presentation.actions[]` |
-| Presentations | `table`, `form`, `detail`, `confirm` |
-| Transitions | `row`, `link`, `cta`, `cancel` |
-| Data | `static` \| `api` |
+**Golden inventory (already in git):**
 
-### Key paths
+| File | entities | ops | transitions | Notes |
+|------|----------|-----|-------------|-------|
+| `UC1-static-browse-v0.2.rui.json` | 2 | 2 | 0 | Static browse + header metrics |
+| `UC2-crud-admin-v0.2.rui.json` | 1 | 4 | 5 | Scope selectors, cta/cancel, embedded delete |
+| `UC3-ai-review-queue-v0.2.rui.json` | 1 | 2 | 1 | Embedded approve/reject `act` |
+| `UC4-hr-ops-seed-v0.2.rui.json` | 3 | 6 | 4 | Optional UC4 seed (O1 stretch) |
+
+**Known golden fix (audit before checklist):** UC2 `op-create-user` includes `context.breadcrumb` — reference §7 says breadcrumb belongs on `read`/`update` reached via transition, **not** on create entrypoints. Remove breadcrumb from create during golden audit.
+
+---
+
+### Resolved open questions
+
+| Question | Decision |
+|----------|----------|
+| **UC4 seed: Neon vs file-only** | **Phase 2:** golden file + optional `spec-update-v0.2.json` eval case referencing golden by filename. **No Neon pre-seed required** for Phase 2 checklist. Optional stretch script `npm run seed:uc4` (save UC4 golden → print `specId`) for Phase 4 `load_spec` demo — defer unless pursuing O1 early. |
+| **Which use-case variants ship** | **Phase 2:** canonical prompts only for 3 **required** cases (`static-browse-v0.2`, `crud-admin-v0.2`, `ai-review-queue-v0.2`). §7 variants V1–V6 → **Phase 7** (“at least one variant per UC” for portfolio polish). |
+| **Golden files vs schema** | Goldens are the **acceptance fixtures** — implement schema + rules, then run `npm run smoke:validate` until all four pass. Fix goldens or rules; do not weaken rules to match mistakes. |
+| **`registryVersion` response field** | **Keep field name** `registryVersion` in validate/save responses and DB columns — value becomes `"0.2"`. Avoid rename churn in telemetry and SavedSpec shape. |
+| **`VALIDATION_VERSION` / `DOCS_VERSION`** | Bump both to **`"0.2"`**. |
+| **`planned-gate` / PLANNED blocks** | **Remove** — v0.2 has no planned vocabulary; strict Zod + semantic rules only. |
+| **v0.1 rejection behavior** | `version: "0.1"` (page-tree shape) → `VERSION_MISMATCH` with message requiring `"0.2"`. v0.2 doc with wrong top-level keys → Zod `UNKNOWN_PROP` / structural errors. |
+| **Orphan operations (O14)** | **Warning** severity (`ORPHAN_OPERATION`) — does not fail validation; include in errors with distinct code or `severity: "warning"` if we extend error type. **v0.2 MVP:** emit as non-blocking warning in `errors[]` with code `ORPHAN_OPERATION` but still return `valid: true` if no errors-only failures — **simpler:** treat as error-level for agent feedback (reference lists as “warning” but agents should fix). **Locked:** emit `ORPHAN_OPERATION` as a **validation error** (fail) for v0.2 — keeps agent loop honest. |
+| **RuiInspector during Phase 2–4** | Minimal shim: if `normalizedRui.version === "0.2"`, render operations placeholder + collapsible raw JSON (no block tree). Full operations inspector = **Phase 5**. |
+| **`smoke-inspector`** | Update to assert v0.2 JSON fallback renders (not Page/Section labels). |
+| **Eval `mode` field** | Add to `EvalCase`: `"guided" \| "single-shot"`. Required cases use `"guided"` + `conversationScript`. External manual runs stay single-shot. |
+| **Retire v0.1 eval case** | Delete `eval/cases/support-dashboard-v0.1.json`; `smoke-eval.ts` scores UC1–UC3 goldens against all three required cases; `spec-update-v0.2` smoke deferred to Phase 4 (O1). |
+| **Internal golden exposure** | Goldens stay **repo-only** — never in `/api/docs`, `llms.txt`, or agent prompts (reference §14). |
+
+---
+
+### Architecture (Phase 2)
+
+```txt
+POST /api/validate | /api/specs
+        │
+        ▼
+  parseTransportRequest (unchanged)
+        │
+        ▼
+  validateSpec(body)
+        │
+        ├── version gate → reject v0.1 (VERSION_MISMATCH)
+        ├── OperationsRuiSchema (Zod strict)
+        ├── mapZodIssues → operation-centric paths
+        └── runSemanticChecks (O1–O20)
+                  │
+                  ├── ids, entities, operations, transitions
+                  ├── outcomes, data bindings, presentations
+                  └── scope propagation (O19)
+        │
+        ▼
+  normalizeRui (deterministic sort: entities, operations, transitions)
+        │
+        ▼
+  { valid: true, registryVersion: "0.2", normalizedRui }
+
+
+GET /api/schema  ← getSchemaPayload() from lib/operations
+GET /api/docs    ← rewritten markdown + API examples (operations paths in errors)
+eval/score       ← collectFromOperations + successCriteria checklist
+```
+
+**Module layout (target):**
 
 ```txt
 lib/operations/
+  index.ts              # SCHEMA_VERSION, exports, getSchemaPayload()
+  rui.ts                # root document schema
+  entities.ts           # entities[], scope.selectors
+  operations.ts         # operation types, presentations, embedded actions
+  transitions.ts
+  outcomes.ts
+  data.ts               # static | api bindings
+  ids.ts                # ent-*, op-* patterns
+  rules.ts              # O1–O20 catalog for /api/schema
+
 lib/validate/
-lib/operations/golden/
-eval/cases/
-eval/score.ts
-lib/docs/  llms.txt  app/api/schema/
+  pipeline.ts           # rewrite — import from @/lib/operations
+  normalize.ts          # rewrite — sort entities/operations/transitions
+  messages.ts           # rewrite ERROR_CATALOG for operation codes
+  semantic/
+    index.ts
+    ids.ts
+    entities.ts
+    operations.ts
+    transitions.ts
+    outcomes.ts
+    data.ts
+    presentations.ts
+    scope.ts
+  fixtures/             # v0.1-reject, duplicate op id, invalid transition, …
 ```
+
+---
+
+### Task list (build order)
+
+#### A — Operations schema (Zod)
+
+1. **`lib/operations/ids.ts`** — `ent-{name}`, `op-{name}` patterns; shared `isValidId()` (reuse v0.1 kebab rules or tighten per §7).
+2. **`lib/operations/outcomes.ts`** — `OutcomeNavigate`, `OutcomeStay`, mutating outcome shapes.
+3. **`lib/operations/data.ts`** — `static` \| `api`; `read` / `write` / `invoke` bindings; `records[]`, `bodyMap`.
+4. **`lib/operations/operations.ts`** — discriminated union on `type`: `browse` \| `read` \| `create` \| `update` \| `delete`; presentation layouts (`table`, `form`, `detail`, `confirm`); embedded `actions[]` on `read`.
+5. **`lib/operations/transitions.ts`** — `trigger`: `row` \| `link` \| `cta` \| `cancel`; optional `label`, `placement`, `map`.
+6. **`lib/operations/entities.ts`** — `entrypoints`, `operationIds`, optional `scope.selectors`.
+7. **`lib/operations/rui.ts`** — root: `version: "0.2"`, `app`, `entities[]`, `operations[]`, `transitions[]` (all `.strict()`).
+8. **`lib/operations/rules.ts`** — O1–O20 rule catalog for `/api/schema`.
+9. **`lib/operations/index.ts`** — export types/schemas; **`getSchemaPayload()`** per reference §7 (`operationTypes`, `presentationLayouts`, `flowPatterns`, `embeddedActionTypes`, `transitionTriggers`, compact `examples` — no full goldens).
+
+#### B — Validator rewrite
+
+10. **`lib/validate/version.ts`** — `VALIDATION_VERSION = "0.2"`.
+11. **Remove `planned-gate.ts`** and all imports.
+12. **Rewrite `pipeline.ts`** — early `version !== "0.2"` check; parse with `OperationsRuiSchema`; semantic checks; return `registryVersion: SCHEMA_VERSION`.
+13. **Rewrite `zod-mapper.ts`** — paths like `operations[3].presentation.fields[0].name`.
+14. **Implement semantic modules O1–O20** (split files above) — errors cite `operationId`, transition index, entity id.
+15. **Rewrite `messages.ts`** — new `RuleCode` set + `ERROR_CATALOG` templates (operation-centric hints).
+16. **Rewrite `normalize.ts`** — stable sort: entity id, operation id, transition `(from,to,trigger)`, form field names, table columns.
+
+#### C — Golden audit + acceptance
+
+17. Run validator against UC1–UC4; fix goldens (e.g. UC2 create breadcrumb) until all pass.
+18. Replace `lib/validate/fixtures/*` — v0.1 page-tree rejection, duplicate operation id, missing `cta` when create exists (O18), invalid transition map (O6).
+19. Remove dependency on `lib/registry/golden/support-dashboard.rui.json`.
+
+#### D — Agent docs + schema API
+
+20. **Rewrite `lib/docs/content/overview.md`** — operations-first thesis; v0.2 scope table.
+21. **Rewrite `lib/docs/content/workflow.md`** — plan ops → map → validate → save (reference §7); update example error paths.
+22. **Replace `nesting.md`** with **`operations.md`** (or rewrite in place) — entities, operation types, transitions, outcomes, embedded actions — **not** Page/Section tree.
+23. **Update `lib/docs/index.ts`** — `DOCS_VERSION = "0.2"`; API section documents `version: "0.2"`, operations error examples; inspector note = operations view (Phase 5).
+24. **Update `lib/docs/llms.ts`** — operations-first discovery blurb.
+25. **`app/api/schema/route.ts`** — import `getSchemaPayload` from `@/lib/operations`.
+26. **Update `eval/manual/wrapper_*.txt`** — “operations vocabulary” instead of blocks; list v0.2 case ids.
+
+#### E — Eval cases + scoring
+
+27. **Extend `eval/types.ts`** — `mode`, `conversationScript`, new `successCriteria` fields; deprecate `requiredBlocks` / `requiredBindings`.
+28. **Create eval cases:**
+    - `eval/cases/static-browse-v0.2.json`
+    - `eval/cases/crud-admin-v0.2.json`
+    - `eval/cases/ai-review-queue-v0.2.json`
+    - *(optional)* `eval/cases/spec-update-v0.2.json` with `seedGolden: "UC4-hr-ops-seed-v0.2"`
+29. **Replace `lib/eval/collectBlocks.ts`** → **`lib/eval/collectOperations.ts`** — walk `operations[]`, `transitions[]`, embedded actions, API paths.
+30. **Rewrite `lib/eval/scoreRun.ts`** — outcome checklist + `maxUserTurns` / `maxRetries` process caps.
+31. **Delete `eval/cases/support-dashboard-v0.1.json`.**
+
+#### F — Import migration + cleanup
+
+32. Update **`lib/db/types.ts`**, **`lib/db/specs.ts`**, **`lib/db/hash.ts`** — import `Rui` from `@/lib/operations`.
+33. **Minimal `RuiInspector` shim** — v0.2 JSON panel + “Operations inspector ships in Phase 5” notice.
+34. **Delete `lib/registry/**`** (entire directory).
+35. Update **`package.json`** script: `smoke:registry` → `smoke:operations` (or keep alias).
+
+#### G — Smoke tests
+
+36. **`scripts/smoke-operations.ts`** — schema version 0.2, strict mode, golden UC1 parses.
+37. **`scripts/smoke-validate.ts`** — all UC goldens pass; v0.1 fixture rejected; normalization stable.
+38. **`scripts/smoke-docs.ts`** — docs/schema version 0.2; no block vocabulary; UC1 validates.
+39. **`scripts/smoke-eval.ts`** — save UC1–UC3 goldens; score against all three required v0.2 cases (`static-browse-v0.2`, `crud-admin-v0.2`, `ai-review-queue-v0.2`). **`spec-update-v0.2` / UC4 scoring smoke deferred to Phase 4 (O1)** — see **Eval smoke coverage** below.
+40. **`scripts/smoke-inspector.ts`** — v0.2 fallback HTML includes raw JSON.
+41. **`scripts/smoke-specs.ts`** — save UC3 golden to Neon (if DB available).
+
+---
+
+### Files to create / modify
+
+**Create**
+
+```txt
+lib/operations/index.ts
+lib/operations/rui.ts
+lib/operations/entities.ts
+lib/operations/operations.ts
+lib/operations/transitions.ts
+lib/operations/outcomes.ts
+lib/operations/data.ts
+lib/operations/ids.ts
+lib/operations/rules.ts
+lib/validate/semantic/entities.ts
+lib/validate/semantic/operations.ts
+lib/validate/semantic/transitions.ts
+lib/validate/semantic/outcomes.ts
+lib/validate/semantic/data.ts
+lib/validate/semantic/presentations.ts
+lib/validate/semantic/scope.ts
+lib/eval/collectOperations.ts
+lib/docs/content/operations.md
+eval/cases/static-browse-v0.2.json
+eval/cases/crud-admin-v0.2.json
+eval/cases/ai-review-queue-v0.2.json
+eval/cases/spec-update-v0.2.json          # optional UC4
+scripts/smoke-operations.ts               # replaces smoke-registry.ts
+```
+
+**Modify**
+
+```txt
+lib/validate/pipeline.ts
+lib/validate/normalize.ts
+lib/validate/messages.ts
+lib/validate/zod-mapper.ts
+lib/validate/types.ts                     # RuleCode import from operations
+lib/validate/semantic/index.ts
+lib/validate/semantic/ids.ts
+lib/validate/version.ts
+lib/validate/fixtures/*
+lib/docs/index.ts
+lib/docs/llms.ts
+lib/docs/content/overview.md
+lib/docs/content/workflow.md
+lib/docs/content/getting-started.md
+eval/types.ts
+lib/eval/scoreRun.ts
+eval/manual/wrapper_local.txt
+eval/manual/wrapper_prod.txt
+lib/review/RuiInspector.tsx               # minimal v0.2 shim only
+lib/db/types.ts
+lib/db/specs.ts
+app/api/schema/route.ts
+scripts/smoke-validate.ts
+scripts/smoke-docs.ts
+scripts/smoke-eval.ts
+scripts/smoke-inspector.ts
+scripts/smoke-specs.ts
+package.json
+```
+
+**Delete**
+
+```txt
+lib/registry/**                           # entire v0.1 registry
+lib/validate/planned-gate.ts
+lib/eval/collectBlocks.ts
+eval/cases/support-dashboard-v0.1.json
+scripts/smoke-registry.ts                 # replaced by smoke-operations.ts
+lib/docs/content/nesting.md               # replaced by operations.md (or rewritten)
+```
+
+---
+
+### Semantic rules → error codes (implement O1–O20)
+
+| Rule | Code (suggested) | Fail? |
+|------|------------------|-------|
+| O1 version `"0.2"` | `VERSION_MISMATCH` | yes |
+| O2 unique operation ids | `DUPLICATE_ID` | yes |
+| O3 transition refs | `INVALID_TRANSITION_REF` | yes |
+| O4 entity membership | `INVALID_ENTITY_REF` | yes |
+| O5 row from browse | `INVALID_TRANSITION_TRIGGER` | yes |
+| O6 map ⊆ columns | `INVALID_TRANSITION_MAP` | yes |
+| O7 api bindings | `MISSING_DATA_BINDING` | yes |
+| O8 static no API | `STATIC_API_CONFLICT` | yes |
+| O9 route params | `ROUTE_PARAM_MISMATCH` | yes |
+| O10 form fields / bodyMap | `INVALID_FORM_FIELD` | yes |
+| O11 embedded actions | `INVALID_EMBEDDED_ACTION` | yes |
+| O12 delete method DELETE | `INVALID_DELETE_METHOD` | yes |
+| O13 breadcrumb target | `INVALID_BREADCRUMB` | yes |
+| O14 orphan operations | `ORPHAN_OPERATION` | yes (locked above) |
+| O15 route + params | `MISSING_ROUTE` | yes |
+| O16 mutating outcomes | `MISSING_OUTCOME` | yes |
+| O17 embedded outcomes | `MISSING_OUTCOME` | yes |
+| O18 browse+create needs cta | `MISSING_CTA_TRANSITION` | yes |
+| O19 scope placeholders | `SCOPE_PLACEHOLDER_MISSING` | yes |
+| O20 trigger enum | `INVALID_TRANSITION_TRIGGER` | yes |
+
+Error `path` examples: `operations[op-read-user].presentation.actions[0].outcomes`, `transitions[1].map.userId`.
+
+---
+
+### Eval cases (canonical — Phase 2)
+
+**Required for ship (3 files):**
+
+| Case id | UC | mode | conversationScript |
+|---------|-----|------|-------------------|
+| `static-browse-v0.2` | 1 | `guided` | 1–2 turns clarifying static data layout |
+| `crud-admin-v0.2` | 2 | `guided` | 2 turns (API details + confirm build) |
+| `ai-review-queue-v0.2` | 3 | `guided` | 2 turns (endpoints + approve/reject on detail) |
+
+**Optional (UC4 / O1):** `spec-update-v0.2` — references `UC4-hr-ops-seed-v0.2.rui.json`; scoring checks added operations/transitions after edit. No Neon seed in Phase 2.
+
+**Example `successCriteria` (`crud-admin-v0.2`):**
+
+```json
+{
+  "mustValidate": true,
+  "maxRetries": 5,
+  "maxUserTurns": 4,
+  "requiredOperations": ["browse", "read", "create", "update"],
+  "requiredEmbeddedActions": ["delete"],
+  "requiredTransitions": ["row", "cta", "cancel"],
+  "requiredDataPaths": [
+    "GET /api/users",
+    "POST /api/users",
+    "PATCH /api/users/{userId}",
+    "DELETE /api/users/{userId}"
+  ]
+}
+```
+
+---
+
+### Eval smoke coverage
+
+| Case | Golden | `smoke:eval` | Notes |
+|------|--------|--------------|-------|
+| `static-browse-v0.2` | UC1 | **Yes** | browse-only; empty transitions/data-path criteria |
+| `crud-admin-v0.2` | UC2 | **Yes** | full CRUD, scope, embedded delete, transitions |
+| `ai-review-queue-v0.2` | UC3 | **Yes** | HITL pattern, embedded `act`, row transitions |
+| `spec-update-v0.2` | UC4 seed | **No (Phase 4 / O1)** | Case JSON exists; scoring expects a *post-edit* spec, not the seed golden alone. UC4 **validates** in `smoke:validate`; add `smoke:eval` for `spec-update-v0.2` when Phase 4 `load_spec` lands (committed “updated UC4” golden or integration test). |
+
+**Rationale:** All three **required** cases exercise different `collectOperations` / `scoreRun` paths — lightweight loop in `scripts/smoke-eval.ts`, no new infrastructure. Optional UC4 update-case smoke waits for agent `load_spec` and an updated fixture.
+
+---
+
+### Test plan (before checking boxes)
+
+| Step | Command / action | Expected |
+|------|------------------|----------|
+| Schema | `npm run smoke:operations` | version 0.2 payload; strict Zod rejects extra props |
+| Goldens | `npm run smoke:validate` | UC1–UC4 all `valid: true` |
+| v0.1 reject | POST v0.1 page-tree fixture to `/api/validate` | `VERSION_MISMATCH` or structural fail with clear hint |
+| Docs | `npm run smoke:docs` | docsVersion 0.2; operations workflow; UC1 validates |
+| Eval score | `npm run smoke:eval` | UC1–UC3 goldens pass `static-browse-v0.2`, `crud-admin-v0.2`, `ai-review-queue-v0.2` |
+| Eval prompt | `npm run eval:prompt -- --case crud-admin-v0.2 --env local` | Prompt renders; `{{CASE_ID}}` replaced |
+| Schema HTTP | `curl localhost:3000/api/schema \| jq '.version'` | `"0.2"` |
+| Save v0.2 | `npm run smoke:specs` (update fixture) | 201 with `registryVersion: "0.2"` |
+| Inspector shim | `npm run smoke:inspector` | v0.2 JSON fallback renders |
+| Registry gone | `test ! -d lib/registry` | directory removed |
+| Observe unchanged | `npm run smoke:observe` | Phase 1 telemetry still passes |
+
+**Manual spot-check:** POST UC3 golden to `/api/validate` — error messages reference operation ids, not `pages[0].children`.
+
+---
 
 ### Out of scope
 
-- Renderer
-- Agent service (Phase 4)
-- Observe UI
-- Eval matrix runner (Phase 7)
+- Full **RuiInspector** operations view (Phase 5)
+- Renderer / live API execution
+- FastAPI agent / tools (Phase 4)
+- Observe dashboards (Phases 3, 6)
+- Eval matrix / variants V1–V6 (Phase 7)
+- `POST /api/eval/log` (Phase 7 — O3)
+- Neon UC4 seed script (optional — only if pursuing O1 before Phase 4)
+- **`smoke:eval` for `spec-update-v0.2`** — deferred to Phase 4 / O1 (see **Eval smoke coverage**); UC4 golden still validated in `smoke:validate`
+- `eval_runs` column extensions (Phase 7)
 
-### Open questions
+### Known temporary regressions (acceptable until Phase 5)
 
-- UC4 seed: pre-save to Neon vs file-only load (reference §16)
-- Which use-case **variants** (§7) ship as required eval cases vs stretch
-- Golden files already staged in git — validate against schema as implemented
+- `/specs/:id` shows JSON fallback for v0.2 specs — not a rich operations inspector
+- Homepage may still be v0.1 link hub until Phase 5
 
 ### Checklist
 
-- [ ] All four goldens validate successfully (UC4 optional)
-- [ ] v0.1-shaped RUI rejected with clear error
-- [ ] `/api/schema` returns v0.2 vocabulary
-- [ ] `/api/docs` + `llms.txt` describe operations-first workflow
-- [ ] Three required eval case JSON files + `eval/score.ts` passes goldens
-- [ ] `npm run eval:prompt` (or equivalent) works for at least one v0.2 case
-- [ ] v0.1 registry removed; no dead imports
+- [x] `lib/operations/*` Zod schemas cover §7 bounded vocabulary
+- [x] Validator implements O1–O20; errors cite operations/transitions
+- [x] All four goldens validate (UC4 optional for ship but should pass in repo)
+- [x] v0.1-shaped RUI rejected with clear `VERSION_MISMATCH` / structural errors
+- [x] `lib/registry/*` removed; no imports remain
+- [x] `/api/schema` returns v0.2 vocabulary (`operationTypes`, `flowPatterns`, …)
+- [x] `/api/docs` + `llms.txt` describe operations-first workflow
+- [x] Three required eval case JSON files exist; v0.1 case deleted
+- [x] `eval/score.ts` passes goldens against all three required v0.2 criteria (UC1–UC3 via `smoke:eval`)
+- [x] `npm run eval:prompt -- --case crud-admin-v0.2 --env local` works
+- [x] All smoke scripts updated and passing
+- [x] RuiInspector v0.2 JSON shim compiles (full inspector deferred to Phase 5)
 
 ---
 
@@ -1124,4 +1457,4 @@ When an agent expands a phase, produce:
 
 ---
 
-*Scaffold created: 2026-07-18. Expand phases in order; keep decisions in [rapidui-v0.2.md](./rapidui-v0.2.md).*
+*Scaffold created: 2026-07-18. Phase 0–2 complete; Phase 2 verified 2026-07-19. Keep decisions in [rapidui-v0.2.md](./rapidui-v0.2.md).*

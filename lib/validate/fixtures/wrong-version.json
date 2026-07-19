@@ -1,34 +1,22 @@
 {
-  "version": "0.2",
-  "meta": {
-    "title": "Support Operations"
-  },
-  "navigation": {
-    "items": [
-      { "pageId": "page-support", "label": "Support" }
-    ]
-  },
+  "version": "0.1",
+  "meta": { "title": "Legacy" },
+  "navigation": { "items": [{ "pageId": "page-1", "label": "Home" }] },
   "pages": [
     {
-      "id": "page-support",
+      "id": "page-1",
       "type": "Page",
-      "title": "Support Dashboard",
+      "title": "Home",
       "children": [
         {
-          "id": "section-metrics",
+          "id": "section-1",
           "type": "Section",
-          "direction": "row",
+          "direction": "column",
           "children": [
             {
-              "id": "metric-open",
-              "type": "Metric",
-              "label": "Open Tickets",
-              "binding": {
-                "type": "read",
-                "method": "GET",
-                "path": "/api/tickets/stats",
-                "valuePath": "openCount"
-              }
+              "id": "text-1",
+              "type": "Text",
+              "content": "v0.1 documents are not supported in v0.2."
             }
           ]
         }

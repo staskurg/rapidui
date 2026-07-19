@@ -1,5 +1,5 @@
-import type { Rui } from "@/lib/registry";
-import type { RuleCode } from "@/lib/registry";
+import type { Rui } from "@/lib/operations";
+import type { RuleCode } from "@/lib/operations";
 
 export type ValidationError = {
   path: string;

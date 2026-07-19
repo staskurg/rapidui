@@ -25,7 +25,7 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${spec.normalizedRui.meta.title} — RUI Inspector`,
+    title: `${spec.normalizedRui.app.title} — RUI Inspector`,
   };
 }
 

@@ -1,49 +1,53 @@
 # Getting started
 
-Platform docs for external agents. **Your task prompt is separate** — it describes what app to build. These docs describe *how* to speak RapidUI.
+1. **`GET /llms.txt`** — discovery index and instructions
+2. **`GET /api/docs`** — full agent documentation (this content as JSON)
+3. **`GET /api/schema`** — operation types, layouts, transition triggers, validation rules
+4. Author a `.rui.json` with `version: "0.2"` using only vocabulary from step 3
+5. **`POST /api/validate`** — fix `errors[]` until `valid: true`
+6. **`POST /api/specs`** — persist; use returned `viewUrl` for review
 
-## Base URL
-
-```
-https://rapidui.dev
-```
-
-## Fetch order
-
-1. `GET /llms.txt` — discovery index
-2. `GET /api/docs` — workflow, API contracts, error catalog
-3. `GET /api/schema` — block vocabulary and binding rules
-4. Author RUI JSON that matches **your task prompt**
-5. `POST /api/validate` — loop until `valid: true`
-6. `POST /api/specs` — persist; receive flat SavedSpec (201)
-
-## Authoring
-
-Use only blocks and bindings from `/api/schema`. Structure: `Page` → `Section` → `Metric` | `Table` | `Text`.
-
-Binding patterns (apply to whatever API paths your task specifies):
-
-- **Table** — `GET` binding with `valuePath` selecting the row array in the response
-- **Metric** — `GET` binding with `valuePath` selecting a scalar field in the response
-- **Text** — static copy; no binding
-
-Do not emit React or JSX.
-
-## SavedSpec handoff (v0.1)
-
-After `POST /api/specs` returns **201**, use the flat response:
+## Minimal static example
 
 ```json
 {
-  "specId": "550e8400-e29b-41d4-a716-446655440000",
-  "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
-  "viewUrl": "https://rapidui.dev/specs/550e8400-e29b-41d4-a716-446655440000",
-  "createdAt": "2026-05-26T12:00:00.000Z",
-  "contentHash": "sha256:…",
-  "validationVersion": "0.1",
-  "registryVersion": "0.1",
-  "normalizedRui": { }
+  "version": "0.2",
+  "app": { "title": "Items" },
+  "entities": [
+    {
+      "id": "ent-items",
+      "label": "Items",
+      "entrypoints": ["op-browse-items"],
+      "operationIds": ["op-browse-items"]
+    }
+  ],
+  "operations": [
+    {
+      "id": "op-browse-items",
+      "entityId": "ent-items",
+      "type": "browse",
+      "title": "Items",
+      "route": "/items",
+      "presentation": {
+        "layout": "table",
+        "columns": [{ "key": "id", "label": "ID" }]
+      },
+      "data": {
+        "mode": "static",
+        "records": [{ "id": "1" }]
+      }
+    }
+  ],
+  "transitions": []
 }
 ```
 
-Share **`viewUrl`** with the user for human review (type-colored block tree). Use `url` for programmatic retrieve via `GET url`.
+## Telemetry (optional)
+
+On validate and save, you may send:
+
+- `X-RapidUI-Session-Id` — correlate retries in Observe
+- `X-RapidUI-Agent` — e.g. `claude`, `cursor`, `codex`
+- `X-RapidUI-Eval-Case` — e.g. `crud-admin-v0.2`
+
+See the API section in `/api/docs` for header details.

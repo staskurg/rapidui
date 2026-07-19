@@ -84,6 +84,8 @@ export function parseEvalResult(text: string): EvalResultBlock {
     errorCodes: parseListValue(fields.get("error_codes") ?? "[]"),
     finalSpecId: parseNullableString(fields.get("final_spec_id") ?? "null"),
     viewUrl: parseNullableString(fields.get("view_url") ?? "null"),
-    blocksFound: parseListValue(fields.get("blocks_found") ?? "[]"),
+    operationsFound: parseListValue(
+      fields.get("operations_found") ?? fields.get("blocks_found") ?? "[]",
+    ),
   };
 }

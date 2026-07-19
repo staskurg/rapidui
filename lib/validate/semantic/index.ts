@@ -1,17 +1,29 @@
-import type { Rui } from "@/lib/registry";
+import type { Rui } from "@/lib/operations";
 
-import { checkIds } from "./ids";
-import { checkNavigation } from "./navigation";
-import { checkNesting } from "./nesting";
-import { checkTables } from "./table";
 import type { ValidationError } from "../types";
+import { checkDataBindings } from "./data";
+import { checkEntities } from "./entities";
+import { checkIds, checkRoutes } from "./ids";
+import { checkEmbeddedActions, checkReachability } from "./operations";
+import { checkBreadcrumbs, checkOutcomes } from "./outcomes";
+import { checkPresentations } from "./presentations";
+import { checkScope } from "./scope";
+import { checkCtaTransitions, checkTransitions } from "./transitions";
 
-/** Phase 4 — semantic checks on a structurally valid RUI. */
+/** Semantic checks O1–O20 on a structurally valid RUI. */
 export function runSemanticChecks(rui: Rui): ValidationError[] {
   return [
     ...checkIds(rui),
-    ...checkNavigation(rui),
-    ...checkTables(rui),
-    ...checkNesting(),
+    ...checkEntities(rui),
+    ...checkScope(rui),
+    ...checkRoutes(rui),
+    ...checkPresentations(rui),
+    ...checkDataBindings(rui),
+    ...checkBreadcrumbs(rui),
+    ...checkOutcomes(rui),
+    ...checkEmbeddedActions(rui),
+    ...checkTransitions(rui),
+    ...checkCtaTransitions(rui),
+    ...checkReachability(rui),
   ];
 }

@@ -1,7 +1,12 @@
-import { REGISTRY_VERSION, RuiSchema, type Rui } from "@/lib/registry";
+import {
+  REGISTRY_VERSION,
+  RuiSchema,
+  SCHEMA_VERSION,
+  type Rui,
+} from "@/lib/operations";
 
+import { formatError } from "./messages";
 import { normalizeRui } from "./normalize";
-import { runPlannedGate } from "./planned-gate";
 import { runSemanticChecks } from "./semantic";
 import type { ValidationError, ValidationFailure, ValidationSuccess } from "./types";
 import { VALIDATION_VERSION } from "./version";
@@ -54,15 +59,40 @@ function failure(errors: ValidationError[]): ValidationFailure {
   };
 }
 
-/** Validates a parsed RUI object (phases 2–5). */
+function versionMismatch(): ValidationFailure {
+  const { message, hint } = formatError("VERSION_MISMATCH");
+  return failure([
+    {
+      path: "version",
+      code: "VERSION_MISMATCH",
+      message,
+      hint,
+    },
+  ]);
+}
+
+/** Validates a parsed RUI object. */
 export function validateSpec(body: unknown): ValidationSuccess | ValidationFailure {
+  if (!body || typeof body !== "object") {
+    return failure([
+      {
+        path: "",
+        code: "MISSING_REQUIRED_PROP",
+        message: 'Missing required property "version".',
+        hint: "Send a RUI object with version, app, entities, operations, and transitions.",
+      },
+    ]);
+  }
+
+  const record = body as Record<string, unknown>;
+  if (record.version !== SCHEMA_VERSION) {
+    return versionMismatch();
+  }
+
   const errors: ValidationError[] = [];
-
-  errors.push(...runPlannedGate(body));
-
   const parsed = RuiSchema.safeParse(body);
   if (!parsed.success) {
-    errors.push(...mapZodIssues(parsed.error.issues, body));
+    errors.push(...mapZodIssues(parsed.error.issues));
     return failure(errors);
   }
 

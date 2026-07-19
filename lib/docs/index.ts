@@ -1,4 +1,4 @@
-import { RUI_FILE_EXTENSION } from "@/lib/registry";
+import { RUI_FILE_EXTENSION } from "@/lib/operations";
 import { ERROR_CATALOG } from "@/lib/validate/messages";
 import { VALIDATION_VERSION } from "@/lib/validate/version";
 
@@ -6,7 +6,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import { TELEMETRY_HEADERS } from "@/lib/observe/headers";
 import { readDoc } from "./load";
 
-export const DOCS_VERSION = "0.1";
+export const DOCS_VERSION = "0.2";
 
 const OPTIONAL_TELEMETRY_HEADERS = [
   {
@@ -26,7 +26,7 @@ const OPTIONAL_TELEMETRY_HEADERS = [
   {
     name: TELEMETRY_HEADERS.evalCaseId,
     required: false,
-    description: "Eval case id when running a controlled eval (v0.2 cases in Phase 2).",
+    description: "Eval case id when running a controlled eval.",
     example: "crud-admin-v0.2",
   },
   {
@@ -59,7 +59,7 @@ function getApiSection(baseUrl: string) {
       path: "/api/validate",
       url: `${baseUrl}/api/validate`,
       contentType: "application/json",
-      body: "Raw RUI JSON (version 0.1)",
+      body: "Raw RUI JSON (version 0.2)",
       maxBodyBytes: 262144,
       optionalHeaders: OPTIONAL_TELEMETRY_HEADERS,
       responses: {
@@ -68,7 +68,7 @@ function getApiSection(baseUrl: string) {
           shape: {
             valid: true,
             validationVersion: VALIDATION_VERSION,
-            registryVersion: "0.1",
+            registryVersion: "0.2",
             normalizedRui: "<canonical RUI object>",
           },
         },
@@ -77,11 +77,11 @@ function getApiSection(baseUrl: string) {
           shape: {
             valid: false,
             validationVersion: VALIDATION_VERSION,
-            registryVersion: "0.1",
+            registryVersion: "0.2",
             errors: [
               {
-                path: "string",
-                code: "string",
+                path: "operations[op-browse-users].data.read",
+                code: "MISSING_DATA_BINDING",
                 message: "string",
                 hint: "string",
               },
@@ -106,7 +106,7 @@ function getApiSection(baseUrl: string) {
       path: "/api/specs",
       url: `${baseUrl}/api/specs`,
       contentType: "application/json",
-      body: "Raw RUI JSON (version 0.1) — same shape as POST /api/validate",
+      body: "Raw RUI JSON (version 0.2) — same shape as POST /api/validate",
       maxBodyBytes: 262144,
       optionalHeaders: OPTIONAL_TELEMETRY_HEADERS,
       responses: {
@@ -119,18 +119,18 @@ function getApiSection(baseUrl: string) {
             createdAt: "ISO 8601 UTC",
             contentHash: "sha256:…",
             validationVersion: VALIDATION_VERSION,
-            registryVersion: "0.1",
+            registryVersion: "0.2",
             normalizedRui: "<canonical RUI object>",
           },
           notes:
-            "Flat SavedSpec — no nested receipt. Re-validates inline; stores normalizedRui only. Share viewUrl with humans for block-tree review.",
+            "Flat SavedSpec — re-validates inline. Share viewUrl for human review.",
         },
         validationFailed: {
           httpStatus: 200,
           shape: {
             valid: false,
             validationVersion: VALIDATION_VERSION,
-            registryVersion: "0.1",
+            registryVersion: "0.2",
             errors: [
               {
                 path: "string",
@@ -159,7 +159,7 @@ function getApiSection(baseUrl: string) {
         },
       },
       notes:
-        "A spec is a stored RUI. url is the API retrieve link; viewUrl is the human inspector (§5).",
+        "A spec is a stored RUI. url is the API retrieve link; viewUrl is the human inspector.",
     },
     specById: {
       method: "GET",
@@ -175,10 +175,9 @@ function getApiSection(baseUrl: string) {
             createdAt: "ISO 8601 UTC",
             contentHash: "sha256:…",
             validationVersion: VALIDATION_VERSION,
-            registryVersion: "0.1",
+            registryVersion: "0.2",
             normalizedRui: "<canonical RUI object>",
           },
-          notes: "Same flat SavedSpec as POST 201. url and viewUrl are recomputed on every GET.",
         },
         notFound: {
           httpStatus: 404,
@@ -205,7 +204,7 @@ function getApiSection(baseUrl: string) {
       path: "/specs/:id",
       url: `${baseUrl}/specs/{specId}`,
       notes:
-        "Human RUI inspector — server-rendered type-colored block tree. Public; no auth in v0.1.",
+        "Human RUI inspector — operations summary + raw JSON for v0.2 specs. Public; no auth.",
     },
   };
 }
@@ -218,7 +217,7 @@ function getErrorsSection() {
   }));
 }
 
-/** Builds the JSON payload for GET /api/docs (§3). */
+/** Builds the JSON payload for GET /api/docs. */
 export function getDocsPayload() {
   const baseUrl = getBaseUrl();
 
@@ -229,7 +228,7 @@ export function getDocsPayload() {
     rui: {
       fileExtension: RUI_FILE_EXTENSION,
       description:
-        "A RUI is a JSON document describing an app — its screens, blocks, and data bindings. Not React code.",
+        "A RUI is an operations-first JSON workflow document — entities, operations, transitions, and data bindings. Not React code.",
     },
     links: {
       llmsTxt: "/llms.txt",
@@ -240,7 +239,7 @@ export function getDocsPayload() {
     sections: [
       { id: "overview", format: "markdown" as const, content: readDoc("overview") },
       { id: "workflow", format: "markdown" as const, content: readDoc("workflow") },
-      { id: "nesting", format: "markdown" as const, content: readDoc("nesting") },
+      { id: "operations", format: "markdown" as const, content: readDoc("operations") },
       { id: "api", format: "json" as const, content: getApiSection(baseUrl) },
       { id: "errors", format: "json" as const, content: getErrorsSection() },
       {

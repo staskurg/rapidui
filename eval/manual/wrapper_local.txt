@@ -31,18 +31,18 @@ Optional:
 
   -H "X-RapidUI-Intent: short goal label"
 
-Events appear in Observe (/observe/api in Phase 3). v0.2 eval case ids (e.g. crud-admin-v0.2) land in Phase 2.
+Events appear in Observe (/observe/api in Phase 3).
 
 ## Workflow
 
 1. curl {{BASE_URL}}/llms.txt — read discovery index and Instructions
 2. curl {{BASE_URL}}/api/docs — agent documentation (JSON)
-3. curl {{BASE_URL}}/api/schema — vocabulary / block definitions
-4. Author a RUI JSON document (version 0.1) matching the task
-5. Validate loop: POST your RUI to {{BASE_URL}}/api/validate with Content-Type: application/json
+3. curl {{BASE_URL}}/api/schema — operations vocabulary (entities, operation types, transitions)
+4. Author a RUI JSON document (version 0.2) matching the task — plan operations and flows first
+5. Validate loop: POST your RUI to {{BASE_URL}}/api/validate with Content-Type: application/json and telemetry headers above
    - On valid: false, fix errors and retry (max 5 attempts)
    - Track validate_count and collect error codes from failed responses
-6. On valid: true, POST the normalizedRui from the validate response to {{BASE_URL}}/api/specs
+6. On valid: true, POST the normalizedRui from the validate response to {{BASE_URL}}/api/specs (same headers)
 7. On 201, extract specId and viewUrl from the SavedSpec response
 
 ## Output
@@ -57,5 +57,5 @@ validate_count: <number>
 error_codes: [<comma-separated codes or empty>]
 final_spec_id: <uuid or null>
 view_url: <full /specs/{id} url or null>
-blocks_found: [<block types used, e.g. Table, Metric>]
+operations_found: [<operation types used, e.g. browse, read, create>]
 ---END---

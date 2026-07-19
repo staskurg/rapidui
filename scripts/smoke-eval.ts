@@ -1,9 +1,15 @@
-import goldenRui from "../lib/registry/golden/support-dashboard.rui.json";
+import uc1Golden from "../lib/operations/golden/UC1-static-browse-v0.2.rui.json";
+import uc2Golden from "../lib/operations/golden/UC2-crud-admin-v0.2.rui.json";
+import uc3Golden from "../lib/operations/golden/UC3-ai-review-queue-v0.2.rui.json";
 import { insertSpec } from "../lib/db/specs";
 import { scoreRun } from "../lib/eval/scoreRun";
 import { validateSpec } from "../lib/validate";
 
-const PRIMARY_CASE = "support-dashboard-v0.1";
+const EVAL_SMOKE_CASES = [
+  { label: "UC1", golden: uc1Golden, caseId: "static-browse-v0.2" },
+  { label: "UC2", golden: uc2Golden, caseId: "crud-admin-v0.2" },
+  { label: "UC3", golden: uc3Golden, caseId: "ai-review-queue-v0.2" },
+] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -12,33 +18,38 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function runSmokeEval(): Promise<void> {
-  const goldenResult = validateSpec(goldenRui);
-  assert(goldenResult.valid, "Golden RUI should validate");
-
-  const saved = await insertSpec(goldenResult.normalizedRui, {
-    validationVersion: goldenResult.validationVersion,
-    registryVersion: goldenResult.registryVersion,
-  });
-
-  const score = await scoreRun({
-    specId: saved.specId,
-    caseId: PRIMARY_CASE,
-    validateCount: 1,
-  });
-
-  assert(score.passed, `Golden spec should pass ${PRIMARY_CASE}: ${JSON.stringify(score.scoreDetails)}`);
-  assert(score.blocksFound.includes("Table"), "Golden spec should include Table block");
-  assert(score.blocksFound.includes("Metric"), "Golden spec should include Metric block");
-  assert(
-    score.bindingsFound.some((binding) => binding === "GET /api/tickets"),
-    "Golden spec should bind GET /api/tickets",
-  );
-
   console.log("Eval smoke test passed:");
-  console.log(`- Golden RUI scored against ${PRIMARY_CASE}`);
-  console.log(`- blocks_found: ${score.blocksFound.join(", ")}`);
-  console.log(`- bindings_found: ${score.bindingsFound.join(", ")}`);
-  console.log(`- saved specId: ${saved.specId}`);
+
+  for (const { label, golden, caseId } of EVAL_SMOKE_CASES) {
+    const goldenResult = validateSpec(golden);
+    assert(goldenResult.valid, `${label} golden RUI should validate`);
+    assert("normalizedRui" in goldenResult, `${label} result should include normalizedRui`);
+
+    const saved = await insertSpec(goldenResult.normalizedRui, {
+      validationVersion: goldenResult.validationVersion,
+      registryVersion: goldenResult.registryVersion,
+    });
+
+    const score = await scoreRun({
+      specId: saved.specId,
+      caseId,
+      validateCount: 1,
+    });
+
+    assert(
+      score.passed,
+      `${label} golden spec should pass ${caseId}: ${JSON.stringify(score.scoreDetails)}`,
+    );
+
+    console.log(`- ${label} golden scored against ${caseId} (specId: ${saved.specId})`);
+    console.log(`  operations_found: ${score.operationsFound.join(", ")}`);
+    if (score.embeddedActionsFound.length > 0) {
+      console.log(`  embedded_actions_found: ${score.embeddedActionsFound.join(", ")}`);
+    }
+    if (score.dataPathsFound.length > 0) {
+      console.log(`  data_paths_found: ${score.dataPathsFound.join(", ")}`);
+    }
+  }
 }
 
 runSmokeEval().catch((error: unknown) => {

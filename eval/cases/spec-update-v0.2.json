@@ -1,0 +1,53 @@
+{
+  "id": "spec-update-v0.2",
+  "title": "Use case 4 — Update existing HR ops spec (optional)",
+  "mode": "guided",
+  "seedGolden": "UC4-hr-ops-seed-v0.2",
+  "prompt": "Load our existing HR ops RUI and add a time-off requests browse with pending approvals. Detail screen should allow approve and deny actions.",
+  "mockApi": {
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/time-off-requests",
+        "description": "Time off request list"
+      },
+      {
+        "method": "GET",
+        "path": "/api/time-off-requests/{requestId}",
+        "description": "Time off detail"
+      },
+      {
+        "method": "POST",
+        "path": "/api/time-off-requests/{requestId}/approve",
+        "description": "Approve action on detail"
+      },
+      {
+        "method": "POST",
+        "path": "/api/time-off-requests/{requestId}/deny",
+        "description": "Deny action on detail"
+      }
+    ]
+  },
+  "conversationScript": [
+    {
+      "trigger": "after_agent_reply",
+      "content": "Preserve existing employee and onboarding flows. Add time-off browse + read with approve/deny embedded actions."
+    },
+    {
+      "trigger": "after_agent_reply",
+      "content": "Yes, apply the changes and save a new spec."
+    }
+  ],
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 8,
+    "maxUserTurns": 5,
+    "requiredOperations": ["browse", "read", "create"],
+    "requiredEmbeddedActions": ["act"],
+    "requiredTransitions": ["row", "cta", "cancel"],
+    "requiredDataPaths": [
+      "GET /api/time-off-requests",
+      "POST /api/time-off-requests/{requestId}/approve"
+    ]
+  }
+}

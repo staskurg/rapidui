@@ -100,9 +100,6 @@
       "type": "create",
       "title": "Add employee",
       "route": "/people/new",
-      "context": {
-        "breadcrumb": { "label": "People", "operation": "op-browse-employees" }
-      },
       "presentation": {
         "layout": "form",
         "fields": [

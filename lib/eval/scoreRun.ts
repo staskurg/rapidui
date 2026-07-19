@@ -1,10 +1,10 @@
 import { getSpecById } from "@/lib/db/specs";
 
 import {
-  bindingRequirementMet,
   collectFromRui,
-  formatBindingRef,
-} from "./collectBlocks";
+  dataPathRequirementMet,
+  formatDataPathRef,
+} from "./collectOperations";
 import { loadCase } from "./loadCase";
 import type { ScoreDetails, ScoreResult } from "../../eval/types";
 
@@ -12,6 +12,7 @@ export type ScoreRunInput = {
   specId: string;
   caseId: string;
   validateCount?: number;
+  userTurns?: number;
 };
 
 /** Deterministic pass/fail — compares saved spec against case successCriteria. */
@@ -22,30 +23,46 @@ export async function scoreRun(input: ScoreRunInput): Promise<ScoreResult> {
 
   if (!spec) {
     const scoreDetails: ScoreDetails = { specNotFound: true };
-    if (criteria.requiredBlocks?.length) {
-      scoreDetails.missingBlocks = [...criteria.requiredBlocks];
+    if (criteria.requiredOperations?.length) {
+      scoreDetails.missingOperations = [...criteria.requiredOperations];
     }
-    if (criteria.requiredBindings?.length) {
-      scoreDetails.missingBindings = [...criteria.requiredBindings];
+    if (criteria.requiredEmbeddedActions?.length) {
+      scoreDetails.missingEmbeddedActions = [...criteria.requiredEmbeddedActions];
+    }
+    if (criteria.requiredTransitions?.length) {
+      scoreDetails.missingTransitions = [...criteria.requiredTransitions];
+    }
+    if (criteria.requiredDataPaths?.length) {
+      scoreDetails.missingDataPaths = [...criteria.requiredDataPaths];
     }
 
     return {
       passed: false,
       scoreDetails,
-      blocksFound: [],
-      bindingsFound: [],
+      operationsFound: [],
+      embeddedActionsFound: [],
+      transitionsFound: [],
+      dataPathsFound: [],
     };
   }
 
   const collected = collectFromRui(spec.normalizedRui);
-  const bindingsFound = collected.bindings.map(formatBindingRef);
+  const dataPathsFound = collected.dataPaths.map(formatDataPathRef);
 
-  const missingBlocks = (criteria.requiredBlocks ?? []).filter(
-    (blockType) => !collected.blockTypes.includes(blockType),
+  const missingOperations = (criteria.requiredOperations ?? []).filter(
+    (operationType) => !collected.operationTypes.includes(operationType),
   );
 
-  const missingBindings = (criteria.requiredBindings ?? []).filter(
-    (requirement) => !bindingRequirementMet(collected.bindings, requirement),
+  const missingEmbeddedActions = (criteria.requiredEmbeddedActions ?? []).filter(
+    (actionType) => !collected.embeddedActionTypes.includes(actionType),
+  );
+
+  const missingTransitions = (criteria.requiredTransitions ?? []).filter(
+    (trigger) => !collected.transitionTriggers.includes(trigger),
+  );
+
+  const missingDataPaths = (criteria.requiredDataPaths ?? []).filter(
+    (requirement) => !dataPathRequirementMet(collected.dataPaths, requirement),
   );
 
   const retryExceeded =
@@ -53,27 +70,46 @@ export async function scoreRun(input: ScoreRunInput): Promise<ScoreResult> {
     input.validateCount !== undefined &&
     input.validateCount > criteria.maxRetries;
 
+  const userTurnsExceeded =
+    criteria.maxUserTurns !== undefined &&
+    input.userTurns !== undefined &&
+    input.userTurns > criteria.maxUserTurns;
+
   const scoreDetails: ScoreDetails = {};
-  if (missingBlocks.length > 0) {
-    scoreDetails.missingBlocks = missingBlocks;
+  if (missingOperations.length > 0) {
+    scoreDetails.missingOperations = missingOperations;
   }
-  if (missingBindings.length > 0) {
-    scoreDetails.missingBindings = missingBindings;
+  if (missingEmbeddedActions.length > 0) {
+    scoreDetails.missingEmbeddedActions = missingEmbeddedActions;
+  }
+  if (missingTransitions.length > 0) {
+    scoreDetails.missingTransitions = missingTransitions;
+  }
+  if (missingDataPaths.length > 0) {
+    scoreDetails.missingDataPaths = missingDataPaths;
   }
   if (retryExceeded) {
     scoreDetails.retryExceeded = true;
   }
+  if (userTurnsExceeded) {
+    scoreDetails.userTurnsExceeded = true;
+  }
 
   const passed =
-    missingBlocks.length === 0 &&
-    missingBindings.length === 0 &&
+    missingOperations.length === 0 &&
+    missingEmbeddedActions.length === 0 &&
+    missingTransitions.length === 0 &&
+    missingDataPaths.length === 0 &&
     !retryExceeded &&
+    !userTurnsExceeded &&
     !(criteria.mustValidate && !spec);
 
   return {
     passed,
     scoreDetails,
-    blocksFound: collected.blockTypes,
-    bindingsFound,
+    operationsFound: collected.operationTypes,
+    embeddedActionsFound: collected.embeddedActionTypes,
+    transitionsFound: collected.transitionTriggers,
+    dataPathsFound,
   };
 }

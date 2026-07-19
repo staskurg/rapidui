@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     errorCodes,
     finalSpecId: specId,
     viewUrl,
-    blocksFound: score.blocksFound,
+    blocksFound: score.operationsFound,
     scoreDetails: score.scoreDetails,
     notes: notes ?? null,
   });

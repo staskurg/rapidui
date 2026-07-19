@@ -1,8 +1,10 @@
 - **Emit a RUI** (`.rui.json`) — never React, JSX, or component code
-- **Read** `GET /api/schema` before authoring; use only v0.1 blocks (`Metric`, `Table`, `Text`) and read (`GET`) bindings
+- **Set** `version: "0.2"` — v0.1 page/block documents are rejected
+- **Read** `GET /api/schema` before authoring; use only v0.2 operation types, presentations, transitions, and data modes
+- **Plan operations first** — entities, flows, outcomes, then map to JSON
 - **Validate** with `POST /api/validate`; fix every item in `errors[]` using `code`, `message`, and `hint`
 - **Retry** until `valid: true`; use `normalizedRui` as the canonical validated artifact
 - **Save** with `POST /api/specs` — returns **201** flat SavedSpec (`specId`, `url`, `viewUrl`, audit fields, `normalizedRui`); re-validates inline
-- **Handoff (v0.1):** share **`viewUrl`** with the user for human block-tree review; use `url` for programmatic retrieve via `GET url`
-- **Naming:** say **RUI** in prose; `/api/specs` is the HTTP resource for a stored RUI (a spec is a stored RUI)
-- **Task intent:** comes from the user or session prompt — not from these platform docs. Author the RUI that matches the request using the vocabulary in `/api/schema`
+- **Handoff:** share **`viewUrl`** with the user for human review at `/specs/{specId}`; use `url` for programmatic retrieve via `GET url`
+- **Naming:** say **RUI** in prose; `/api/specs` stores a validated RUI (a spec is a stored RUI)
+- **Task intent:** comes from the user or session prompt — not from platform docs. Author the RUI that matches the request using vocabulary from `/api/schema`

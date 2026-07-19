@@ -10,15 +10,36 @@ GET /api/docs
 GET /api/schema
 ```
 
-Fetch the vocabulary before authoring. Do not guess block shapes or binding rules.
+Fetch the vocabulary before authoring. Do not guess operation shapes, transition rules, or outcome requirements.
 
-## 2. Author a RUI
+## 2. Plan operations
 
-Write a `.rui.json` document in memory or as a file. Use only blocks and bindings listed in `/api/schema` for v0.1.
+From the user message, list:
 
-Structure: `Page` → `Section` → `Metric` | `Table` | `Text`.
+- Domain **entities** (Users, Drafts, …)
+- **Operations** per entity (`browse`, `read`, `create`, `update`, `delete`)
+- **Transitions** (`row`, `link`, `cta`, `cancel`) and **outcomes** on mutations
+- **Data bindings** (`static` or `api` paths)
 
-## 3. Validate (retry loop)
+Optional: summarize the plan in chat before composing JSON.
+
+## 3. Map → RUI
+
+Build a document with top-level shape:
+
+```json
+{
+  "version": "0.2",
+  "app": { "title": "…" },
+  "entities": [],
+  "operations": [],
+  "transitions": []
+}
+```
+
+Wire `entities[].entrypoints`, operation `route` + `params`, presentations, `data.mode`, and embedded actions on `read` detail screens.
+
+## 4. Validate (retry loop)
 
 ```http
 POST /api/validate
@@ -28,44 +49,12 @@ Content-Type: application/json
 ```
 
 - On **`valid: true`** — use `normalizedRui` as the canonical artifact
-- On **`valid: false`** — read `errors[]` (each has `code`, `message`, `hint`, `path`); fix and retry
+- On **`valid: false`** — read `errors[]` (`code`, `message`, `hint`, `path`); fix and retry
 - Target: converge within **≤5 retries**
 
-### Success response (HTTP 200)
+Errors reference **operation ids** and **transitions**, e.g. `operations[op-browse-users].data.read`.
 
-```json
-{
-  "valid": true,
-  "validationVersion": "0.1",
-  "registryVersion": "0.1",
-  "normalizedRui": { }
-}
-```
-
-### Validation failed (HTTP 200)
-
-```json
-{
-  "valid": false,
-  "validationVersion": "0.1",
-  "registryVersion": "0.1",
-  "errors": [
-    {
-      "path": "pages[0].children[0].binding",
-      "code": "MISSING_VALUE_PATH",
-      "message": "Metric binding requires valuePath.",
-      "hint": "Set valuePath to the scalar field (e.g. \"openCount\")."
-    }
-  ],
-  "truncated": false
-}
-```
-
-### Transport failure (HTTP 400)
-
-Invalid JSON, wrong Content-Type, or body too large → HTTP 400 with `INVALID_JSON` (no `validationVersion`).
-
-## 4. Save
+## 5. Save
 
 ```http
 POST /api/specs
@@ -74,34 +63,6 @@ Content-Type: application/json
 <RUI JSON body>
 ```
 
-Re-validates inline — you may POST directly without a prior validate call. Invalid RUI never reaches Postgres.
+Re-validates inline. Invalid RUI never reaches Postgres. Success returns **201** with `specId`, `viewUrl`, and `normalizedRui`.
 
-### Success (HTTP 201)
-
-```json
-{
-  "specId": "550e8400-e29b-41d4-a716-446655440000",
-  "url": "https://rapidui.dev/api/specs/550e8400-e29b-41d4-a716-446655440000",
-  "viewUrl": "https://rapidui.dev/specs/550e8400-e29b-41d4-a716-446655440000",
-  "createdAt": "2026-05-26T12:00:00.000Z",
-  "contentHash": "sha256:…",
-  "validationVersion": "0.1",
-  "registryVersion": "0.1",
-  "normalizedRui": { }
-}
-```
-
-Flat SavedSpec — no nested `receipt`. Share **`viewUrl`** with the user for human review; use `url` for programmatic retrieve (`GET url` returns the same SavedSpec shape).
-
-### Validation failed (HTTP 200)
-
-Same shape as `POST /api/validate` — fix `errors[]` and retry.
-
-### Storage unavailable (HTTP 503)
-
-```json
-{
-  "error": "STORAGE_UNAVAILABLE",
-  "message": "RUI store is temporarily unavailable."
-}
-```
+Share **`viewUrl`** for human review at `/specs/{specId}`.

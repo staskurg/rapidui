@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import goldenRui from "../lib/registry/golden/support-dashboard.rui.json";
+import uc1Golden from "../lib/operations/golden/UC1-static-browse-v0.2.rui.json";
 import { sql } from "../lib/db/client";
 import { getDocsPayload } from "../lib/docs";
 import { TELEMETRY_HEADERS } from "../lib/observe/headers";
@@ -24,11 +24,11 @@ async function runSmokeObserve(): Promise<void> {
     headers: {
       [TELEMETRY_HEADERS.sessionId]: sessionId,
       [TELEMETRY_HEADERS.agent]: "smoke-test",
-      [TELEMETRY_HEADERS.evalCaseId]: "support-dashboard-v0.1",
+      [TELEMETRY_HEADERS.evalCaseId]: "static-browse-v0.2",
     },
   });
 
-  const goldenResult = validateSpec(goldenRui);
+  const goldenResult = validateSpec(uc1Golden);
   assert(goldenResult.valid, "Golden RUI should validate");
 
   const startedAt = Date.now();
@@ -55,7 +55,7 @@ async function runSmokeObserve(): Promise<void> {
     endpoint: "/api/specs",
     session_id: sessionId,
     agent: "smoke-test",
-    eval_case_id: "support-dashboard-v0.1",
+    eval_case_id: "static-browse-v0.2",
     intent: null,
     valid: true,
     error_codes: null,

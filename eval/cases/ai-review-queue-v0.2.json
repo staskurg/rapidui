@@ -1,0 +1,54 @@
+{
+  "id": "ai-review-queue-v0.2",
+  "title": "Use case 3 — AI draft review queue",
+  "mode": "guided",
+  "prompt": "Build an internal UI for reviewing AI-drafted support replies before they send. Queue shows pending drafts with confidence, model, and source ticket. Reviewer approves or rejects from the detail screen.",
+  "mockApi": {
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/drafts",
+        "description": "Draft inbox list; browse binding valuePath items"
+      },
+      {
+        "method": "GET",
+        "path": "/api/drafts/{draftId}",
+        "description": "Draft detail for read screen"
+      },
+      {
+        "method": "POST",
+        "path": "/api/drafts/{draftId}/approve",
+        "description": "Approve embedded act on detail"
+      },
+      {
+        "method": "POST",
+        "path": "/api/drafts/{draftId}/reject",
+        "description": "Reject embedded act on detail"
+      }
+    ]
+  },
+  "conversationScript": [
+    {
+      "trigger": "after_agent_reply",
+      "content": "Approve and reject must be embedded actions on the detail screen, not row actions. Status filter on the inbox table."
+    },
+    {
+      "trigger": "after_agent_reply",
+      "content": "Yes, build it."
+    }
+  ],
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 5,
+    "maxUserTurns": 4,
+    "requiredOperations": ["browse", "read"],
+    "requiredEmbeddedActions": ["act"],
+    "requiredTransitions": ["row"],
+    "requiredDataPaths": [
+      "GET /api/drafts",
+      "GET /api/drafts/{draftId}",
+      "POST /api/drafts/{draftId}/approve",
+      "POST /api/drafts/{draftId}/reject"
+    ]
+  }
+}

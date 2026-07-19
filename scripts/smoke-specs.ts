@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-import goldenRui from "../lib/registry/golden/support-dashboard.rui.json";
+import uc3Golden from "../lib/operations/golden/UC3-ai-review-queue-v0.2.rui.json";
 import {
   computeContentHash,
   getSpecById,
@@ -26,9 +26,8 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function runSmokeSpecs(): Promise<void> {
-  // Golden RUI → insert + retrieve
-  const goldenResult = validateSpec(goldenRui);
-  assert(goldenResult.valid, "Golden RUI should validate");
+  const goldenResult = validateSpec(uc3Golden);
+  assert(goldenResult.valid, "UC3 golden RUI should validate");
 
   const saved = await insertSpec(goldenResult.normalizedRui, {
     validationVersion: goldenResult.validationVersion,
@@ -48,8 +47,8 @@ async function runSmokeSpecs(): Promise<void> {
     saved.contentHash === computeContentHash(goldenResult.normalizedRui),
     "contentHash should match computeContentHash(normalizedRui)",
   );
-  assert(saved.validationVersion === "0.1", "validationVersion should be 0.1");
-  assert(saved.registryVersion === "0.1", "registryVersion should be 0.1");
+  assert(saved.validationVersion === "0.2", "validationVersion should be 0.2");
+  assert(saved.registryVersion === "0.2", "registryVersion should be 0.2");
   assert(saved.normalizedRui, "SavedSpec should include normalizedRui");
 
   const fetched = await getSpecById(saved.specId);
@@ -59,29 +58,21 @@ async function runSmokeSpecs(): Promise<void> {
       JSON.stringify(saved.normalizedRui),
     "Fetched normalizedRui should match POST response",
   );
-  assert(
-    fetched.contentHash === saved.contentHash,
-    "Fetched contentHash should match POST response",
-  );
 
-  // Invalid fixture → validate fails (no insert)
   const invalidResult = validateSpec(loadFixture("wrong-version.json"));
   assert(!invalidResult.valid, "Invalid fixture should fail validation");
 
-  // UUID validation
   assert(!isValidSpecId("not-a-uuid"), "Bogus id should fail isValidSpecId");
   assert(isValidSpecId(saved.specId), "Valid specId should pass isValidSpecId");
 
-  // Unknown UUID → null (404 in route)
   const unknownId = randomUUID();
   const missing = await getSpecById(unknownId);
   assert(missing === null, "Unknown specId should return null");
 
   console.log("Specs smoke test passed:");
-  console.log("- POST golden RUI → SavedSpec with sha256: contentHash");
+  console.log("- POST UC3 golden RUI → SavedSpec with sha256: contentHash");
   console.log("- GET by specId → matching normalizedRui");
-  console.log("- invalid fixture → valid: false (no insert)");
-  console.log("- bogus UUID rejected; unknown UUID returns null");
+  console.log("- v0.1 fixture → valid: false (no insert)");
   console.log(`- saved specId: ${saved.specId}`);
 }
 

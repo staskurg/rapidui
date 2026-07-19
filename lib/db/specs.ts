@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Rui } from "@/lib/registry";
+import type { Rui } from "@/lib/operations";
 
 import { sql } from "./client";
 import { computeContentHash } from "./hash";

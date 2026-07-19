@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getSchemaPayload } from "@/lib/registry";
+import { getSchemaPayload } from "@/lib/operations";
 
 export async function GET() {
   return NextResponse.json(getSchemaPayload(), {

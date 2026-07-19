@@ -125,9 +125,6 @@
       "type": "create",
       "title": "Create user",
       "route": "/users/new",
-      "context": {
-        "breadcrumb": { "label": "Users", "operation": "op-browse-users" }
-      },
       "presentation": {
         "layout": "form",
         "fields": [

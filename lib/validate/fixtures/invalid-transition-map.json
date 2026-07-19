@@ -1,0 +1,53 @@
+{
+  "version": "0.2",
+  "app": { "title": "Invalid transition map" },
+  "entities": [
+    {
+      "id": "ent-items",
+      "label": "Items",
+      "entrypoints": ["op-browse-items"],
+      "operationIds": ["op-browse-items", "op-read-item"]
+    }
+  ],
+  "operations": [
+    {
+      "id": "op-browse-items",
+      "entityId": "ent-items",
+      "type": "browse",
+      "title": "Items",
+      "route": "/items",
+      "presentation": {
+        "layout": "table",
+        "columns": [{ "key": "id", "label": "ID" }]
+      },
+      "data": {
+        "mode": "static",
+        "records": [{ "id": "1" }]
+      }
+    },
+    {
+      "id": "op-read-item",
+      "entityId": "ent-items",
+      "type": "read",
+      "title": "Item",
+      "route": "/items/{itemId}",
+      "params": ["itemId"],
+      "presentation": {
+        "layout": "detail",
+        "sections": [{ "title": "Item", "fields": [{ "key": "id", "label": "ID" }] }]
+      },
+      "data": {
+        "mode": "static",
+        "records": [{ "id": "1" }]
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "op-browse-items",
+      "to": "op-read-item",
+      "trigger": "row",
+      "map": { "itemId": "missingColumnKey" }
+    }
+  ]
+}

@@ -47,7 +47,7 @@ Persist validated RUIs to Postgres:
 # Save (re-validates inline)
 curl -X POST https://rapidui.dev/api/specs \
   -H "Content-Type: application/json" \
-  -d @lib/registry/golden/support-dashboard.rui.json
+  -d @lib/operations/golden/UC2-crud-admin-v0.2.rui.json
 
 # Retrieve by specId
 curl https://rapidui.dev/api/specs/{specId}
@@ -55,16 +55,18 @@ curl https://rapidui.dev/api/specs/{specId}
 
 POST returns **201** flat SavedSpec (`specId`, `url`, `viewUrl`, `contentHash`, `normalizedRui`, …). GET returns the same shape.
 
-Open **`viewUrl`** (`/specs/{specId}`) in a browser for the human RUI inspector — type-colored block tree for review.
+Open **`viewUrl`** (`/specs/{specId}`) in a browser for the human RUI inspector — operations summary + raw JSON for v0.2 specs.
 
 ## Smoke tests
 
 ```bash
-npm run smoke:validate   # validation engine
+npm run smoke:operations # operations schema (Zod)
+npm run smoke:validate   # validation engine + UC goldens
 npm run smoke:docs       # agent docs payload
 npm run smoke:specs      # Postgres store (requires DATABASE_URL + migration)
 npm run smoke:inspector  # in-process RUI inspector render (no dev server)
-npm run smoke:eval       # score golden RUI against primary eval case (requires DATABASE_URL)
+npm run smoke:eval       # score UC2 golden against crud-admin-v0.2 (requires DATABASE_URL)
+npm run smoke:observe    # api_events + agent ingest (requires DATABASE_URL)
 ```
 
 ## Agent eval harness (§6)
@@ -73,13 +75,13 @@ Repeatable proof that external agents can traverse validate → save without rep
 
 ```bash
 # Generate agent prompt (prod or local)
-npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod
+npm run eval:prompt -- --case=crud-admin-v0.2 --env=prod
 
 # Deterministic pass/fail against saved spec
-npm run eval:score -- --specId=<uuid> --case=support-dashboard-v0.1 --validate-count=3
+npm run eval:score -- --specId=<uuid> --case=crud-admin-v0.2 --validate-count=3
 
 # Score + insert eval_runs row (prod runs)
-npm run eval:log -- --specId=<uuid> --case=support-dashboard-v0.1 --agent=cursor --validate-count=3
+npm run eval:log -- --specId=<uuid> --case=crud-admin-v0.2 --agent=cursor --validate-count=3
 ```
 
 **Prod workflow:** generate prompt → run agent in empty dir → optional `view_url` review → `eval:log` from this repo.
@@ -102,12 +104,12 @@ Use the apex domain (`rapidui.dev`) as the canonical API base URL. `www.rapidui.
 ```txt
 app/api/          # API route handlers (incl. /api/observe/ingest/agent)
 agent/            # RapidUI Agent — FastAPI on Render (agent.rapidui.dev)
-lib/registry/     # §1 vocabulary registry (RUI schemas)
-lib/validate/     # §2 validation engine
-lib/docs/         # §3 agent documentation content + payloads
+lib/operations/   # v0.2 operations-first RUI schemas + golden fixtures
+lib/validate/     # validation engine (O1–O20 semantic rules)
+lib/docs/         # agent documentation content + payloads
 lib/db/           # Postgres client (@neondatabase/serverless)
 lib/observe/      # Observe ingest schemas + write helpers
-lib/review/       # §5 RUI inspector components (block tree)
+lib/review/       # RUI inspector (v0.2 placeholder + JSON)
 eval/             # §6 eval cases, manual wrappers, score CLI
 eval/cases/       # eval case definitions (prompt + successCriteria)
 ```
@@ -118,7 +120,7 @@ eval/cases/       # eval case definitions (prompt + successCriteria)
 
 - [https://rapidui.dev/llms.txt](https://rapidui.dev/llms.txt) — start here for external agents
 - [https://rapidui.dev/api/docs](https://rapidui.dev/api/docs) — full agent documentation (JSON)
-- [https://rapidui.dev/api/schema](https://rapidui.dev/api/schema) — vocabulary / block definitions
+- [https://rapidui.dev/api/schema](https://rapidui.dev/api/schema) — operations vocabulary and schema rules
 
 Implementation plan and MVP scope live in `.cursor/`:
 

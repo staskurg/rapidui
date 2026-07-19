@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import type { Rui } from "@/lib/registry";
+import type { Rui } from "@/lib/operations";
 
 /** SHA-256 fingerprint of canonical normalized RUI JSON. */
 export function computeContentHash(rui: Rui): string {

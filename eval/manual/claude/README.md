@@ -1,12 +1,14 @@
 # Claude CLI — eval runner
 
-Same eval loop as Cursor, invoked from an **empty directory** with no repo context.
+Same v0.2 eval loop as Cursor, invoked from an **empty directory** with no repo context.
 
-## Prod (MVP proof)
+**Cases:** `static-browse-v0.2` · `crud-admin-v0.2` · `ai-review-queue-v0.2` · `spec-update-v0.2` (optional UC4)
+
+## Prod
 
 ```bash
-# In the rapidui repo — generate prompt
-npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod
+# In the rapidui repo — generate prompt (pick a case)
+npm run eval:prompt -- --case=crud-admin-v0.2 --env=prod
 ```
 
 1. Save the prompt to a file or pipe to Claude CLI, e.g. `claude -p "$(cat prompt.txt)"`.
@@ -17,7 +19,7 @@ npm run eval:prompt -- --case=support-dashboard-v0.1 --env=prod
 ```bash
 npm run eval:log -- \
   --specId=<final_spec_id> \
-  --case=support-dashboard-v0.1 \
+  --case=crud-admin-v0.2 \
   --agent=claude \
   --validate-count=<n>
 ```

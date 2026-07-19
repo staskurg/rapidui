@@ -1,54 +1,81 @@
-import { isValidId, type Rui } from "@/lib/registry";
+import type { Rui } from "@/lib/operations";
+import { collectIdsFromRui, extractPathParams, isValidId } from "@/lib/operations";
 
 import { formatError } from "../messages";
 import type { ValidationError } from "../types";
 
-type IdOccurrence = { id: string; path: string };
-
-function collectIdOccurrences(rui: Rui): IdOccurrence[] {
-  const occurrences: IdOccurrence[] = [];
-
-  for (let pageIndex = 0; pageIndex < rui.pages.length; pageIndex++) {
-    const page = rui.pages[pageIndex];
-    occurrences.push({ id: page.id, path: `pages[${pageIndex}].id` });
-
-    for (let sectionIndex = 0; sectionIndex < page.children.length; sectionIndex++) {
-      const section = page.children[sectionIndex];
-      occurrences.push({
-        id: section.id,
-        path: `pages[${pageIndex}].children[${sectionIndex}].id`,
-      });
-
-      for (let blockIndex = 0; blockIndex < section.children.length; blockIndex++) {
-        const block = section.children[blockIndex];
-        occurrences.push({
-          id: block.id,
-          path: `pages[${pageIndex}].children[${sectionIndex}].children[${blockIndex}].id`,
-        });
-      }
-    }
-  }
-
-  return occurrences;
-}
-
-/** R3 duplicate ids, R4 id format. */
+/** O2 — globally unique ids; invalid id format. */
 export function checkIds(rui: Rui): ValidationError[] {
   const errors: ValidationError[] = [];
   const seen = new Map<string, string>();
-  const occurrences = collectIdOccurrences(rui);
 
-  for (const { id, path } of occurrences) {
+  for (const id of collectIdsFromRui(rui)) {
     if (!isValidId(id)) {
       const { message, hint } = formatError("INVALID_ID_FORMAT", { id });
-      errors.push({ path, code: "INVALID_ID_FORMAT", message, hint });
+      errors.push({ path: "id", code: "INVALID_ID_FORMAT", message, hint });
+      continue;
     }
 
-    if (seen.has(id)) {
+    const prior = seen.get(id);
+    if (prior) {
       const { message, hint } = formatError("DUPLICATE_ID", { id });
-      errors.push({ path, code: "DUPLICATE_ID", message, hint });
+      errors.push({ path: prior, code: "DUPLICATE_ID", message, hint });
     } else {
-      seen.set(id, path);
+      seen.set(id, id);
+    }
+  }
+
+  return errors;
+}
+
+/** O15 — every operation has route; params match route placeholders. */
+export function checkRoutes(rui: Rui): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const operation of rui.operations) {
+    if (!operation.route.startsWith("/")) {
+      const { message, hint } = formatError("MISSING_ROUTE", {
+        operationId: operation.id,
+      });
+      errors.push({
+        path: `operations[${operation.id}].route`,
+        code: "MISSING_ROUTE",
+        message,
+        hint,
+      });
+    }
+
+    const routeParams = extractPathParams(operation.route);
+    const declared = operation.params ?? [];
+
+    for (const param of routeParams) {
+      if (!declared.includes(param)) {
+        const { message, hint } = formatError("ROUTE_PARAM_MISMATCH", {
+          operationId: operation.id,
+          param,
+        });
+        errors.push({
+          path: `operations[${operation.id}].params`,
+          code: "ROUTE_PARAM_MISMATCH",
+          message,
+          hint,
+        });
+      }
+    }
+
+    for (const param of declared) {
+      if (!routeParams.includes(param)) {
+        const { message, hint } = formatError("ROUTE_PARAM_MISMATCH", {
+          operationId: operation.id,
+          param,
+        });
+        errors.push({
+          path: `operations[${operation.id}].params`,
+          code: "ROUTE_PARAM_MISMATCH",
+          message,
+          hint,
+        });
+      }
     }
   }
 
