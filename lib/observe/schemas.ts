@@ -1,7 +1,18 @@
 import { z } from "zod";
 
-export const API_ENDPOINTS = ["/api/validate", "/api/specs"] as const;
+export const POST_ENDPOINTS = ["/api/validate", "/api/specs"] as const;
 
+export const DISCOVERY_ENDPOINTS = [
+  "/llms.txt",
+  "/api/docs",
+  "/api/schema",
+  "/api/health",
+] as const;
+
+export const API_ENDPOINTS = [...POST_ENDPOINTS, ...DISCOVERY_ENDPOINTS] as const;
+
+export type PostEndpoint = (typeof POST_ENDPOINTS)[number];
+export type DiscoveryEndpoint = (typeof DISCOVERY_ENDPOINTS)[number];
 export type ApiEndpoint = (typeof API_ENDPOINTS)[number];
 
 export const apiEventInputSchema = z.object({

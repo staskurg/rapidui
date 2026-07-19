@@ -21,6 +21,11 @@ export const ERROR_CATALOG: Record<RuleCode, { message: string; hint: string }> 
     message: "Request body must be valid JSON.",
     hint: "Send Content-Type: application/json with the spec object as the raw body.",
   },
+  MISSING_SESSION_ID: {
+    message:
+      "X-RapidUI-Session-Id is required on this endpoint. Read GET /llms.txt for session rules.",
+    hint: "Generate once per session: uuidgen (or crypto.randomUUID). Send on every request after llms.txt.",
+  },
   VERSION_MISMATCH: {
     message: 'RUI version must be "0.2".',
     hint: 'Set `version` to `"0.2"`. v0.1 page/block documents are not supported.',

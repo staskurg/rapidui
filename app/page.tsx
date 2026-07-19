@@ -41,15 +41,26 @@ export default function Home() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Status
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <Link
-              href="/api/health"
-              className="font-medium text-zinc-900 underline underline-offset-2 dark:text-zinc-100"
-            >
-              GET /api/health
-            </Link>{" "}
-            — platform health check
-          </p>
+          <div className="mt-2 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <p>
+              <Link
+                href="/api/health"
+                className="font-medium text-zinc-900 underline underline-offset-2 dark:text-zinc-100"
+              >
+                GET /api/health
+              </Link>{" "}
+              — platform health check
+            </p>
+            <p>
+              <Link
+                href="/observe"
+                className="font-medium text-zinc-900 underline underline-offset-2 dark:text-zinc-100"
+              >
+                Observe
+              </Link>{" "}
+              — API telemetry, sessions, and platform analytics
+            </p>
+          </div>
         </section>
 
         <section className="space-y-4">

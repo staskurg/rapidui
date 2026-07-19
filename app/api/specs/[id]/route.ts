@@ -5,12 +5,18 @@ import {
   isValidSpecId,
   STORAGE_UNAVAILABLE_RESPONSE,
 } from "@/lib/db";
+import { assertSessionId } from "@/lib/observe/session-gate";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const gate = assertSessionId(request);
+  if (!gate.ok) {
+    return NextResponse.json(gate.error, { status: 400 });
+  }
+
   const { id } = await context.params;
 
   if (!isValidSpecId(id)) {

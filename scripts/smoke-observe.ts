@@ -98,13 +98,17 @@ async function runSmokeObserve(): Promise<void> {
     Array.isArray(docs.telemetry.headers) && docs.telemetry.headers.length === 4,
     "Telemetry section should document four headers",
   );
+  assert(
+    docs.telemetry.requiredHeaders.length === 1,
+    "Telemetry section should require session id",
+  );
 
   const apiSection = docs.sections.find((section) => section.id === "api")?.content as {
-    validate?: { optionalHeaders?: unknown[] };
-    specs?: { optionalHeaders?: unknown[] };
+    validate?: { requiredHeaders?: unknown[] };
+    specs?: { requiredHeaders?: unknown[] };
   };
-  assert(apiSection?.validate?.optionalHeaders?.length === 4, "Validate API should list optionalHeaders");
-  assert(apiSection?.specs?.optionalHeaders?.length === 4, "Specs API should list optionalHeaders");
+  assert(apiSection?.validate?.requiredHeaders?.length === 1, "Validate API should list requiredHeaders");
+  assert(apiSection?.specs?.requiredHeaders?.length === 1, "Specs API should list requiredHeaders");
 
   console.log("Observe smoke test passed:");
   console.log(`- api_events recorded for session ${sessionId}`);

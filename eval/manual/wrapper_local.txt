@@ -17,26 +17,32 @@ Eval case: {{CASE_ID}}
 
 ## Telemetry (v0.2)
 
-Generate once per session (use the same id on every validate and save call):
+Generate once per session before any guarded API call:
 
   SESSION_ID=$(uuidgen)    # macOS/Linux; or any stable unique string
 
-On every POST /api/validate and POST /api/specs, include these headers:
+Workflow:
+
+1. curl {{BASE_URL}}/llms.txt — no session header
+2. curl {{BASE_URL}}/api/docs — include session header (and all calls below)
+3. curl {{BASE_URL}}/api/schema — same SESSION_ID
+
+On every guarded request (GET docs/schema/health, POST validate/specs, GET specs/:id), include:
 
   -H "X-RapidUI-Session-Id: $SESSION_ID"
-  -H "X-RapidUI-Agent: cursor"          # or claude | codex
-  -H "X-RapidUI-Eval-Case: {{CASE_ID}}"
+  -H "X-RapidUI-Agent: cursor"          # or claude | codex | rapidui-agent
+  -H "X-RapidUI-Eval-Case: {{CASE_ID}}"  # eval runs only
 
 Optional:
 
   -H "X-RapidUI-Intent: short goal label"
 
-Events appear in Observe (/observe/api in Phase 3).
+Events appear in Observe (/observe/api).
 
 ## Workflow
 
-1. curl {{BASE_URL}}/llms.txt — read discovery index and Instructions
-2. curl {{BASE_URL}}/api/docs — agent documentation (JSON)
+1. curl {{BASE_URL}}/llms.txt — read discovery index and Instructions (no headers)
+2. Set SESSION_ID and curl {{BASE_URL}}/api/docs — agent documentation (JSON)
 3. curl {{BASE_URL}}/api/schema — operations vocabulary (entities, operation types, transitions)
 4. Author a RUI JSON document (version 0.2) matching the task — plan operations and flows first
 5. Validate loop: POST your RUI to {{BASE_URL}}/api/validate with Content-Type: application/json and telemetry headers above

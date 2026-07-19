@@ -1,0 +1,206 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { SessionOutcomeBadge } from "@/components/observe/SessionOutcomeBadge";
+import {
+  formatRelativeTime,
+  getSessionSummary,
+  getSessionTimeline,
+  truncateSessionId,
+} from "@/lib/observe/queries";
+
+export const dynamic = "force-dynamic";
+
+type SessionDetailPageProps = {
+  params: Promise<{ sessionId: string }>;
+  searchParams: Promise<{ fromAgent?: string }>;
+};
+
+function timelineRowClass(event: {
+  endpoint: string;
+  valid: boolean | null;
+  spec_id: string | null;
+}): string {
+  if (
+    event.endpoint === "/llms.txt" ||
+    event.endpoint === "/api/docs" ||
+    event.endpoint === "/api/schema" ||
+    event.endpoint === "/api/health"
+  ) {
+    return "border-l-4 border-zinc-400 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900/80";
+  }
+  if (event.spec_id) {
+    return "border-l-4 border-violet-500 bg-violet-50/60 dark:bg-violet-950/20";
+  }
+  if (event.endpoint === "/api/validate" && event.valid === false) {
+    return "border-l-4 border-amber-500 bg-amber-50/60 dark:bg-amber-950/20";
+  }
+  if (event.endpoint === "/api/validate" && event.valid === true) {
+    return "border-l-4 border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20";
+  }
+  return "border-l-4 border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-900";
+}
+
+export default async function SessionDetailPage({
+  params,
+  searchParams,
+}: SessionDetailPageProps) {
+  const { sessionId } = await params;
+  const { fromAgent } = await searchParams;
+
+  const [summary, timeline] = await Promise.all([
+    getSessionSummary(sessionId),
+    getSessionTimeline(sessionId),
+  ]);
+
+  if (!summary) {
+    notFound();
+  }
+
+  const backHref = fromAgent
+    ? `/observe/api?agent=${encodeURIComponent(fromAgent)}`
+    : "/observe/api";
+
+  return (
+    <div className="space-y-8">
+      <header className="space-y-3">
+        <Link href={backHref} className="text-sm font-medium text-violet-700 dark:text-violet-400">
+          ← Back to API dashboard
+        </Link>
+        <div>
+          <p className="text-sm text-zinc-500">Session detail</p>
+          <h1 className="mt-1 font-mono text-lg font-semibold">{sessionId}</h1>
+        </div>
+      </header>
+
+      <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Agent</dt>
+            <dd className="mt-1 text-sm">{summary.agent ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Eval case
+            </dt>
+            <dd className="mt-1 font-mono text-sm">{summary.evalCaseId ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
+            <dd className="mt-1 text-sm">{summary.intent ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
+            <dd className="mt-1">
+              <SessionOutcomeBadge outcome={summary.outcome} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Validate attempts
+            </dt>
+            <dd className="mt-1 text-sm">{summary.validateCount}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Saved spec
+            </dt>
+            <dd className="mt-1 text-sm">
+              {summary.finalSpecId ? (
+                <Link
+                  href={`/specs/${summary.finalSpecId}`}
+                  className="font-mono text-violet-700 hover:underline dark:text-violet-400"
+                >
+                  {truncateSessionId(summary.finalSpecId, 6)}
+                </Link>
+              ) : (
+                "—"
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              First activity
+            </dt>
+            <dd className="mt-1 text-sm">
+              {summary.firstActivityAt ? formatRelativeTime(summary.firstActivityAt) : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Last activity
+            </dt>
+            <dd className="mt-1 text-sm">
+              {summary.lastActivityAt ? formatRelativeTime(summary.lastActivityAt) : "—"}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Timeline</h2>
+        {timeline.length === 0 ? (
+          <p className="text-sm text-zinc-500">No validate or save events for this session.</p>
+        ) : (
+          <ol className="space-y-3">
+            {timeline.map((event) => (
+              <li
+                key={event.id}
+                className={`rounded-r-lg px-4 py-3 ${timelineRowClass(event)}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <p className="font-mono text-sm font-medium">{event.endpoint}</p>
+                    <p className="text-xs text-zinc-500">
+                      {event.occurred_at.toISOString()}
+                      {event.duration_ms !== null ? ` · ${event.duration_ms}ms` : ""}
+                    </p>
+                  </div>
+                  <div className="text-sm">
+                    {event.spec_id ? (
+                      <Link
+                        href={`/specs/${event.spec_id}`}
+                        className="font-medium text-violet-700 hover:underline dark:text-violet-400"
+                      >
+                        Saved → spec
+                      </Link>
+                    ) : event.endpoint === "/api/validate" ? (
+                      <span
+                        className={
+                          event.valid
+                            ? "font-medium text-emerald-700 dark:text-emerald-400"
+                            : event.valid === false
+                              ? "font-medium text-amber-700 dark:text-amber-400"
+                              : "text-zinc-500"
+                        }
+                      >
+                        {event.valid ? "✓ valid" : event.valid === false ? "✗ invalid" : "transport error"}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-500">discovery</span>
+                    )}
+                  </div>
+                </div>
+                {event.error_codes && event.error_codes.length > 0 ? (
+                  <p className="mt-2 font-mono text-xs text-amber-800 dark:text-amber-300">
+                    {event.error_codes.join(", ")}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <footer className="border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
+        <Link
+          href="/observe/agent"
+          className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+        >
+          View agent run →
+        </Link>
+        <span className="ml-2 text-zinc-500">(Phase 6 placeholder)</span>
+      </footer>
+    </div>
+  );
+}

@@ -1,16 +1,46 @@
 import { parseTelemetryHeaders } from "./headers";
-import type { ApiEndpoint } from "./schemas";
+import type { DiscoveryEndpoint, PostEndpoint } from "./schemas";
 import { insertApiEvent } from "./writes";
 import type { ValidationResult } from "@/lib/validate";
 
+type RecordDiscoveryEventOptions = {
+  request: Request;
+  endpoint: DiscoveryEndpoint;
+  startedAt: number;
+};
+
 type RecordApiEventOptions = {
   request: Request;
-  endpoint: ApiEndpoint;
+  endpoint: PostEndpoint;
   result: ValidationResult;
   httpStatus: number;
   specId?: string | null;
   startedAt: number;
 };
+
+/** Record discovery GET / llms.txt — valid, error_codes, and spec_id are always null. */
+export async function recordDiscoveryEvent(
+  options: RecordDiscoveryEventOptions,
+): Promise<void> {
+  const { request, endpoint, startedAt } = options;
+  const headers = parseTelemetryHeaders(request);
+
+  try {
+    await insertApiEvent({
+      endpoint,
+      session_id: headers.sessionId,
+      agent: headers.agent,
+      eval_case_id: headers.evalCaseId,
+      intent: headers.intent,
+      valid: null,
+      error_codes: null,
+      spec_id: null,
+      duration_ms: Math.max(0, Date.now() - startedAt),
+    });
+  } catch (error) {
+    console.error("[observe] Failed to insert discovery event:", error);
+  }
+}
 
 function mapValidationResult(result: ValidationResult, specId?: string | null) {
   if (!("validationVersion" in result)) {

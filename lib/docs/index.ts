@@ -8,14 +8,17 @@ import { readDoc } from "./load";
 
 export const DOCS_VERSION = "0.2";
 
-const OPTIONAL_TELEMETRY_HEADERS = [
+const REQUIRED_TELEMETRY_HEADERS = [
   {
     name: TELEMETRY_HEADERS.sessionId,
-    required: false,
+    required: true,
     description:
-      "Stable id for one agent session — correlates validate/save events in Observe.",
+      "Stable id for one agent session — required on all guarded API routes after GET /llms.txt.",
     example: "550e8400-e29b-41d4-a716-446655440000",
   },
+] as const;
+
+const RECOMMENDED_TELEMETRY_HEADERS = [
   {
     name: TELEMETRY_HEADERS.agent,
     required: false,
@@ -37,14 +40,31 @@ const OPTIONAL_TELEMETRY_HEADERS = [
   },
 ] as const;
 
+const TELEMETRY_HEADERS_DOC = [
+  ...REQUIRED_TELEMETRY_HEADERS,
+  ...RECOMMENDED_TELEMETRY_HEADERS,
+] as const;
+
 function getTelemetrySection(baseUrl: string) {
   return {
     description:
-      "Optional HTTP headers on POST /api/validate and POST /api/specs. Platform records api_events for Observe — agents do not need Observe URLs.",
-    headers: OPTIONAL_TELEMETRY_HEADERS,
-    exampleCurl: `curl -X POST ${baseUrl}/api/validate \\
+      "Session identity and optional analytics headers on guarded agent API routes. GET /llms.txt is unguarded; generate a session id before any other call.",
+    sessionWorkflow: [
+      "GET /llms.txt (no headers)",
+      "Generate SESSION_ID=<uuid> once per agent session",
+      "Send X-RapidUI-Session-Id on every subsequent request",
+    ],
+    requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+    recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
+    headers: TELEMETRY_HEADERS_DOC,
+    exampleCurl: `SESSION_ID=$(uuidgen)
+curl ${baseUrl}/llms.txt
+curl ${baseUrl}/api/docs \\
+  -H "${TELEMETRY_HEADERS.sessionId}: $SESSION_ID" \\
+  -H "${TELEMETRY_HEADERS.agent}: claude"
+curl -X POST ${baseUrl}/api/validate \\
   -H "Content-Type: application/json" \\
-  -H "${TELEMETRY_HEADERS.sessionId}: <session-uuid>" \\
+  -H "${TELEMETRY_HEADERS.sessionId}: $SESSION_ID" \\
   -H "${TELEMETRY_HEADERS.agent}: claude" \\
   -d @my-spec.rui.json`,
     ingestNote:
@@ -54,6 +74,30 @@ function getTelemetrySection(baseUrl: string) {
 
 function getApiSection(baseUrl: string) {
   return {
+    docs: {
+      method: "GET",
+      path: "/api/docs",
+      url: `${baseUrl}/api/docs`,
+      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
+      notes: "Requires X-RapidUI-Session-Id. Returns this documentation payload as JSON.",
+    },
+    schema: {
+      method: "GET",
+      path: "/api/schema",
+      url: `${baseUrl}/api/schema`,
+      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
+      notes: "Requires X-RapidUI-Session-Id. Returns operations vocabulary for RUI v0.2.",
+    },
+    health: {
+      method: "GET",
+      path: "/api/health",
+      url: `${baseUrl}/api/health`,
+      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
+      notes: "Requires X-RapidUI-Session-Id. Platform health check.",
+    },
     validate: {
       method: "POST",
       path: "/api/validate",
@@ -61,7 +105,8 @@ function getApiSection(baseUrl: string) {
       contentType: "application/json",
       body: "Raw RUI JSON (version 0.2)",
       maxBodyBytes: 262144,
-      optionalHeaders: OPTIONAL_TELEMETRY_HEADERS,
+      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
       responses: {
         success: {
           httpStatus: 200,
@@ -95,9 +140,12 @@ function getApiSection(baseUrl: string) {
           httpStatus: 400,
           shape: {
             valid: false,
-            errors: [{ path: "", code: "INVALID_JSON", message: "...", hint: "..." }],
+            errors: [
+              { path: "", code: "INVALID_JSON", message: "...", hint: "..." },
+              { path: "", code: "MISSING_SESSION_ID", message: "...", hint: "..." },
+            ],
           },
-          notes: "Invalid JSON, wrong Content-Type, empty body, or body > 256 KB.",
+          notes: "Invalid JSON, missing session id, wrong Content-Type, empty body, or body > 256 KB.",
         },
       },
     },
@@ -108,7 +156,8 @@ function getApiSection(baseUrl: string) {
       contentType: "application/json",
       body: "Raw RUI JSON (version 0.2) — same shape as POST /api/validate",
       maxBodyBytes: 262144,
-      optionalHeaders: OPTIONAL_TELEMETRY_HEADERS,
+      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
       responses: {
         success: {
           httpStatus: 201,
@@ -147,8 +196,12 @@ function getApiSection(baseUrl: string) {
           httpStatus: 400,
           shape: {
             valid: false,
-            errors: [{ path: "", code: "INVALID_JSON", message: "...", hint: "..." }],
+            errors: [
+              { path: "", code: "INVALID_JSON", message: "...", hint: "..." },
+              { path: "", code: "MISSING_SESSION_ID", message: "...", hint: "..." },
+            ],
           },
+          notes: "Invalid JSON, missing session id, or body > 256 KB.",
         },
         storageUnavailable: {
           httpStatus: 503,
@@ -165,6 +218,8 @@ function getApiSection(baseUrl: string) {
       method: "GET",
       path: "/api/specs/:id",
       url: `${baseUrl}/api/specs/{specId}`,
+      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
       responses: {
         success: {
           httpStatus: 200,
@@ -188,6 +243,13 @@ function getApiSection(baseUrl: string) {
           shape: {
             error: "INVALID_SPEC_ID",
             message: "specId must be a UUID.",
+          },
+        },
+        missingSession: {
+          httpStatus: 400,
+          shape: {
+            valid: false,
+            errors: [{ path: "", code: "MISSING_SESSION_ID", message: "...", hint: "..." }],
           },
         },
         storageUnavailable: {

@@ -8,3 +8,9 @@
 - **Handoff:** share **`viewUrl`** with the user for human review at `/specs/{specId}`; use `url` for programmatic retrieve via `GET url`
 - **Naming:** say **RUI** in prose; `/api/specs` stores a validated RUI (a spec is a stored RUI)
 - **Task intent:** comes from the user or session prompt — not from platform docs. Author the RUI that matches the request using vocabulary from `/api/schema`
+
+## Session identity (required)
+
+1. **`GET /llms.txt`** — no headers required
+2. Generate **`SESSION_ID=<uuid>`** once per agent session (e.g. `uuidgen` or `crypto.randomUUID()`)
+3. Send **`X-RapidUI-Session-Id: $SESSION_ID`** on every subsequent API call (docs, schema, validate, save, retrieve)

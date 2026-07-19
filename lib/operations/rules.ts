@@ -1,6 +1,7 @@
 /** Validation error codes for operations-first RUI v0.2. */
 export type RuleCode =
   | "INVALID_JSON"
+  | "MISSING_SESSION_ID"
   | "VERSION_MISMATCH"
   | "MISSING_REQUIRED_PROP"
   | "DUPLICATE_ID"

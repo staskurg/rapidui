@@ -53,19 +53,19 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 7 | **Observe access** | **No auth** — Observe is a normal part of the site, not a gated admin product. Portfolio demo navigates freely between `/`, `/observe/*`, `/specs/*` |
 | 8 | **Agent host** | **`agent.rapidui.dev`** on Render — chat API only; main UI on `rapidui.dev` calls it (CORS configured) |
 | 9 | **Telemetry ownership** | **Platform code records events — never the LLM agent.** Next.js writes API events; **FastAPI handlers** (not Pydantic AI tools) write agent events. Pydantic AI **Logfire instrumentation** captures deep traces separately (see §4) |
-| 10 | **External agents** | Supported via public API + optional headers; **demo Path B** — terminal Claude run → Observe session. Main page centers on RapidUI Agent |
+| 10 | **External agents** | Supported via public API + **required session identity** (see #37); **demo Path B** — terminal Claude run → Observe session. Main page centers on RapidUI Agent |
 | 11 | **Database** | **Neon Postgres** — shared DB for specs, events, agent runs. Observe dashboards read Neon directly from Next.js |
 | 12 | **Repo layout** | **Monorepo** — one GitHub repo; Next.js at root (Vercel), Python agent in `/agent` (Render). See §4 monorepo rationale |
 | 13 | **LLM model** | **Default `o4-mini`** via `OPENAI_API_KEY` — Responses API (`openai:o4-mini`); `reasoning_effort: medium`. Ship with this default; **confirm or change** via eval lab (Area 7 / stretch O5). Override via `RAPIDUI_AGENT_MODEL` |
 | 14 | **Chat UI** | **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown` — custom transport → `agent.rapidui.dev/chat`; **show o4-mini reasoning** (collapsible) + tool calls |
 | 15 | **Telemetry write path** | **Unified ingest contract** — shared insert logic in Next.js; middleware in-process; FastAPI POSTs to `/api/observe/ingest/*` (see §4) |
-| 16 | **API auth (v0.2)** | Public validate/save/docs. No user auth anywhere in v0.2 |
+| 16 | **API auth (v0.2)** | **Mock session identity** — not OAuth. **`X-RapidUI-Session-Id` required** on all agent API calls except **`GET /llms.txt`**. Missing session → **400** `MISSING_SESSION_ID`. Real agent auth (WorkOS / OAuth OBO) deferred to **v0.3+** (see §13). Observe + human UI remain open |
 | 17 | **Logfire** | Env-gated on dev + Render; Observe for product dashboards — see §8 |
 | 18 | **Eval scoring** | **Outcome:** deterministic checklist on final saved RUI. **Process:** turns, validate retries, tokens, latency. **Multi-turn:** scripted user (`conversationScript`) for RapidUI Agent evals. See §14 |
 | 19 | **RUI version** | **`version: "0.2"` only** — no v0.1 backward compat. Rewrite goldens; prototype forward |
 | 20 | **Navigation model** | **`entities[].entrypoints`** = sidebar nav per domain object. Sub-screens only via **`transitions`** (row, link, cta). Breadcrumb on `read` via `context.breadcrumb`. Modal deferred to v0.3 |
 | 21 | **Neon setup** | **Fresh Neon database** — no Vercel Postgres migration |
-| 22 | **Observe entry** | **`/observe/api` default** — no hub at `/observe` in v0.2 |
+| 22 | **Observe entry** | **`/observe` overview hub** — three zone cards (API live, Agent + Evals placeholders). Child routes: `/observe/api`, `/observe/agent`, `/observe/evals` |
 | 23 | **Spec paradigm** | **Operations-first** — no `Page` / `Section` / block tree. Presentation layouts (`table`, `form`, `detail`, `confirm`) live inside operations |
 | 24 | **Embedded actions** | **`act` and `delete` embedded** in `read.presentation.actions[]` on detail screens (option B). Full-screen ops use `transitions` with `trigger: link` |
 | 25 | **Delete operation** | First-class **`delete`** type — `confirm` layout + `write.method: DELETE` |
@@ -80,6 +80,8 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 34 | **Model shortlist** | **3–4 models max** for v0.2 matrix — e.g. `o4-mini`, `gpt-4.1-mini`, one quality-tier ceiling model. Document choice in `docs/model-selection-v0.2.md` |
 | 35 | **Prompt variants** | Versioned in `agent/prompts/` (`v1`, `v2`, …) — test workflow emphasis vs validate-loop emphasis in eval lab |
 | 36 | **Chat eval modes** | **`guided`** (scripted multi-turn, default for RapidUI Agent) + **`single-shot`** (one message, autonomy benchmark). External agents stay single-shot. See §14 |
+| 37 | **Session identity (mock auth)** | **`X-RapidUI-Session-Id` required** on every agent API request **except** `GET /llms.txt`. Agent generates UUID once per session (or asks user). Same id on docs → schema → validate → save. **`X-RapidUI-Agent`** recommended, not required. This is **identification for Observe**, not cryptographic auth — v0.3 replaces with WorkOS-style agent tokens |
+| 38 | **Unguarded discovery** | **`GET /llms.txt` only** — no session header; platform logs anonymous hit count. All other agent endpoints reject missing session |
 
 ---
 
@@ -336,10 +338,10 @@ Recorded by the **FastAPI service layer** after each chat turn and when a genera
 rapidui.dev
 ├── /                          ← Main UI: chat (left) + inspector/JSON (right)
 ├── /specs/[id]                ← Operations inspector (rewrite of v0.1 block tree)
-├── /observe/api                 ← Observe default entry (API analytics)
-├── /observe/agent               ← RapidUI Agent analytics
-├── /observe/evals               ← Eval lab — model × prompt × case comparison (Area 7)
-│   (/observe hub page deferred — redirect /observe → /observe/api if needed)
+├── /observe                   ← Observe overview hub (API + Agent + Evals zones)
+├── /observe/api               ← API analytics (validate/save telemetry)
+├── /observe/agent             ← RapidUI Agent analytics (Phase 6; placeholder in Phase 3)
+├── /observe/evals             ← Eval lab — model × prompt × case (Phase 7; placeholder in Phase 3)
 │
 ├── /llms.txt                    ← Agent discovery (existing)
 ├── /api/docs                    ← Agent docs (existing, v0.2 updates)
@@ -490,7 +492,7 @@ Four demo scenarios in §6. **Cases 1–3** are required for v0.2 ship and are t
 2. Back-and-forth → valid spec in right panel (inspector + JSON)
 3. Open /specs/:id from agent link
 4. Open /observe/agent — run latency, retries, tokens, tool calls
-5. Open /observe/api — same session_id (default Observe entry)
+5. Open /observe — overview hub, then /observe/api — same session_id
 6. (Optional) Open /observe/evals — model × prompt matrix results (Area 7)
 ```
 
@@ -1073,25 +1075,30 @@ Errors reference **operation id** and **transition**, not nested block paths.
 Same steps for RapidUI Agent and terminal agents. Internal agent system prompt carries **personality + this workflow only** — zero API paths or schema excerpts.
 
 ```txt
-1. DISCOVER
-   GET /llms.txt → /api/docs → /api/schema
-   (RapidUI Agent: fetch_docs, fetch_schema tools)
+1. DISCOVER (unguarded)
+   GET /llms.txt  — no session required; read session identity rules
 
-2. PLAN OPERATIONS
+2. ESTABLISH SESSION (required before any other API call)
+   Generate UUID once per agent session (or ask user to confirm)
+   Send X-RapidUI-Session-Id on every subsequent request
+
+3. DISCOVER (guarded — session required)
+   GET /api/docs → GET /api/schema
+   (RapidUI Agent: fetch_docs, fetch_schema tools — same session header)
+
+4. PLAN OPERATIONS
    From user message: list operations + ideal/edge flows
    Clarify missing contract fields (endpoints, fields, which ops incl. delete?)
-   Optional (demo): print brief operations plan in chat before composing
 
-3. MAP → RUI
+5. MAP → RUI
    Per entity: scope selectors, operationIds, entrypoints
    Per operation: type, route, presentation, data.mode, bindings, outcomes
-   Wire transitions (incl. cta, cancel); define outcomes; set entities[].entrypoints
-   Embed act/delete in read.presentation.actions[] (option B)
+   Wire transitions (incl. cta, cancel); embed act/delete in read.actions[]
 
-4. VALIDATE
+6. VALIDATE
    POST /api/validate — fix errors using code/hint/path (≤5 retries target)
 
-5. SAVE
+7. SAVE
    POST /api/specs — share viewUrl; inspector loads on right panel
 ```
 
@@ -1309,13 +1316,14 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 **Scope:**
 
 - `api_events` table in Neon
-- Middleware on `POST /api/validate` and `POST /api/specs` → **`insertApiEvent()`** in `lib/observe/` (in-process Neon write)
-- **`POST /api/observe/ingest/agent`** — full implementation (agent run/turn rows); uses shared `lib/observe/writes.ts`
-- Optional request headers (document in `/api/docs` + **update `eval/manual/wrapper_*.txt`** for external agents):
-  - `X-RapidUI-Session-Id`
-  - `X-RapidUI-Agent` (`rapidui-agent` | `cursor` | `claude` | `codex` | …)
-  - `X-RapidUI-Eval-Case`
-  - `X-RapidUI-Intent`
+- **`POST /api/validate`** and **`POST /api/specs`** → **`insertApiEvent()`** in `lib/observe/` (in-process Neon write)
+- **`GET /api/docs`**, **`GET /api/schema`**, **`GET /api/health`** → discovery telemetry (Phase 3B)
+- **Session gate:** **`requireSessionId(request)`** on all agent API routes except **`GET /llms.txt`** — returns 400 `MISSING_SESSION_ID` when absent (Phase 3B)
+- Request headers (document in `/api/docs`, **`GET /llms.txt`**, eval wrappers):
+  - **`X-RapidUI-Session-Id`** — **required** after discovery (UUID per agent session)
+  - **`X-RapidUI-Agent`** — recommended (`rapidui-agent` | `cursor` | `claude` | `codex` | …)
+  - **`X-RapidUI-Eval-Case`** — eval runs only
+  - **`X-RapidUI-Intent`** — optional short label
 - Optional: `POST /api/eval/log` (scores + inserts `eval_runs`)
 
 **Does not include:** Observe UI, agent service (FastAPI), operations schema
@@ -1362,18 +1370,16 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 
 **Purpose:** Analytics for how **all agents** interact with RapidUI API.
 
-**Route:** `/observe/api` — **default Observe entry** (no hub page in v0.2). **`/observe/evals`** added in Area 7.
+**Route:** `/observe` overview hub + **`/observe/api`** detail dashboard + **`/observe/api/sessions/[sessionId]`** drill-down. **`/observe/agent`** and **`/observe/evals`** placeholder scaffolds in Phase 3; full metrics in Areas 6–7.
 
-**Metrics (MVP):**
+**Metrics (MVP — Phase 3 implementation plan):**
 
-- Requests by endpoint / day
-- Validate success rate
-- Avg retries per session
-- Top validation error codes
-- Specs saved by agent type (`X-RapidUI-Agent`)
-- Eval pass rate (join `eval_runs`); link to **`/observe/evals`** when eval lab live
+- **Hub:** API zone live stats; Agent + Evals placeholder cards (eval pass-rate teaser on hub/evals page only — not on API dashboard)
+- **API dashboard:** Recent sessions table (hero), validate success rate, specs saved, avg tries before save, top error codes, saves by agent, requests by day
+- **3B add:** Discovery hits by endpoint, session funnel (llms → docs → schema → validate → save), full session timeline including GET discovery
+- **Filters:** `?agent=`, `?evalCase=`, `?session=` on `/observe/api`
 
-**Data sources:** `api_events`, `eval_runs`, `specs`
+**Data sources:** `api_events` (primary); `eval_runs` (hub/evals teaser only); `specs` (via `spec_id` links)
 
 **Depends on:** Area 1
 
@@ -1581,7 +1587,7 @@ First-class API consumers — visible in **Observe API dashboard** when headers 
 |--------|----------|
 | Discovery | Same `llms.txt` → `/api/docs` → `/api/schema` |
 | Testing | Terminal on local machine (Claude Code, Cursor, Codex) |
-| Telemetry | `X-RapidUI-Session-Id` + `X-RapidUI-Agent: claude` (etc.) — document in eval wrappers |
+| Telemetry | **`X-RapidUI-Session-Id` required** (after reading llms.txt) + recommended **`X-RapidUI-Agent`** — document in llms.txt, `/api/docs`, eval wrappers |
 | Observe | **`/observe/api`** — session timeline, retries, errors, spec_id (no `/observe/agent` rows) |
 | Demo | **Path B** — terminal agent run → viewUrl → find session in Observe |
 | Eval | **`single-shot`** harness + v0.2 cases; operation-aware `successCriteria`. Same outcome checklist as RapidUI Agent; no `conversationScript` (§14) |
@@ -1597,12 +1603,11 @@ First-class API consumers — visible in **Observe API dashboard** when headers 
 | React / native **renderer** + `appUrl` | Large product leap; inspector sufficient for v0.2 |
 | Live API execution from rendered UI | Requires renderer |
 | MCP server | Out of scope |
-| API keys / multi-tenancy | Not needed for portfolio |
+| API keys / multi-tenancy | Not needed for portfolio — **v0.3:** WorkOS AuthKit / OAuth OBO for agents |
 | LLM judge for semantic eval | Deterministic checklist + human spot-check sufficient |
 | Chat file attachments | Text paste in chat sufficient for UC1; drag-drop upload deferred |
 | Interactive eval playground (live model switch in UI) | Script + `/observe/evals` table enough for v0.2 |
 | Full auth system | Observe is public on same domain |
-| **`/observe` hub page** | Default is `/observe/api` |
 | **Detail as modal** | v0.3 renderer — v0.2 uses full-screen detail routes |
 | **Charts** | Use `browse` + header metrics; no chart layout in v0.2 |
 | **v0.1 RUI version** | `"0.2"` only — no dual validation; Page/Block model retired |
@@ -1721,7 +1726,7 @@ eval_cases (UC1–3)  ×  models (3–4)  ×  prompt_versions (2–3)  ×  eval_
 | `eval_runs` table | Regression ground truth + eval lab results |
 | `eval/manual/{cursor,claude,codex}/` | External agent runners (single-shot) |
 | `agent/prompts/v*.txt` | *(new)* Versioned system prompts for eval lab |
-| Optional headers | `X-RapidUI-Session-Id`, `X-RapidUI-Agent`, `X-RapidUI-Eval-Case` |
+| Optional headers | **`X-RapidUI-Session-Id` (required)**, **`X-RapidUI-Agent` (recommended)**, `X-RapidUI-Eval-Case` |
 
 ### v0.2 eval cases (target)
 
@@ -1803,7 +1808,7 @@ Extend v0.1 columns for eval lab joins:
 | `latency_ms` | Wall time to save or fail |
 | `score_details` | Existing — add `missingOperations`, `userTurnsExceeded`, etc. |
 
-**Observe for evals:** All manual runs (RapidUI Agent + external) send `X-RapidUI-Session-Id`, `X-RapidUI-Agent`, `X-RapidUI-Eval-Case` on validate/save; scores logged to `eval_runs` via CLI (and optional `POST /api/eval/log`).
+**Observe for evals:** All manual runs send **`X-RapidUI-Session-Id`** (required) and **`X-RapidUI-Agent`** on every API call; scores logged to `eval_runs` via CLI (and optional `POST /api/eval/log`).
 
 ---
 
@@ -1815,12 +1820,12 @@ Extend v0.1 columns for eval lab joins:
 |---|-----------|
 | S1 | **Fresh Neon** live; Vercel on `@neondatabase/serverless` (or equivalent) |
 | S2 | **Operations schema 0.2** — `entities[]`, `operations` + `route` + `outcomes`, `transitions` (incl. `cta`), embedded `actions` |
-| S3 | **API telemetry** — `api_events` on validate/save; headers documented |
+| S3 | **API telemetry** — `api_events` on validate/save + discovery (3B); **required session id** on guarded routes; documented in llms.txt + `/api/docs` |
 | S4 | **Observe** — `/observe/api` + `/observe/agent` dashboards working (`/observe/evals` = stretch O5) |
 | S5 | **RapidUI Agent** — `agent.rapidui.dev` chat → validate → save; default **o4-mini** + optional Logfire |
 | S6 | **Main UI** — **assistant-ui** chat (reasoning + tools visible) + **operations inspector** split; **use case starter chips** for UC1–3 |
 | S7 | **Use cases 1–3** demonstrable end-to-end (agent → spec → Observe) |
-| S8 | **Path B** — at least one external agent run visible in `/observe/api` with headers |
+| S8 | **Path B** — external agent run with **session id** visible in `/observe/api` (full funnel after 3B) |
 | S9 | **Monorepo** — `agent/` deployed on Render; README demo script |
 
 **Optional stretch** (not required for ship):
@@ -1845,7 +1850,11 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 | Ingest JSON schema shared with `agent/` | 1 / 4 | Document payload in repo |
 | CORS exact headers on Render | 0 / 4 | Allow `https://rapidui.dev` |
 | UC4 seed `specId` for demo | 2 / 4 | Pre-save seed to Neon vs load from file only |
-| `/observe` redirect → `/observe/api` | 3 | Next.js redirect or middleware |
+| `/observe` overview hub | 3 | ✅ Resolved — `/observe` hub + `/observe/api` + session drill-down (Phase 3 plan) |
+| Session drill-down UX depth | 3 | ✅ Resolved — `/observe/api/sessions/[sessionId]` timeline (Phase 3 plan) |
+| Discovery GET telemetry (`llms.txt`, docs, schema) | 3B | ✅ Resolved — `recordDiscoveryEvent()` + funnel (Phase 3 Stage 3B) |
+| Session identity enforcement | 3B | ✅ Resolved — required `X-RapidUI-Session-Id` except `GET /llms.txt` (§3 #37–38) |
+| WorkOS / OAuth agent auth | v0.3+ | Replaces UUID mock identity slot |
 | Which eval variants required for ship | 7 | See §14 open questions |
 | `POST /api/eval/log` vs CLI-only | 1 / 7 | Optional stretch O3 |
 | `conversationScript` driver in eval-matrix | 7 | How scripted user waits for agent reply |
@@ -1873,7 +1882,7 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 - Validation error codes as agent feedback loop
 - Why telemetry lives in FastAPI handlers, not agent tools
 - Logfire vs custom Observe — two layers, two purposes
-- Why chat evals use a scripted user — reproducible HITL without a human in every matrix cell
+- Why mock session UUID now, WorkOS agent tokens in v0.3 — same identity slot, stronger trust
 
 ---
 
