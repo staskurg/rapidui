@@ -77,6 +77,8 @@ Full definitions: reference **§15**.
 | **6** | Observe Agent dashboard | §9 Area 6 |
 | **7** | Polish + eval lab | §9 Area 7, §14, §15 O* |
 
+**Cross-cutting (Phases 4–7):** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy)
+
 ---
 
 # Phase 0 — Infra baseline
@@ -1966,70 +1968,400 @@ FROM (
 
 # Phase 4 — RapidUI Agent (FastAPI · Render)
 
-**Reference:** §4, §8 (Logfire), §9 Area 4, §11 (constraints), §7 (workflow)
+**Reference:** §4, §8 (Logfire), §9 Area 4, §11 (constraints), §7 (workflow), §3 #13 #14 #37
+
+**Status:** Complete (verified 2026-07-20 — smoke + multi-turn curl E2E: validate → save → `/specs/:id` 200).
 
 ### Goal
 
-Conversational agent on `agent.rapidui.dev` that generates RUIs via the **public RapidUI API** — same discovery path as external agents.
+Conversational agent on `agent.rapidui.dev` that generates RUIs via the **public RapidUI API** — same discovery path as external agents. Satisfies ship criteria **S5** and **S9** (Render deploy + chat → validate → save). Unblocks **S7** when Phase 5 lands.
 
 ### Depends on
 
-Phase 1 (ingest + headers), Phase 2 (schema + docs).
+Phase 0 (agent skeleton, CORS, Render), Phase 1 (ingest route + `INGEST.md`), Phase 2 (operations schema + docs), Phase 3B (session gate on guarded GETs — tools must send headers).
 
 ### Unlocks
 
-Phase 5 (main UI chat), Phase 6 (agent dashboard data).
+Phase 5 (main UI chat transport), Phase 6 (`agent_runs` / `agent_turns` data), manual UC1–3 demos via curl or future UI.
 
-### Scope
+**Tracing & eval strategy:** [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strategy) — three layers (outcome / process / conversation) and strengthening order.
 
-- **Stack:** FastAPI + Pydantic AI + optional Logfire
-- **Model:** default `openai:o4-mini`, `reasoning_effort: medium`; env `RAPIDUI_AGENT_MODEL`
-- **Prompts:** `agent/prompts/v1.txt` (+ v2/v3 for eval lab later); env `RAPIDUI_AGENT_PROMPT_VERSION`
-- **Tools:** `fetch_docs`, `fetch_schema`, `validate_rui`, `save_rui`; optional `load_spec` (UC4 / O1)
-- **Workflow:** plan ops → map → validate → save (reference §7)
-- **System prompt:** personality + workflow only — no API/schema content (§11)
-- **`RunContext[Deps]`:** `session_id`, httpx client, `RAPIDUI_BASE_URL`
-- **`POST /chat`:** `VercelAIAdapter` → Vercel AI Data Stream SSE
-- API calls send `X-RapidUI-Session-Id` (**required**) + `X-RapidUI-Agent: rapidui-agent` on **all** RapidUI HTTP calls — including GET `fetch_docs` / `fetch_schema` (Phase 3B session policy)
-- **Logfire:** env-gated — `instrument_pydantic_ai`, `instrument_fastapi`, `instrument_httpx`
-- **Observe:** FastAPI handler posts to `POST /api/observe/ingest/agent` after turns/runs — **not** inside tools
+---
 
-### Env vars (Render)
+### Repo audit (2026-07-19)
 
-`OPENAI_API_KEY`, `RAPIDUI_BASE_URL`, optional `LOGFIRE_TOKEN`, optional `RAPIDUI_AGENT_MODEL`, optional `RAPIDUI_AGENT_PROMPT_VERSION`
+| Area | Current state | Phase 4 action |
+|------|---------------|----------------|
+| **`agent/main.py`** | `GET /health` + CORS only | Add Logfire bootstrap, Agent wiring, `POST /chat` via `VercelAIAdapter` |
+| **`agent/requirements.txt`** | FastAPI + uvicorn only | Add `pydantic-ai`, `httpx`, optional `logfire` — pin versions after local smoke |
+| **`agent/prompts/`** | `.gitkeep` only | Ship **`v1.txt`** (workflow + personality); v2/v3 deferred to Phase 7 eval lab |
+| **`agent/README.md`** | Phase 0 skeleton | Document `/chat` contract, env vars, local run, ingest behavior |
+| **`lib/observe/INGEST.md`** | Full contract (Phase 1) | Implement FastAPI poster matching schema — no platform changes |
+| **`POST /api/observe/ingest/agent`** | Live upsert (Phase 1) | Agent POSTs after each turn + on run completion |
+| **Guarded GETs** | `assertSessionId` on `/api/docs`, `/api/schema`, `/api/specs/:id` (Phase 3B) | All tools send `X-RapidUI-Session-Id` + `X-RapidUI-Agent: rapidui-agent` |
+| **`GET /llms.txt`** | Unguarded | Agent may read via tool or skip — **tools use `/api/docs` + `/api/schema` directly** (session required) |
+| **Validate/save responses** | Operations v0.2 shapes in `lib/validate/types.ts` | Tools parse `valid`, `errors[]`, `normalizedRui`, `specId`, `viewUrl` |
+| **Main UI / assistant-ui** | Not installed (Phase 5) | Phase 4 proves SSE endpoint with curl or minimal Vercel AI client; reasoning UI verified in Phase 5 |
+| **UC4 / `load_spec`** | Golden + eval case exist; no agent tool | **Defer to stretch O1** — not Phase 4 checklist |
 
-### Key paths
+**v0.1 behavior that must keep working:** `GET /health`, existing CORS origins, Render deploy path unchanged.
+
+---
+
+### Resolved open questions
+
+| Question | Decision |
+|----------|----------|
+| **Pydantic AI + o4-mini + reasoning for assistant-ui** | Model string **`openai:o4-mini`** (env `RAPIDUI_AGENT_MODEL`, default). Set **`OpenAIResponsesModelSettings(reasoning_effort='medium')`** on the Agent. **`POST /chat`** uses **`VercelAIAdapter.dispatch_request(..., sdk_version=6)`** — v6 wire format matches `@assistant-ui/react-ai-sdk` (Phase 5). Reasoning streams as Vercel AI **reasoning parts**; collapsible display is Phase 5 UI work. Pin **`pydantic-ai>=0.8`** (verify latest on install — need o4-mini + Vercel adapter reasoning support). If reasoning chunks are empty on o4-mini, ship anyway — tool calls + text still satisfy S5; fix visibility in Phase 5 integration. |
+| **When run completes vs per-turn ingest** | **Two POST cadences**, both from FastAPI handler — never from `@agent.tool`: (1) **After each assistant turn completes** (`on_complete` / post-stream handler): POST **`turns[]`** with `turn_index`, `latency_ms`, token counts from `result.usage`, `had_validate_call`, `had_save` flags for that turn. (2) **When outcome is known**: POST **`run`** fields — `outcome: 'saved'` + `spec_id` after successful `save_rui`; `error_summary` (and optionally `outcome: 'failed'`) when session ends without save; include `validate_attempts`, `total_tokens`, `latency_ms` (session wall time), `model`, `provider`, `prompt_version`, optional `eval_case_id` / `intent` from chat headers. **Same `session_id`** on every POST. **Non-blocking:** ingest failures log + continue — chat response must not fail. |
+| **`validate_attempts` source** | Increment **`SessionState.validate_attempts`** in the **`validate_rui` tool** (before/after HTTP call). Send cumulative count on every ingest `run` update and final outcome POST. Joins with `api_events` by `session_id` for Observe. |
+| **UC4 `load_spec`** | **Defer to stretch O1 (Phase 4 optional tail).** Required ship path is UC1–3. When added: tool wraps `GET /api/specs/:id` with session headers; same Deps. |
+| **Session id on `POST /chat`** | **Required header `X-RapidUI-Session-Id`** on chat requests (same name as API). Phase 5 browser generates UUID once (e.g. `sessionStorage`) and sends on every chat POST. **Local smoke:** script generates UUID and passes header. Agent **does not** mint a session id for production browser flow — missing header → **400** with clear JSON error (mirror platform `MISSING_SESSION_ID` spirit). |
+| **Forwarding eval headers** | Read `X-RapidUI-Eval-Case`, `X-RapidUI-Intent` from **`POST /chat`** request; store on `Deps`; forward to all RapidUI API calls and ingest `run` payload. |
+| **`fetch_docs` vs `llms.txt`** | **Two tools not required.** `fetch_docs` → `GET /api/docs`; `fetch_schema` → `GET /api/schema`. Both require session headers (Phase 3B). Agent workflow in system prompt: call tools before authoring JSON — do not curl `llms.txt` from tool unless we add a fifth tool later. |
+| **Tool return shapes** | **`validate_rui`:** return `{ valid, errors?, normalizedRui? }` — cap error list in tool message if huge. **`save_rui`:** return `{ specId, viewUrl, url }` from 201 response — agent should share `viewUrl` in chat. Use Pydantic models for tool outputs. |
+| **Message history** | **`VercelAIAdapter`** manages history from client messages (standard Vercel AI protocol). No custom DB for chat history in v0.2. |
+| **Run outcome `abandoned`** | **Optional in v0.2.** Set only if we detect client disconnect / explicit cancel hook later. MVP: **`saved` \| `failed`** only. |
+| **Python package layout** | Split modules under `agent/` (see below) — not a single 500-line `main.py`. |
+| **Neon direct access** | **No** — agent POSTs ingest over HTTP only (reference §4). |
+| **Content in agent instructions** | **Personality + operations workflow only** — zero API URLs, schema excerpts, golden examples (reference §11). Version loaded from `prompts/{RAPIDUI_AGENT_PROMPT_VERSION}.txt` via `Agent(instructions=...)`. |
+| **Logfire** | Env-gated when `LOGFIRE_TOKEN` set: `logfire.configure(service_name='rapidui-agent')`, `instrument_pydantic_ai()`, `instrument_fastapi()`, `instrument_httpx()`. Custom span attributes: `session_id`, `prompt_version`. |
+| **Render env** | Required: `OPENAI_API_KEY`, `RAPIDUI_BASE_URL` (prod: `https://rapidui.dev`). Optional: `LOGFIRE_TOKEN`, `RAPIDUI_AGENT_MODEL`, `RAPIDUI_AGENT_PROMPT_VERSION` (default `v1`). |
+
+---
+
+### Architecture (Phase 4)
+
+```txt
+Browser or curl
+        │
+        ▼
+POST agent.rapidui.dev/chat
+  Headers: X-RapidUI-Session-Id (required)
+           X-RapidUI-Agent: rapidui-agent (recommended)
+           X-RapidUI-Eval-Case / X-RapidUI-Intent (optional)
+        │
+        ▼
+FastAPI handler
+        │
+        ├──► VercelAIAdapter.dispatch_request → SSE (Vercel AI Data Stream)
+        │         │
+        │         ▼
+        │    Pydantic AI Agent (openai:o4-mini)
+        │         │
+        │         ├── @agent.tool fetch_docs    ──GET──► rapidui.dev/api/docs
+        │         ├── @agent.tool fetch_schema ──GET──► rapidui.dev/api/schema
+        │         ├── @agent.tool validate_rui ──POST─► rapidui.dev/api/validate
+        │         └── @agent.tool save_rui     ──POST─► rapidui.dev/api/specs
+        │                   │
+        │                   └── RunContext[Deps]: session_id, httpx, base_url,
+        │                       SessionState (validate_attempts, last_spec_id)
+        │
+        ├──► (async, post-turn) POST rapidui.dev/api/observe/ingest/agent
+        │         turns[] + partial run fields
+        │
+        └──► Logfire spans (optional)
+
+All RapidUI API calls include:
+  X-RapidUI-Session-Id, X-RapidUI-Agent: rapidui-agent,
+  + forwarded Eval-Case / Intent when present
+```
+
+**Module layout (target):**
+
+```txt
+agent/
+  main.py              # FastAPI app, CORS, /health, /chat, Logfire bootstrap
+  config.py            # Settings from env (pydantic-settings or os.environ)
+  deps.py              # Deps dataclass + SessionState + build_deps(request)
+  agent_factory.py     # create_agent() — model, settings, tool registration
+  tools/
+    __init__.py
+    rapidui.py           # fetch_docs, fetch_schema, validate_rui, save_rui
+  telemetry.py         # post_ingest(session_id, run?, turns?) — httpx async
+  prompts/
+    v1.txt               # agent instructions (workflow + personality only)
+  scripts/
+    smoke_chat.py        # optional local smoke (needs OPENAI_API_KEY)
+  requirements.txt
+  README.md
+```
+
+---
+
+### `POST /chat` contract (handoff to Phase 5)
+
+| Aspect | Spec |
+|--------|------|
+| **URL** | `https://agent.rapidui.dev/chat` (local: `http://localhost:8000/chat`) |
+| **Method** | `POST` |
+| **Body** | Vercel AI Data Stream request (messages + protocol fields) — parsed by `VercelAIAdapter` |
+| **Response** | `text/event-stream` — Vercel AI events (text, reasoning, tool-call, tool-result) |
+| **Required request headers** | `X-RapidUI-Session-Id` — non-empty UUID string |
+| **Recommended headers** | `X-RapidUI-Agent: rapidui-agent` |
+| **Optional headers** | `X-RapidUI-Eval-Case`, `X-RapidUI-Intent` |
+| **CORS** | Existing middleware — allow `https://rapidui.dev`, `http://localhost:3000` |
+| **Adapter** | `VercelAIAdapter.dispatch_request(request, agent=agent, sdk_version=6, deps=deps)` — pass `deps` built from request headers |
+| **Stable tool names** | `fetch_docs`, `fetch_schema`, `validate_rui`, `save_rui` — Phase 5 `ToolFallback` labels |
+
+**Missing session on `/chat`:** HTTP **400** JSON `{ "error": "MISSING_SESSION_ID", "message": "…" }` — do not start agent run.
+
+---
+
+### Agent instructions (`prompts/v1.txt` — outline)
+
+Ship a real file; content is passed to **`Agent(instructions=...)`** (not `system_prompt`) so guidance is injected fresh each turn and is not stored in client message history — [recommended for UI adapters](https://ai.pydantic.dev/ui/vercel-ai/#system-prompts-and-instructions). Content must include:
+
+1. **Role** — RapidUI Agent; helps users produce valid **operations-first** RUI specs (v0.2).
+2. **Workflow** (mirror `lib/docs/content/workflow.md` — prose only, no endpoint URLs):
+   - Discover via **`fetch_docs`** and **`fetch_schema`** before writing JSON.
+   - Plan entities, operations, transitions, outcomes; optionally summarize plan in chat.
+   - Map to `version: "0.2"` document shape.
+   - **`validate_rui`** loop — fix errors using `code` / `hint` / `path`; target ≤5 attempts.
+   - **`save_rui`** when valid; share **`viewUrl`** with user.
+3. **Constraints** — embedded `act`/`delete` on `read` detail only; explicit `cta` for browse→create; no charts/modals; no v0.1 page/block vocabulary.
+4. **Personality** — concise, collaborative, asks clarifying questions when API/static mode unclear.
+5. **Never** — hardcode schema, call Observe/ingest, skip validation, invent operation types not in schema.
+
+**v2/v3 prompts** — Phase 7 eval lab only; not required for Phase 4 checklist.
+
+---
+
+### Tools specification
+
+| Tool | HTTP | Body | Notes |
+|------|------|------|-------|
+| **`fetch_docs`** | `GET {RAPIDUI_BASE_URL}/api/docs` | — | Return JSON or summarized markdown sections for model context |
+| **`fetch_schema`** | `GET {RAPIDUI_BASE_URL}/api/schema` | — | Return vocabulary JSON |
+| **`validate_rui`** | `POST …/api/validate` | RUI JSON object | Increment `SessionState.validate_attempts`; return validation result |
+| **`save_rui`** | `POST …/api/specs` | RUI JSON object | On 201: set `SessionState.last_spec_id`; return `specId`, `viewUrl` |
+
+**Shared HTTP helper** on `Deps`:
+
+```python
+def rapidui_headers(deps: Deps) -> dict[str, str]:
+    h = {
+        "X-RapidUI-Session-Id": deps.session_id,
+        "X-RapidUI-Agent": deps.agent_id,
+    }
+    if deps.eval_case_id:
+        h["X-RapidUI-Eval-Case"] = deps.eval_case_id
+    if deps.intent:
+        h["X-RapidUI-Intent"] = deps.intent
+    return h
+```
+
+Use **`httpx.AsyncClient`** on `Deps` ( lifespan or per-request ) with reasonable timeout (e.g. 60s for validate).
+
+---
+
+### Telemetry ingest (FastAPI handler)
+
+Implement **`agent/telemetry.py`**:
+
+```python
+async def post_ingest(base_url: str, payload: dict) -> None:
+    # POST {base_url}/api/observe/ingest/agent
+    # try/except — log errors, never raise to chat handler
+```
+
+**After each completed turn** (in `on_complete` callback or equivalent):
+
+- Compute `turn_index` from message history or incrementing counter on `SessionState`.
+- Build `turns: [{ turn_index, latency_ms, input_tokens, output_tokens, had_validate_call, had_save }]`.
+- POST ingest with `session_id` + `turns` + partial `run: { model, provider, prompt_version, validate_attempts }`.
+
+**When save succeeds** (detect via `SessionState.last_spec_id` set this session):
+
+- POST `run: { outcome: 'saved', spec_id, validate_attempts, total_tokens, latency_ms, … }`.
+
+**When the turn ends without save** but tools recorded errors (`last_error_summary` set):
+
+- POST `run: { error_summary, validate_attempts, … }` — **does not** set `outcome: 'failed'` in v0.2 (partial run updates only). Observe can infer failure from `error_summary` + missing `spec_id`. Explicit `outcome: 'failed'` is optional hardening for Phase 6 / v0.3.
+
+Reference: **`lib/observe/INGEST.md`** — must match `agentIngestPayloadSchema` exactly.
+
+---
+
+### Known gaps (v0.2 — documented, not blockers)
+
+| Gap | Decision |
+|-----|----------|
+| **`outcome: 'failed'` not emitted** | v0.2 sends `error_summary` on error turns; `outcome: 'saved'` only on save. Sufficient for ingest upsert + Phase 6 dashboards; add explicit `failed` later if Observe filters require it. |
+| **Browse filter shape** | Filters **exist** in schema as `presentation.filter` (singular). Agent failures were wrong property names (`filters`, `filterBar`), not missing vocabulary. **`prompts/v1.txt`** documents the correct shape — no Zod change in Phase 4. |
+| **Agent identity header** | **`X-RapidUI-Agent`** on `POST /chat` is forwarded to platform API calls. Convention: `rapidui-agent-cli` (terminal CLI), `rapidui-agent-chat` (Phase 5 UI), `rapidui-agent-eval` (eval matrix), `rapidui-agent` (default / curl). |
+| **Terminal chat UX** | **`agent/scripts/chat_cli.py`** — multi-turn REPL over `/chat` (readable text + tool lines). Phase 5 replaces with assistant-ui. |
+
+---
+
+### Task list (build order)
+
+#### A — Dependencies + config
+
+1. **Update `agent/requirements.txt`** — add `pydantic-ai`, `httpx`, `pydantic-settings` (optional), `logfire` (optional extra or comment).
+2. **`agent/config.py`** — load env vars; defaults: `RAPIDUI_AGENT_MODEL=openai:o4-mini`, `RAPIDUI_AGENT_PROMPT_VERSION=v1`, `RAPIDUI_BASE_URL`.
+3. **Pin Python 3.12.13** — unchanged from Phase 0.
+
+#### B — Agent core
+
+4. **`agent/prompts/v1.txt`** — full agent instructions per outline above.
+5. **`agent/deps.py`** — `Deps`, `SessionState`, `build_deps_from_request(request)`. **Do not name a deps field `state`** — pydantic-ai UI adapters treat dataclasses with a `state` field as `StateHandler` and overwrite it from the client request.
+6. **`agent/tools/rapidui.py`** — four tools with Pydantic return models.
+7. **`agent/agent_factory.py`** — `create_agent(settings) -> Agent[Deps, str]`; `instructions=load_agent_instructions(...)`; register tools; OpenAIResponsesModelSettings for o4-mini.
+8. **`agent/telemetry.py`** — async ingest poster.
+
+#### C — FastAPI routes
+
+9. **Extend `agent/main.py`** — Logfire bootstrap; app lifespan for shared httpx client if used; wire `POST /chat`.
+10. **`POST /chat`** — validate session header; build deps; `return await VercelAIAdapter.dispatch_request(request, agent=agent, sdk_version=6, deps=deps, on_complete=handle_complete)`.
+11. **`handle_complete`** — extract usage, update SessionState flags, call `post_ingest`.
+
+#### D — Documentation + deploy
+
+12. **Update `agent/README.md`** — `/chat` headers, env table, local curl example, ingest notes, link to `INGEST.md`.
+13. **Update root `.env.example`** — uncomment Phase 4 agent vars if still commented.
+14. **Render** — set `OPENAI_API_KEY`, `RAPIDUI_BASE_URL=https://rapidui.dev`; redeploy; verify `GET /health`.
+
+#### E — Smoke + verification
+
+15. **`agent/scripts/smoke_chat.py`** (or `scripts/smoke-agent.sh`) — (1) `GET /health`; (2) optional: single-turn chat with `OPENAI_API_KEY` + session header using UC1-style prompt; assert stream returns events; assert `api_events` + ingest rows when run against prod/local stack.
+16. **Root `package.json`** — optional `"smoke:agent": "cd agent && python scripts/smoke_chat.py"` if we want npm parity (document `OPENAI_API_KEY` requirement).
+
+#### F — Optional stretch (O1 — not checklist)
+
+17. **`load_spec` tool** + `prompts` note for UC4 — only if pursuing use case 4 before ship.
+18. **`npm run seed:uc4`** — save UC4 golden to Neon; print `specId` for demo.
+
+---
+
+### Files to create / modify
+
+**Create**
+
+```txt
+agent/config.py
+agent/deps.py
+agent/agent_factory.py
+agent/tools/__init__.py
+agent/tools/rapidui.py
+agent/telemetry.py
+agent/prompts/v1.txt
+agent/scripts/smoke_chat.py
+```
+
+**Modify**
 
 ```txt
 agent/main.py
-agent/prompts/
-agent/tools/ (or inline in main)
+agent/requirements.txt
+agent/pyproject.toml          # mirror requirements deps
 agent/README.md
+.env.example                    # agent vars active
+package.json                    # optional smoke:agent script
 ```
 
-### Out of scope
+**No platform (Next.js) code changes required** unless smoke script needs a tiny helper — prefer testing against running `next dev` + `uvicorn`.
 
-- Main UI (Phase 5) — but endpoint must be SSE-ready for integration
-- Observe UI
-- Eval matrix (Phase 7)
-- UC4 unless pursuing stretch O1
+---
 
-### Open questions
+### Test plan
 
-- Exact Pydantic AI + o4-mini reasoning summary config for assistant-ui
-- When run completes vs per-turn ingest semantics
-- UC4 `load_spec` — include now or defer to O1
+| Test | Command / action | Pass criteria |
+|------|------------------|---------------|
+| Health | `curl agent.rapidui.dev/health` | `{"status":"ok"}` |
+| Session gate | `POST /chat` without session header | 400 `MISSING_SESSION_ID` |
+| Stream | `POST /chat` with session + UC1 prompt | SSE stream; tool calls include `fetch_docs` or `fetch_schema` |
+| Validate loop | Manual or scripted UC2 prompt | `validate_rui` called; `api_events` rows with same `session_id` |
+| Save | Continue until save | 201 via tool; `viewUrl` opens `/specs/:id`; `agent_runs.outcome = saved` |
+| Ingest | Query Neon after chat | `agent_turns` rows for session; `agent_runs.spec_id` set |
+| CORS | Browser `OPTIONS` from `localhost:3000` | Preflight succeeds |
+| Logfire | Set `LOGFIRE_TOKEN` locally | Traces show tool spans (optional O2) |
+| No prompt leak | Read `prompts/v1.txt` | No `/api/` URLs or schema JSON blobs |
+
+**Manual demo (pre–Phase 5):** Run UC1 static-browse prompt via curl/Python client with session header; confirm spec saves and appears in `/observe/api` session timeline + future `/observe/agent` (Phase 6).
+
+---
+
+### Out of scope (Phase 4)
+
+- Main UI / **assistant-ui** (Phase 5) — endpoint must be SSE-ready; reasoning UI polish happens there
+- Observe agent dashboard UI (Phase 6)
+- Eval matrix / `eval:matrix` (Phase 7)
+- **`load_spec` / UC4** (stretch O1)
+- **`POST /api/eval/log`** (Phase 7 O3)
+- Chat file attachments, manual JSON paste UI
+- Direct Neon connection from Python
+- Auth beyond mock session UUID
+
+---
+
+### Handoff to Phase 5
+
+| Item | Phase 4 deliverable |
+|------|---------------------|
+| Chat URL | `https://agent.rapidui.dev/chat` |
+| Session | Browser sends `X-RapidUI-Session-Id` on chat POST (generate once per tab) |
+| Stream protocol | Vercel AI Data Stream, `sdk_version=6` |
+| Tool names | Stable for `ToolFallback` |
+| Save discovery | `save_rui` tool result includes `viewUrl` / `specId` — Phase 5 parses tool-result events for right panel |
+| CORS | Confirmed for apex + localhost |
+
+#### Trust model (reference)
+
+Per [Pydantic AI UI adapter trust model](https://ai.pydantic.dev/ui/overview/#trust-model-for-client-submitted-messages), the Vercel AI `messages` array is fully client-controlled. v0.2 mitigations:
+
+- **`X-RapidUI-Session-Id`** — identification + Observe correlation (not auth)
+- **`Agent(instructions=...)`** — server-owned guidance from `prompts/v1.txt`; not read from client messages
+- **CORS** — browser origins limited to apex + localhost
+- **No server-side chat history in v0.2** — standard Vercel AI client-sent history
+
+**v0.3+ hardening:** authenticate `/chat` or BFF-wrap it; optionally persist history server-side and pass `message_history` to the adapter instead of trusting client turns.
+
+#### Phase 5 frontend transport (reference)
+
+AI SDK v6 custom headers belong on **`DefaultChatTransport`**, not deprecated `useChat({ headers })`. Example for `@assistant-ui/react-ai-sdk`:
+
+```tsx
+import { useChatRuntime } from '@assistant-ui/react-ai-sdk';
+import { DefaultChatTransport } from 'ai';
+
+const sessionId = /* crypto.randomUUID() once per tab, sessionStorage */;
+
+useChatRuntime({
+  transport: new DefaultChatTransport({
+    api: 'https://agent.rapidui.dev/chat',
+    headers: {
+      'X-RapidUI-Session-Id': sessionId,
+      'X-RapidUI-Agent': 'rapidui-agent-chat',
+    },
+  }),
+});
+```
+
+Docs: [AI SDK transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport), [custom request options](https://ai-sdk.dev/docs/troubleshooting/use-chat-custom-request-options).
+
+**Open for Phase 5 (not blocking Phase 4):** how right panel subscribes to `specId` (tool-result part vs assistant markdown link).
+
+---
 
 ### Checklist
 
-- [ ] `POST /chat` streams to browser (curl / minimal client test)
-- [ ] Agent uses tools only — no schema hardcoded in prompt
-- [ ] Validate loop works against Phase 2 schema
-- [ ] Successful UC1 or UC2 conversation saves spec; `viewUrl` valid
-- [ ] Ingest rows appear in `agent_runs` / `agent_turns`
-- [ ] CORS from `rapidui.dev` works
+- [x] Dependencies installed; `uvicorn main:app` starts with Agent wired
+- [x] `prompts/v1.txt` shipped — workflow only, no schema/API content
+- [x] Four tools call RapidUI API with correct headers on all requests
+- [x] `POST /chat` requires `X-RapidUI-Session-Id`; streams Vercel AI SSE
+- [x] `sdk_version=6` on `VercelAIAdapter`
+- [x] o4-mini default with `openai_reasoning_effort: medium`
+- [x] Validate loop works against Phase 2 schema (manual UC1 — curl multi-turn, `validate_rui` + schema errors surfaced)
+- [x] Successful conversation saves spec; `viewUrl` loads `/specs/:id` (manual — `3f29e7a6-4a97-4c69-9a0b-f4196c96cbb9`, HTTP 200)
+- [ ] Ingest POSTs populate `agent_runs` + `agent_turns` (optional verify — query Neon or Observe after chat)
+- [x] Ingest failures do not break chat responses (try/except in telemetry)
+- [x] CORS from `rapidui.dev` / `localhost:3000` works
+- [ ] Render redeployed with prod env vars (manual deploy step)
+- [x] `agent/README.md` documents `/chat` contract
 - [ ] Logfire traces visible when token set (optional O2)
-- [ ] Satisfies **S5**, **S9** (with Phase 0)
+- [x] Satisfies **S5** code path; **S9** after Render redeploy
+- [x] Terminal chat CLI (`scripts/chat_cli.py`) for pre–Phase 5 manual testing
 
 ---
 
@@ -2146,6 +2478,8 @@ lib/observe/queries.ts
 # Phase 7 — Polish + eval lab
 
 **Reference:** §9 Area 7, §14 (full eval harness), §15 (O*), §17
+
+**Improvement playbook:** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) (three trace layers + what to strengthen in order)
 
 ### Goal
 
@@ -2268,4 +2602,107 @@ When an agent expands a phase, produce:
 
 ---
 
-*Scaffold created: 2026-07-18. Phase 0–2 complete. Phase 3 complete 2026-07-19 (Observe hub + API dashboard, discovery telemetry, session gate).*
+## Appendix C — Agent strengthening, tracing & eval strategy
+
+**Reference:** §14 (eval philosophy), §4 (telemetry), §8 (Logfire), §12 (external agents)
+
+**Applies to:** Phases **4–7** — from first agent ship through eval lab and portfolio freeze. Use this as the **improvement playbook** after the agent loop is live: trace → measure → eval → iterate.
+
+**Interview line:** *“We separated outcome, process, and conversation. Outcome and process are automated; conversation is sampled. In production the human guides the agent — in evals, a script plays them so we compare models fairly.”*
+
+---
+
+### The three layers — what we trace
+
+Every strengthening decision should map to one of these. **Do not optimize chat eloquence alone** — no saved spec = fail.
+
+| Layer | Question | Role | Automate? | Where it lives |
+|-------|----------|------|-----------|----------------|
+| **1. Outcome** | Is the **final saved RUI** correct? | **Primary gate** — deterministic checklist on the artifact | ✅ | `eval/score.ts` → `eval_runs`; golden fixtures in `lib/operations/golden/` |
+| **2. Process** | Was the path there **efficient**? | Tie-breaker — turns, validate retries, tokens, latency, cost | ✅ | `api_events`, `agent_runs` / `agent_turns`, `eval_runs` process columns; caps in `successCriteria` (`maxRetries`, `maxUserTurns`, …) |
+| **3. Conversation** | Was the **dialogue** helpful? | Sampled quality — clarification, plan clarity, error recovery | ❌ (spot-check) | Human rubric (2–3 runs per eval-matrix cell); notes in `docs/model-selection-v0.2.md` |
+
+**Outcome checklist examples** (from eval cases): `requiredOperations`, `requiredEmbeddedActions`, `requiredTransitions`, `requiredDataPaths`, `mustValidate`.
+
+**Process metrics examples:** `user_turns`, `validate_attempts`, `tokens_in` / `tokens_out`, `latency_ms`, `estimated_cost_usd`.
+
+**Principle:** Score the **artifact**, not the transcript. External agents (Path B) and RapidUI Agent (Path A) use the **same outcome checklist**; process differs by eval mode (`guided` vs `single-shot`).
+
+---
+
+### Where traces go (two surfaces + eval store)
+
+These complement the three layers — not replacements.
+
+| Surface | Tool | Written by | Best for |
+|---------|------|------------|----------|
+| **Product analytics** | **Observe** (Neon) | Next.js `api_events`; FastAPI ingest → `agent_runs` / `agent_turns` | Session timeline, validate retry curve, pass rates, model × prompt comparison (`/observe/evals`) |
+| **Engineering traces** | **Logfire** (optional OTel) | Env-gated in `agent/main.py` | Debug one bad run — model spans, tool args/results, httpx latency to `rapidui.dev` |
+| **Regression ground truth** | **`eval_runs`** | `npm run eval:log`, `npm run eval:matrix` (Phase 7) | Matrix results, before/after prompt or model changes |
+
+**Rules (locked):** LLM tools call **RapidUI API only** — never ingest or Observe URLs. Telemetry lives in the **FastAPI handler** and **Next.js route handlers**, like middleware on a normal API.
+
+**Join key:** `session_id` (`X-RapidUI-Session-Id`) links chat → API events → agent runs → optional eval row.
+
+---
+
+### Closed improvement loop
+
+```txt
+Ship / change agent (Phase 4) or prompt (prompts/vN.txt)
+        │
+        ▼
+Trace in Observe (+ Logfire for depth)
+        │
+        ▼
+Run evals — manual first, then eval:matrix (Phase 7)
+        │
+        ▼
+Read failures — outcome checklist + process caps + Observe session drill-down
+        │
+        ▼
+Change the right lever (see order below)
+        │
+        └──► re-run evals → compare on /observe/evals → update model-selection doc
+```
+
+Eval lab (stretch **O5**) must **not** block Phases 4–6. Ship with default **`o4-mini` + `v1`**; matrix confirms or changes default before portfolio freeze.
+
+---
+
+### Simulating a real user (multi-turn evals)
+
+Production is HITL: user describes → agent clarifies → user guides → agent validates → saves.
+
+| Mode | Who | Input | What it tests |
+|------|-----|-------|----------------|
+| **`guided`** | RapidUI Agent evals | `prompt` + **`conversationScript`** | Realistic back-and-forth — script replies after each agent turn |
+| **`single-shot`** | External agents + autonomy benchmark | One full-requirements message | Autonomy without human steering |
+| **`canonical`** | Live demo (Phase 5 starter chips) | Chip + 0–1 follow-ups | Interview path |
+
+Eval cases live in `eval/cases/*.json` (e.g. `crud-admin-v0.2` with scripted “Full CRUD…”, “Yes, build it.”). **`npm run eval:matrix`** (Phase 7) drives `POST /chat` with that script, scores the **saved spec**, logs to **`eval_runs`**.
+
+Matrix dimensions: **eval_cases (UC1–3) × models (3–4) × prompt_versions (v1–v3) × eval_mode**.
+
+---
+
+### What to strengthen, in order
+
+When something fails, fix **upstream first** — don’t tune the model if the validator or docs are wrong.
+
+| Order | Lever | Phase(s) | When to change |
+|-------|-------|----------|----------------|
+| **1** | **API + validator + docs** | 2 (+ ongoing) | Goldens or evals fail on **correct** specs; error messages confuse agents; schema/docs drift |
+| **2** | **Prompt versions** | 4, 7 | Outcome OK but too many retries; weak operations plan; poor validate-loop behavior → ship `prompts/v2.txt`, `v3.txt` and matrix |
+| **3** | **Model** | 4, 7 | Process cost too high or quality ceiling hit → `RAPIDUI_AGENT_MODEL`; compare via eval lab |
+| **4** | **Eval cases + scripts** | 2, 7 | Add §7 variants (V4 wrong pattern, V6 vague) with `conversationScript`; extend `successCriteria` |
+| **5** | **Observe dashboards** | 3, 6, 7 | Spot retry spikes, top error codes, funnel drops (llms → docs → validate → save) |
+| **6** | **Logfire drill-down** | 4 (O2) | Explain *why* one session failed — which tool, which validation error, latency outlier |
+
+**External agents stay in the loop:** Path B proves the API is agent-agnostic; Path A proves you ship your own; Observe ties both via **`session_id`**. Improve the platform once, both benefit.
+
+**Deferred (v0.3+):** MCP, LLM-as-judge, interactive eval playground — v0.2 uses HTTP tools + deterministic checklist + scripted user.
+
+---
+
+*Scaffold created: 2026-07-18. Phase 0–3 complete. Phase 4 agent implemented 2026-07-19; E2E save verified 2026-07-20 (FastAPI + Pydantic AI + tools + ingest).*
