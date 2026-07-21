@@ -10,7 +10,7 @@ dependencies = [
   "pydantic-ai>=2.13.0",
   "httpx>=0.28.0",
   "pydantic-settings>=2.0.0",
-  "logfire>=4.0.0",
+  "logfire[fastapi]>=4.0.0",
 ]
 
 [build-system]

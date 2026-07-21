@@ -173,6 +173,23 @@ Contract: [lib/observe/INGEST.md](../lib/observe/INGEST.md)
 
 On each completed turn the handler POSTs `turns[]` plus partial `run` fields. When save succeeds, `run.outcome` is `"saved"` with `spec_id`. On error-only turns, `run.error_summary` may be set **without** `outcome: "failed"` (v0.2 — see implementation doc §Known gaps).
 
+### Logfire (optional O2)
+
+[Logfire](https://logfire.pydantic.dev/) captures deep engineering traces (model spans, tool calls, httpx latency to `rapidui.dev`) separately from Observe product metrics. Instrumentation is env-gated — no token means zero overhead.
+
+**Setup:**
+
+1. In the Logfire UI: **Project Settings → Write Tokens** → create a token.
+2. Local: add to `agent/.env` (preferred) or export in your shell:
+   ```bash
+   LOGFIRE_TOKEN=lf_...
+   ```
+3. Render: add `LOGFIRE_TOKEN` to the agent service env vars and redeploy.
+4. Restart uvicorn. Startup log should include `Logfire instrumentation enabled`.
+5. Run a chat turn, then open Logfire **Live** — look for `rapidui.chat` spans with `session_id` and nested Pydantic AI / httpx spans.
+
+Custom attributes on chat requests: `session_id`, `prompt_version` (correlate with Observe by session id).
+
 ## Environment variables
 
 | Variable | Required | Default | Description |

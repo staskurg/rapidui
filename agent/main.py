@@ -25,15 +25,23 @@ try:
 except ImportError:  # pragma: no cover
     logfire = None  # type: ignore[assignment]
 
+_logfire_enabled = False
 
-def configure_logfire() -> None:
-    if logfire is None:
-        return
-    if not os.getenv("LOGFIRE_TOKEN"):
-        return
+
+def setup_logfire(app: FastAPI) -> bool:
+    """Configure Logfire after Settings/env are loaded (lifespan, not import time)."""
+    global _logfire_enabled
+    if _logfire_enabled:
+        return True
+    if logfire is None or not os.getenv("LOGFIRE_TOKEN"):
+        return False
     logfire.configure(service_name="rapidui-agent")
     logfire.instrument_pydantic_ai()
     logfire.instrument_httpx()
+    logfire.instrument_fastapi(app)
+    _logfire_enabled = True
+    logger.info("Logfire instrumentation enabled")
+    return True
 
 
 @asynccontextmanager
@@ -41,6 +49,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     apply_settings_env(settings)
     require_openai_api_key(settings)
+    setup_logfire(app)
     timeout = httpx.Timeout(settings.http_timeout_seconds)
     app.state.http = httpx.AsyncClient(timeout=timeout)
     app.state.agent = create_agent(settings)
@@ -50,8 +59,6 @@ async def lifespan(app: FastAPI):
     finally:
         await app.state.http.aclose()
 
-
-configure_logfire()
 
 app = FastAPI(title="RapidUI Agent", version="0.2.0", lifespan=lifespan)
 
@@ -64,10 +71,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
-
-if logfire is not None and os.getenv("LOGFIRE_TOKEN"):
-    logfire.instrument_fastapi(app)
-
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -112,7 +115,7 @@ async def chat(request: Request) -> Response:
         except Exception:
             logger.exception("Turn telemetry failed session_id=%s", deps.session_id)
 
-    if logfire is not None and os.getenv("LOGFIRE_TOKEN"):
+    if _logfire_enabled:
         with logfire.span(
             "rapidui.chat",
             session_id=deps.session_id,
