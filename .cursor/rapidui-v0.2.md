@@ -2,7 +2,7 @@
 
 Reference for planning and scoping v0.2. **Not** the implementation plan — use this to lock decisions, then derive phased implementation docs from each area.
 
-**Status:** Reference complete — all product and architecture decisions locked, including **operations-first RUI schema**, **eval philosophy** (§14), and **Main UI UX** (§3 #39–42, Area 5). Phases 0–5 implemented per **[rapidui-v0.2-implementation.md](./rapidui-v0.2-implementation.md)** (Phase 5 code complete 2026-07-22; manual S7 + prod smoke pending sign-off). **Phase 6 ready to build**.
+**Status:** Reference complete — Phases 0–5 complete per **[rapidui-v0.2-implementation.md](./rapidui-v0.2-implementation.md)** (Phase 5 signed off 2026-07-22). **Phase 6 ready to build**.
 
 **Related:**
 
@@ -1427,7 +1427,7 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 
 **Purpose:** Portfolio demo surface — landing at `/`, builder at **`/chat`**.
 
-**Status:** Implemented (2026-07-22). See [rapidui-v0.2-implementation.md — Phase 5](./rapidui-v0.2-implementation.md). Manual S7 + prod smoke pending sign-off.
+**Status:** Complete (signed off 2026-07-22). See [rapidui-v0.2-implementation.md — Phase 5](./rapidui-v0.2-implementation.md).
 
 **Scope:**
 
@@ -1938,7 +1938,7 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 ## 19. Next Steps
 
 1. **Reference doc complete** — operations-first schema (§7) + eval philosophy & lab (§14) + Main UI UX (§3 #39–42, Area 5) locked
-2. **Phase 5** — Main UI + operations inspector implemented; manual S7 + prod smoke → sign-off
+2. **Phase 5** — Complete (2026-07-22). Main UI + operations inspector → **S6**, **S7**
 3. **Phase 6** — Observe agent dashboard
 4. **Then:** Phase 7 (polish + eval lab)
 

@@ -156,7 +156,7 @@ eval/cases/         # eval case definitions (prompt + successCriteria)
 
 Implementation plan and MVP scope live in `.cursor/`:
 
-- [rapidui-v0.2-implementation.md](.cursor/rapidui-v0.2-implementation.md) — phase checklists (Phase 5 code complete 2026-07-22)
+- [rapidui-v0.2-implementation.md](.cursor/rapidui-v0.2-implementation.md) — phase checklists (Phase 5 complete 2026-07-22)
 - [rapidui-v0.2.md](.cursor/rapidui-v0.2.md) — product reference
 - [rapidui-mvp-v0.1-implementation.md](.cursor/rapidui-mvp-v0.1-implementation.md)
 - [rapidui-mvp-v0.1.md](.cursor/rapidui-mvp-v0.1.md)

@@ -2369,7 +2369,7 @@ Docs: [AI SDK transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport), [custom r
 
 **Reference:** §5, §6, §9 Area 5, §3 #2 #14 #27
 
-**Status:** Implementation complete (2026-07-22). **`npm run build`** + **`npm run smoke:inspector`** pass. **Manual S7** (local UC1–3 + paste-data) and **prod smoke** pending operator sign-off — update to *Complete* when those pass.
+**Status:** Complete (verified 2026-07-22 — local Path A UC1–3; prod `rapidui.dev/chat` → save → `/specs/bfb1f049-00e5-482b-bfeb-0faf55ccb145` UC3).
 
 ### Goal
 
@@ -2398,7 +2398,7 @@ Delivered with intentional UX improvements beyond the original Phase 5 wireframe
 | **Observe nav** | **`ObserveSidebar`** (Overview · API · Agent · Evals) with SVG icons; replaces horizontal **`ObserveNav`**. |
 | **Eval headers** | `setPendingEvalCase` / `consumePendingEvalCase` in `sessionStorage` (no ref-in-render). Session id via `useSyncExternalStore`. |
 
-**Manual sign-off still required:** Path A UC1–3 through save, paste-data UC1 variant, prod `rapidui.dev/chat` smoke.
+**Sign-off (2026-07-22):** Local Path A UC1–3 + prod UC3 save verified. Example prod spec: `/specs/bfb1f049-00e5-482b-bfeb-0faf55ccb145`.
 
 ---
 
@@ -2835,7 +2835,7 @@ agent/prompts/v1.txt
 - [x] **Draft panel** on `validate_rui` success; **no panel update** on failed validate
 - [x] **`buildDraftSavedSpec`** for draft inspector state
 - [x] **Saved** state via `GET /api/specs/:id` after `save_rui`
-- [ ] Paste JSON/CSV in composer (UC1-style); agent uses static data — **manual verify**
+- [x] Paste JSON/CSV in composer (UC1-style); agent uses static data — verified local
 - [x] Starter chips set **`X-RapidUI-Eval-Case`** on send; confirm if interrupting
 - [x] Reasoning visible (subtle styling)
 - [x] Tool steps + highlighted save; clickable `viewUrl` in chat (markdown)
@@ -2845,19 +2845,19 @@ agent/prompts/v1.txt
 - [x] Nav link to `/observe` (`SiteHeader` + landing CTAs)
 - [x] `agent/prompts/v1.txt` paste-data bullet
 - [x] `npm run smoke:inspector` updated and passing
-- [ ] Satisfies **S6**, **S7** (UC1–3 + paste-data smoke) — **manual + prod verify pending**
+- [x] Satisfies **S6**, **S7** (UC1–3 + paste-data smoke) — local + prod UC3 verified 2026-07-22
 
 ### Phase 5 sign-off (definition of done)
 
 Phase 5 is **complete** when all of the following are true:
 
-1. **Checklist** above — every box checked (including manual rows).
-2. **S6** — assistant-ui chat on **`/chat`** with reasoning (subtle), tools, starter chips, tabbed output (Spec + JSON), session bar; landing at **`/`**.
-3. **S7** — manual Path A UC1–3 from chips through save; paste-data UC1 variant once.
+1. **Checklist** above — every box checked (including manual rows). ✅
+2. **S6** — assistant-ui chat on **`/chat`** with reasoning (subtle), tools, starter chips, tabbed output (Spec + JSON), session bar; landing at **`/`**. ✅
+3. **S7** — manual Path A UC1–3 from chips through save; paste-data UC1 variant once. ✅ (2026-07-22)
 4. **`npm run build`** + **`npm run smoke:inspector`** pass. ✅ (2026-07-22)
-5. **Prod smoke** (when deployed) — `rapidui.dev/chat` → Render agent → save → `/specs/:id` + Observe session link after first API call.
+5. **Prod smoke** (when deployed) — `rapidui.dev/chat` → Render agent → save → `/specs/:id` + Observe session link after first API call. ✅ (UC3: `bfb1f049-00e5-482b-bfeb-0faf55ccb145`)
 
-**Operator next steps:** local manual demo → deploy → prod smoke → set Phase 5 **Status** to *Complete* with sign-off date.
+**Phase 6** — next: Observe agent dashboard (`/observe/agent`).
 
 ---
 
