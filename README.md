@@ -11,7 +11,19 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). API routes are available under `/api/*`.
+Open [http://localhost:3000](http://localhost:3000) for the landing page. Main UI builder: [http://localhost:3000/chat](http://localhost:3000/chat). API routes are under `/api/*`.
+
+**Local chat stack** (Phase 5):
+
+```bash
+# Terminal 1 — platform
+npm run dev
+
+# Terminal 2 — agent (see agent/README.md)
+cd agent && uvicorn main:app --reload --port 8000
+```
+
+Set `NEXT_PUBLIC_RAPIDUI_AGENT_URL=http://localhost:8000/chat` in `.env.local`.
 
 ### Environment variables
 
@@ -28,6 +40,7 @@ npx vercel env pull .env.local
 |----------|-------------|
 | `DATABASE_URL` | **Neon Postgres** pooled connection string — fresh v0.2 database (required for RUI store + Observe tables) |
 | `RAPIDUI_BASE_URL` | Canonical public URL for absolute links in API responses (e.g. `https://rapidui.dev`). Set in Vercel production. Preview/local fall back to `VERCEL_URL` / `localhost`. |
+| `NEXT_PUBLIC_RAPIDUI_AGENT_URL` | Browser chat endpoint for **`/chat`** (default prod: `https://agent.rapidui.dev/chat`; local: `http://localhost:8000/chat`) |
 
 ## Database (Neon)
 
@@ -56,6 +69,15 @@ curl https://rapidui.dev/api/specs/{specId}
 POST returns **201** flat SavedSpec (`specId`, `url`, `viewUrl`, `contentHash`, `normalizedRui`, …). GET returns the same shape.
 
 Open **`viewUrl`** (`/specs/{specId}`) in a browser for the human RUI inspector — operations summary + raw JSON for v0.2 specs.
+
+## Routes (human)
+
+| Path | Purpose |
+|------|---------|
+| `/` | Landing — portfolio pitch, agent discovery (`/llms.txt`) |
+| `/chat` | Build a RUI — agent chat + spec inspector |
+| `/observe` | Platform analytics (API, agent, evals) |
+| `/specs/:id` | Shareable saved RUI inspector |
 
 ## Smoke tests
 
@@ -102,16 +124,26 @@ Use the apex domain (`rapidui.dev`) as the canonical API base URL. `www.rapidui.
 ## Project structure
 
 ```txt
-app/api/          # API route handlers (incl. /api/observe/ingest/agent)
-agent/            # RapidUI Agent — FastAPI on Render (agent.rapidui.dev)
-lib/operations/   # v0.2 operations-first RUI schemas + golden fixtures
-lib/validate/     # validation engine (O1–O20 semantic rules)
-lib/docs/         # agent documentation content + payloads
-lib/db/           # Postgres client (@neondatabase/serverless)
-lib/observe/      # Observe ingest schemas + write helpers
-lib/review/       # RUI inspector (v0.2 placeholder + JSON)
-eval/             # §6 eval cases, manual wrappers, score CLI
-eval/cases/       # eval case definitions (prompt + successCriteria)
+app/
+  page.tsx          # landing
+  chat/             # Main UI builder
+  observe/          # analytics dashboards
+  specs/[id]/       # shareable inspector
+  api/              # API route handlers (incl. /api/observe/ingest/agent)
+agent/              # RapidUI Agent — FastAPI on Render (agent.rapidui.dev)
+components/
+  demo/             # chat shell (MainDemo, ChatPanel, OutputPanel, …)
+  site/             # SiteShell, SiteHeader, GitHub link
+  observe/          # Observe sidebar + stat cards
+lib/demo/           # session, agent URL, panel listener, starter prompts
+lib/operations/     # v0.2 operations-first RUI schemas + golden fixtures
+lib/validate/       # validation engine (O1–O20 semantic rules)
+lib/docs/           # agent documentation content + payloads
+lib/db/             # Postgres client (@neondatabase/serverless)
+lib/observe/        # Observe ingest schemas + write helpers
+lib/review/         # RUI inspector (operations-first v0.2)
+eval/               # §6 eval cases, manual wrappers, score CLI
+eval/cases/         # eval case definitions (prompt + successCriteria)
 ```
 
 ## Documentation
@@ -124,6 +156,8 @@ eval/cases/       # eval case definitions (prompt + successCriteria)
 
 Implementation plan and MVP scope live in `.cursor/`:
 
+- [rapidui-v0.2-implementation.md](.cursor/rapidui-v0.2-implementation.md) — phase checklists (Phase 5 code complete 2026-07-22)
+- [rapidui-v0.2.md](.cursor/rapidui-v0.2.md) — product reference
 - [rapidui-mvp-v0.1-implementation.md](.cursor/rapidui-mvp-v0.1-implementation.md)
 - [rapidui-mvp-v0.1.md](.cursor/rapidui-mvp-v0.1.md)
 

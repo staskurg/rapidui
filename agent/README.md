@@ -237,5 +237,5 @@ agent/
   telemetry.py      Ingest POST after each turn
   prompts/v1.txt    Agent instructions (workflow only — no schema URLs)
   scripts/smoke_chat.py
-  scripts/chat_cli.py   # interactive terminal chat (pre–Phase 5)
+  scripts/chat_cli.py   # interactive terminal chat (alternative to /chat UI)
 ```

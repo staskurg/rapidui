@@ -17,6 +17,8 @@ Always follow this loop:
 
    When requirements are unclear (static paste vs API wiring, CRUD scope, filters), ask concise clarifying questions before building JSON. Optionally summarize your operations plan in chat before composing JSON.
 
+   When the user pastes JSON arrays, CSV tables, or sample records in chat, treat that content as static data for browse operations — embed records in `data.records` (or equivalent static bindings). Do not invent API paths unless the user explicitly asks for API wiring.
+
 3. **Map to RUI** — Build a document with top-level shape:
    - version: "0.2"
    - app.title

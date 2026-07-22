@@ -1,25 +1,31 @@
-/** Fixed pastel palette keyed by node kind — same type → same color across all specs. */
+/** Fixed pastel palette keyed by operation type or transition trigger. */
 export type TypeColorClasses = {
   bg: string;
   border: string;
-  text?: string;
+  text: string;
 };
 
-export const TYPE_COLORS: Record<string, TypeColorClasses> = {
-  version: { bg: "bg-zinc-100", border: "border-zinc-300", text: "text-zinc-800" },
-  meta: { bg: "bg-gray-100", border: "border-gray-300", text: "text-gray-800" },
-  navigation: { bg: "bg-slate-100", border: "border-slate-300", text: "text-slate-800" },
-  Page: { bg: "bg-blue-100", border: "border-blue-300", text: "text-blue-900" },
-  Section: { bg: "bg-violet-100", border: "border-violet-300", text: "text-violet-900" },
-  Metric: { bg: "bg-emerald-100", border: "border-emerald-300", text: "text-emerald-900" },
-  Text: { bg: "bg-orange-100", border: "border-orange-300", text: "text-orange-900" },
-  Table: { bg: "bg-amber-100", border: "border-amber-300", text: "text-amber-900" },
-  binding: { bg: "bg-pink-100", border: "border-pink-300", text: "text-pink-900" },
-  column: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800" },
-  filter: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800" },
-  unknown: { bg: "bg-gray-100", border: "border-gray-300", text: "text-gray-700" },
+export const OPERATION_TYPE_COLORS: Record<string, TypeColorClasses> = {
+  browse: { bg: "bg-blue-100", border: "border-blue-300", text: "text-blue-900" },
+  read: { bg: "bg-violet-100", border: "border-violet-300", text: "text-violet-900" },
+  create: { bg: "bg-emerald-100", border: "border-emerald-300", text: "text-emerald-900" },
+  update: { bg: "bg-amber-100", border: "border-amber-300", text: "text-amber-900" },
+  delete: { bg: "bg-red-100", border: "border-red-300", text: "text-red-900" },
+  unknown: { bg: "bg-zinc-100", border: "border-zinc-300", text: "text-zinc-800" },
 };
 
-export function getTypeColors(type: string): TypeColorClasses {
-  return TYPE_COLORS[type] ?? TYPE_COLORS.unknown;
+export const TRANSITION_TRIGGER_COLORS: Record<string, TypeColorClasses> = {
+  row: { bg: "bg-sky-100", border: "border-sky-300", text: "text-sky-900" },
+  link: { bg: "bg-indigo-100", border: "border-indigo-300", text: "text-indigo-900" },
+  cta: { bg: "bg-teal-100", border: "border-teal-300", text: "text-teal-900" },
+  cancel: { bg: "bg-orange-100", border: "border-orange-300", text: "text-orange-900" },
+  unknown: { bg: "bg-zinc-100", border: "border-zinc-300", text: "text-zinc-800" },
+};
+
+export function getOperationTypeColors(type: string): TypeColorClasses {
+  return OPERATION_TYPE_COLORS[type] ?? OPERATION_TYPE_COLORS.unknown;
+}
+
+export function getTransitionTriggerColors(trigger: string): TypeColorClasses {
+  return TRANSITION_TRIGGER_COLORS[trigger] ?? TRANSITION_TRIGGER_COLORS.unknown;
 }

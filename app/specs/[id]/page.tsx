@@ -41,5 +41,5 @@ export default async function SpecInspectorPage({ params }: SpecInspectorPagePro
     notFound();
   }
 
-  return <RuiInspector spec={spec} />;
+  return <RuiInspector spec={spec} variant="page" badge="saved" />;
 }

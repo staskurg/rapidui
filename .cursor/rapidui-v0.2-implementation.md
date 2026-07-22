@@ -1463,7 +1463,7 @@ GET /llms.txt | /api/docs | /api/schema | /api/health
         └── recordDiscoveryEvent() ──► api_events (same table as validate/save)
 ```
 
-Shared: **`app/observe/layout.tsx`** + **`components/observe/ObserveNav.tsx`** (Overview · API · Agent · Evals).
+Shared: **`app/observe/layout.tsx`** + **`components/observe/ObserveSidebar.tsx`** (Overview · API · Agent · Evals; collapsible). *(Phase 5 replaced horizontal `ObserveNav`.)*
 
 ---
 
@@ -1970,7 +1970,7 @@ FROM (
 
 **Reference:** §4, §8 (Logfire), §9 Area 4, §11 (constraints), §7 (workflow), §3 #13 #14 #37
 
-**Status:** Complete (verified 2026-07-20 — smoke + multi-turn curl E2E: validate → save → `/specs/:id` 200).
+**Status:** Complete (verified 2026-07-21 — local + prod agent chat E2E; Render deployed).
 
 ### Goal
 
@@ -2340,7 +2340,7 @@ useChatRuntime({
 
 Docs: [AI SDK transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport), [custom request options](https://ai-sdk.dev/docs/troubleshooting/use-chat-custom-request-options).
 
-**Open for Phase 5 (not blocking Phase 4):** how right panel subscribes to `specId` (tool-result part vs assistant markdown link).
+**Resolved in Phase 5:** right panel subscribes to **`save_rui` tool-result** parts (primary); markdown `viewUrl` link is fallback only — see Phase 5 **Resolved open questions**.
 
 ---
 
@@ -2354,12 +2354,12 @@ Docs: [AI SDK transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport), [custom r
 - [x] o4-mini default with `openai_reasoning_effort: medium`
 - [x] Validate loop works against Phase 2 schema (manual UC1 — curl multi-turn, `validate_rui` + schema errors surfaced)
 - [x] Successful conversation saves spec; `viewUrl` loads `/specs/:id` (manual — `3f29e7a6-4a97-4c69-9a0b-f4196c96cbb9`, HTTP 200)
-- [ ] Ingest POSTs populate `agent_runs` + `agent_turns` (optional verify — query Neon or Observe after chat)
+- [x] Render redeployed with prod env vars (manual deploy step)
+- [x] Ingest POSTs populate `agent_runs` + `agent_turns` (verified 2026-07-21 — session `f21f409c-…`, outcome saved, 2 turns)
 - [x] Ingest failures do not break chat responses (try/except in telemetry)
 - [x] CORS from `rapidui.dev` / `localhost:3000` works
-- [ ] Render redeployed with prod env vars (manual deploy step)
 - [x] `agent/README.md` documents `/chat` contract
-- [ ] Logfire traces visible when token set (optional O2)
+- [x] Logfire traces visible when token set (optional O2 — verified 2026-07-21; requires `logfire[fastapi]` extra)
 - [x] Satisfies **S5** code path; **S9** after Render redeploy
 - [x] Terminal chat CLI (`scripts/chat_cli.py`) for pre–Phase 5 manual testing
 
@@ -2369,59 +2369,495 @@ Docs: [AI SDK transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport), [custom r
 
 **Reference:** §5, §6, §9 Area 5, §3 #2 #14 #27
 
+**Status:** Implementation complete (2026-07-22). **`npm run build`** + **`npm run smoke:inspector`** pass. **Manual S7** (local UC1–3 + paste-data) and **prod smoke** pending operator sign-off — update to *Complete* when those pass.
+
 ### Goal
 
-Replace link-hub homepage with portfolio demo: **chat left**, **operations inspector + JSON right**.
+Portfolio demo surface: **chat left**, **tabbed output right** (Spec inspector + JSON now; Preview placeholder for v0.3 renderer). **Landing** at `/` (humans + agent discovery); **builder** at **`/chat`**. Satisfies ship criteria **S6** and **S7** (UC1–3 end-to-end in browser). UX behavior is locked in **UX spec** below; **as-built** notes document intentional deviations.
 
 ### Depends on
 
-Phase 2 (inspector data model), Phase 4 (chat API).
+Phase 2 (operations schema + inspector data model in reference §7), Phase 4 (`POST /chat` SSE + `save_rui` tool contract).
 
 ### Unlocks
 
-**S6**, **S7** (with Phase 4) — end-to-end demo.
+**S6**, **S7** — browser demo Path A (reference §6); shared `/specs/:id` links for interviews.
 
-### Scope
+---
 
-- **Rewrite `RuiInspector`** — operations list, transitions, data chips, embedded actions (not block tree)
-- Split layout per reference §9 Area 5 diagram
-- **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown`
-- Transport → `https://agent.rapidui.dev/chat` (no Next.js proxy)
-- Collapsible **reasoning** + **tool call** display
-- **Starter chips** for UC1–3 — canonical prompts (§6)
-- On save: right panel loads `GET /api/specs/:id`
-- Nav link to `/observe/*` (optional polish)
-- Update `/specs/[id]` page for operations inspector
+### As-built (2026-07-22)
 
-### Key paths
+Delivered with intentional UX improvements beyond the original Phase 5 wireframe:
+
+| Topic | As-built |
+|-------|----------|
+| **Routes** | **`/`** — portfolio landing (humans + `/llms.txt` discovery). **`/chat`** — builder (`<MainDemo />`). **`/observe/*`** — analytics with collapsible left sidebar. |
+| **Shell** | **`SiteShell`** + **`SiteHeader`** on all three surfaces — RapidUI logo → `/`; nav right: Build a RUI · Observe · GitHub. |
+| **Session bar** | Bottom footer on `/chat` (not demo header): copy id, API session link (new tab), New chat. |
+| **Viewport** | **`h-dvh`** full-height on `/chat` and `/observe`; responsive split at `lg` (stack on narrow — no min-width gate). |
+| **Observe nav** | **`ObserveSidebar`** (Overview · API · Agent · Evals) with SVG icons; replaces horizontal **`ObserveNav`**. |
+| **Eval headers** | `setPendingEvalCase` / `consumePendingEvalCase` in `sessionStorage` (no ref-in-render). Session id via `useSyncExternalStore`. |
+
+**Manual sign-off still required:** Path A UC1–3 through save, paste-data UC1 variant, prod `rapidui.dev/chat` smoke.
+
+---
+
+### Repo audit (2026-07-21)
+
+| Area | Current state | Phase 5 action |
+|------|---------------|----------------|
+| **`app/page.tsx`** | v0.1 link hub (`/api/docs` links, no chat) | Replace with split demo layout (client shell) |
+| **`lib/review/RuiInspector.tsx`** | v0.2 **placeholder** — entity/op/transition counts + first 8 ops + raw JSON | **Full rewrite** — operations-first view per reference §7 “Inspector v0.2” |
+| **`lib/review/colors.ts`** | v0.1 block-tree palette (`Page`, `Section`, `Table`, …) | Replace with **operation-type** + **transition-trigger** colors |
+| **`app/specs/[id]/page.tsx`** | Server component → `<RuiInspector spec={…} />` | Keep route; pass `variant="page"` after inspector rewrite |
+| **`app/api/specs/[id]/route.ts`** | Session-gated `GET` (Phase 3B) | Browser client fetch must send same `X-RapidUI-Session-Id` as chat |
+| **`package.json`** | No `assistant-ui` / `ai` deps | Add `@assistant-ui/react`, `@assistant-ui/react-ai-sdk`, `@assistant-ui/react-markdown`, `ai` |
+| **`lib/base-url.ts`** | Platform URL only | Add **`lib/demo/agent-url.ts`** (or env) for agent chat endpoint |
+| **`eval/cases/*.json`** | UC1–3 canonical `prompt` strings | Reuse for **starter chips** (do not duplicate prose) |
+| **`scripts/smoke-inspector.ts`** | Asserts placeholder text (“Operations-first RUI”, “Phase 5”) | Rewrite assertions for full operations inspector |
+| **Phase 4 handoff** | `/chat` SSE, `save_rui` → `{ specId, viewUrl }`, CORS, transport example in `agent/README.md` | Wire browser transport + tool-result listener |
+
+**What already works (do not rebuild):**
+
+- Agent streams Vercel AI Data Stream v6 from `POST /chat` (local + Render).
+- Successful save returns `specId` / `viewUrl` via `save_rui` tool.
+- `/specs/:id` server page loads spec from Neon (no session header needed — direct DB read).
+- Observe ingest correlates chat `session_id` with API events.
+
+---
+
+### UX spec (locked — 2026-07-21)
+
+Product UX for Phase 5 — implement exactly; v0.3 renderer slots into the same shell.
+
+#### Layout (desktop only)
 
 ```txt
-app/page.tsx
-app/specs/[id]/
-lib/review/RuiInspector.tsx (rewrite)
-components/chat/ (or similar)
+┌──────────────────────────────────────────────────────────────────────────┐
+│ RapidUI                    Session abc123… [copy]  [API ↗] [Observe ↗]   │
+│                                                          [New chat]      │
+├─────────────────────────────┬────────────────────────────────────────────┤
+│  Starter chips (UC1–3)      │  [ Preview (soon) | Spec | JSON ]          │
+│  ─────────────────────────  │  ────────────────────────────────────────  │
+│  Chat thread                │  Spec tab (default v0.2):                  │
+│  - user + assistant         │    Draft / Saved badge + RuiInspector      │
+│  - reasoning (subtle)       │  JSON tab: raw normalizedRui               │
+│  - tool steps               │  Preview tab: disabled — “Renderer v0.3”   │
+│  ─────────────────────────  │                                            │
+│  Composer (paste JSON/CSV)  │                                            │
+└─────────────────────────────┴────────────────────────────────────────────┘
+     ~40% width                         ~60% width
 ```
 
-### Out of scope
+| Rule | Decision |
+|------|----------|
+| **Viewport** | **Desktop only** — target ≥1280px wide split. No mobile/tablet layout in v0.2; optional min-width message if viewport too narrow. |
+| **Chat history sidebar** | **No** ChatGPT-style past-session list. Single active thread per tab. Durable artifacts = **saved specs** (`/specs/:id`); run history = **Observe**. |
+| **New chat** | Header button clears thread + output panel; **mint new `session_id`** (clean Observe row). Confirm if thread has messages (see **Interrupt rules**). |
+| **Renderer prep (v0.3)** | **`OutputTab`** type: `"preview" \| "spec" \| "json"`. v0.2: Preview tab visible but disabled with tooltip. v0.3: enable Preview, default tab → Preview. |
 
-- Manual JSON editor
-- External agent chat in UI
-- Renderer
-- File attachments
+#### Session bar (Observe handoff)
 
-### Open questions
+Always visible in the main demo header — ties live chat to dashboards.
 
-- Inspector UX for large specs (UC4) — scroll / grouping
-- How main UI learns `spec_id` after save (tool event vs polling)
+| Element | Behavior |
+|---------|----------|
+| **Session id** | Show truncated UUID + **copy** button (full id to clipboard). Source: `sessionStorage` `rapidui-session-id`. |
+| **API dashboard link** | `→ /observe/api/sessions/{sessionId}` — validate/save timeline for this session. |
+| **Observe hub** | Top nav **Observe** → `/observe` (overview); session link is the primary drill-down for Phase 5 demos. |
+| **Agent dashboard** | When Phase 6 ships: add `→ /observe/agent?session={id}` or equivalent filter; until then API session page is enough for Path A step 5. |
+| **Before first API call** | Session page **404s** until `api_events` has a row for this id (happens when the agent first calls a guarded platform endpoint, e.g. `fetch_docs` on turn 1). Copy/link is always valid; open Observe **after chat has started**. Optional SessionBar tooltip: *“Session timeline appears after the agent’s first API call.”* |
+
+Copy affordance copy: *“Copy session ID to find this run in Observe.”*
+
+#### Output panel state machine
+
+Right panel updates on **validate** and **save** — not save-only.
+
+```txt
+empty ──validate_rui (valid)──► draft ──save_rui──► saved
+  │                                │                    │
+  │                                └── still draft      └── fetch GET /api/specs/:id
+  └── starter chip / first message                      (or trust save_rui tool result)
+```
+
+| State | Spec tab | Badge | Data source |
+|-------|----------|-------|-------------|
+| **empty** | Empty state copy | — | — |
+| **draft** | Full inspector | **Draft** (amber) | `validate_rui` tool-result `normalizedRui` |
+| **saved** | Full inspector + meta links | **Saved** (green) | `GET /api/specs/:id` after `save_rui` |
+| **loading** | Skeleton | — | During spec fetch after save |
+| **failed validate** | Unchanged | Keep prior badge | **`validate_rui` with `valid: false` does not update panel** — chat + tool steps show errors; user steers next fix |
+
+JSON tab mirrors the same `normalizedRui` object (draft or saved). Draft clears on **New chat**.
+
+#### User flows (supported)
+
+| ID | Flow | Notes |
+|----|------|-------|
+| **F1** | Starter chip → HITL clarify → validate loop → draft in panel → save → saved | Interview / UC1–3 canonical path |
+| **F2** | Free-form prompt (no chip) | Same as F1 |
+| **F3** | Mid-build correction in thread | Panel refreshes on next successful validate |
+| **F4** | Validation failure recovery | Tool steps + agent explanation; user steers |
+| **F5** | Save → inspect → share | Clickable `viewUrl` in chat; `/specs/:id` matches panel |
+| **F6** | New chat | Clears thread + panel; **new session id**; confirm if messages exist |
+| **F7** | **Paste data sample in composer** | JSON array/object or CSV table as **plain text** in user message — agent maps to `data.mode: static` (UC1 / V3). No file upload. |
+| **F8** | Copy session → Observe API session page | Demo Path A steps 4–5 |
+
+**Out of scope (v0.2 UI):** resume past chats, load existing spec (UC4), manual validate-without-agent, external agent in UI, spec library, side-by-side compare.
+
+#### Data paste (JSON / CSV)
+
+Reference §6 UC1 and variant V3 — **text paste in chat**, not file attachments.
+
+| Aspect | Decision |
+|--------|----------|
+| **Mechanism** | User pastes into the **composer** (multi-line). Sent as normal user message text — no separate upload UI, no base64 file parts. |
+| **Formats** | **JSON** (array of records or object with `items`), **CSV** (header row + rows), or **prose** describing columns/metrics. |
+| **Agent behavior** | Agent reads pasted content from message history, plans static `browse` (+ header metrics if needed), embeds records in RUI `data.records` or equivalent static bindings. **No platform API change** — agent + existing validate loop. |
+| **Composer hint** | Placeholder: *“Describe your UI, or paste JSON / CSV sample data…”* |
+| **Prompt alignment** | Add one bullet to **`agent/prompts/v1.txt`**: when user pastes tabular/JSON data, treat as static data source for operations — do not invent API paths unless user asked for API wiring. |
+| **Deferred** | Drag-drop files, attachment chips, CSV parser in UI — v0.3+ |
+
+#### Interrupt rules
+
+| Action | If thread empty | If thread has messages |
+|--------|-----------------|-------------------------|
+| **New chat** | Clear immediately + new session id | **Confirm:** “Start a new conversation? Current chat and draft spec will be cleared.” |
+| **Starter chip click** | Send chip prompt only (**keep session id**) | **Confirm** — then clear, **rotate session id**, send chip prompt |
+
+After confirm (New chat or chip): reset output panel to **empty**, rotate session id, clear pending **`X-RapidUI-Eval-Case`** header. **Empty-thread chip** does not rotate session — only sends the prompt.
+
+#### In-flight / streaming (chat)
+
+| Moment | Chat | Right panel |
+|--------|------|-------------|
+| Assistant streaming | **Disable send** on composer (no queue) | Keep last draft/saved |
+| Tool running | `ToolFallback` step visible | Update only when tool result arrives; **skip panel update on failed validate** |
+| `save_rui` in progress | Tool shows “Saving…” | Spec tab loading skeleton |
+| Error (network / 400) | Inline error on composer area | Keep last good state |
+
+#### Chat message affordances
+
+| Element | Behavior |
+|---------|----------|
+| **`viewUrl` / `/specs/` links** | Clickable in assistant markdown (new tab) |
+| **Tool results** | Collapsed by default except **`save_rui`** — expand briefly on success |
+| **Reasoning (o4-mini)** | **Visible but subtle** — muted typography, smaller text, light border/background. **Not hidden by default** in v0.2 (you are testing reasoning quality). Collapsible toggle optional; default **expanded** or **semi-expanded**. Tighten to collapsed-by-default in a later polish pass. |
+| **User messages with pasted data** | Render in monospace block if message looks like JSON/CSV (simple heuristic: starts with `[`, `{`, or contains comma-separated header line) — improves readability only; full content still sent to agent. |
+
+#### Information architecture
+
+```txt
+/                          Landing — portfolio pitch, agent discovery (/llms.txt)
+/chat                      Build a RUI — chat (left) + tabbed output (right)
+/specs/:id                 Shareable inspector (no chat)
+/observe                   Observe hub (sidebar: Overview · API · Agent · Evals)
+/observe/api/sessions/:id  Session timeline (linked from session bar)
+```
+
+---
+
+### Resolved open questions
+
+| Question | Decision |
+|----------|----------|
+| **Past chat sessions (ChatGPT sidebar)** | **No** — single thread + New chat. See UX spec. Observe + `/specs/:id` are the persistence surfaces. |
+| **Session id in UI** | **Yes** — **bottom session bar** on `/chat`: truncated id, copy, link to `/observe/api/sessions/{id}`. New chat mints new id. |
+| **How right panel learns `specId` after save** | **Primary:** `save_rui` tool-result → `{ specId, viewUrl }`. **Fallback:** markdown link parse. **No polling.** |
+| **Draft vs save-only panel** | **Draft on `validate_rui` success** (`normalizedRui` from tool result) + **Saved** after `save_rui`. See state machine in UX spec. |
+| **How saved spec loads** | After save: **`GET /api/specs/:id`** with session header (or trust tool result then fetch for full `SavedSpec` meta). |
+| **Output tabs / renderer future** | **`Preview \| Spec \| JSON`** tab bar. v0.2 default **Spec**; Preview disabled placeholder. v0.3 enables Preview as default. |
+| **Inspector UX for large specs (UC4)** | Entity-first grouping; scrollable transitions; embedded actions nested under `read`. JSON on separate tab. |
+| **Agent chat URL** | `NEXT_PUBLIC_RAPIDUI_AGENT_URL` — prod `https://agent.rapidui.dev/chat`; local `http://localhost:8000/chat`. |
+| **Session id lifecycle** | `sessionStorage` `rapidui-session-id`; reused for chat + spec GET. **New chat** → new UUID. |
+| **Starter chips** | Eval case **`prompt`** only; **`X-RapidUI-Eval-Case`** = eval case `id` on next send. **Confirm + clear** if thread has messages. |
+| **Starter chip source** | `lib/demo/starter-prompts.ts` from eval case JSON. |
+| **Paste JSON / CSV data** | **In scope** — plain text in composer (F7). Not file attachments. Prompt note in `v1.txt`. |
+| **Component split** | `app/page.tsx` landing; `app/chat/page.tsx` → `<MainDemo />`; `components/demo/*` client; `components/site/*` shell; `/specs/[id]` server-rendered. |
+| **`RuiInspector` variants** | `variant: "page" \| "embedded"`. |
+| **Operation type colors** | `lib/review/colors.ts` — operation types + transition triggers. |
+| **Reasoning visibility** | **Subtle but visible** (muted styling); not collapsed-by-default in v0.2. Collapsible polish later. |
+| **Tool call labels** | `ToolFallback` human labels for four stable tools. |
+| **Viewport / mobile** | **Responsive** — split at `lg`; stack on narrow. Original spec desktop-only ≥1280px gate **not** shipped (removed per UX feedback). |
+| **Nav to Observe** | **`SiteHeader`** Observe link + session bar API session link. |
+| **Empty output panel** | “Pick a use case, paste data, or describe your UI — specs appear here as the agent validates.” |
+| **v0.1 specs in inspector** | Amber legacy notice + JSON tab only. |
+
+---
+
+### Implement-time notes (locked)
+
+Details for builders — not open questions. Follow during implementation.
+
+| Topic | Decision |
+|-------|----------|
+| **Draft inspector props** | `RuiInspector` expects `SavedSpec` today. For **Draft**, use **`lib/demo/build-draft-spec.ts`** → `buildDraftSavedSpec(normalizedRui)` — synthetic `SavedSpec` (placeholder `specId`, `createdAt`, hash; real `normalizedRui`). **Saved** state uses real `GET /api/specs/:id` response. |
+| **Session helpers** | **`lib/demo/session.ts`:** `getOrCreateSessionId()`, **`rotateSessionId()`** (New chat + post-confirm chip), optional `getSessionId()` for read-only display. |
+| **Failed validate** | `useSpecPanelListener` updates panel **only** when `validate_rui` returns `valid: true`. Do not clear or overwrite draft/saved on validation errors. |
+| **assistant-ui setup** | Task A step 1: verify package versions against **React 19 + Next 16**; import required **assistant-ui CSS** (per package docs); smoke one send before building shell. |
+| **Starter chip intent** | Set **`X-RapidUI-Eval-Case`** (eval case `id`) on the **next** transport request only — agent `deps.py` forwards to platform + ingest. Optional **`X-RapidUI-Intent`** only if we add short slugs later; v0.2 chips use eval case id. Implement via function-valued `headers` on `DefaultChatTransport` or per-send override; clear after send. |
+| **Tool-result parsing** | Scan assistant message **parts** for tool results (Vercel AI v6 / assistant-ui thread API). Match tool name `validate_rui` / `save_rui`; parse JSON result body. Reference: Phase 4 `SaveRuiResult` / `ValidateRuiResult` in `agent/tools/rapidui.py`. Fallback: assistant markdown `viewUrl` regex. |
+| **assistant-ui CSS** | Import in **`app/globals.css`** or `components/demo/MainDemo.tsx` (whichever matches package docs) — verify in task A before shell work. |
+| **Observe session 404** | Expected until first `api_events` row — see Session bar table. Not a Phase 5 bug; empty-session Observe UI is optional v0.3+ polish. |
+| **Root site metadata** | Update **`app/layout.tsx`** title/description from v0.1 “validate → save” to v0.2 demo wording (same pass as `app/page.tsx`). |
+| **Reference doc drift** | **`rapidui-v0.2.md` §9 Area 5** — aligned 2026-07-21 with Phase 5 UX (reasoning subtle-visible, tabs, session bar). |
+
+**Recommended build order (practical):** A (deps + session) → B (shell + SessionBar + tabs) → C (chat + draft/save listeners — prove E2E) → D (inspector rewrite) → E (chips + prompt) → F (smoke + manual UC1–3).
+
+---
+
+### Architecture (Phase 5)
+
+```txt
+rapidui.dev/
+        │
+        ├─► SiteHeader: RapidUI → / · Build a RUI · Observe · GitHub
+        │
+        ├─► /chat — MainDemo (~40/60 split, h-dvh)
+        │         │
+        │         ├─► Left: ChatPanel (chips, thread, composer)
+        │         │         ▼
+        │         │    useChatRuntime + DefaultChatTransport
+        │         │      headers: X-RapidUI-Session-Id, X-RapidUI-Agent: rapidui-agent-chat
+        │         │         ▼
+        │         │    POST agent…/chat (SSE)
+        │         │         ├── validate_rui (valid) → draft panel
+        │         │         └── save_rui → GET /api/specs/:id → saved panel
+        │         │
+        │         ├─► Right: OutputPanel [ Preview | Spec | JSON ]
+        │         │
+        │         └─► Footer: SessionBar + New chat
+        │
+        └─► / — landing (agent-friendly /llms.txt links)
+
+/specs/:id  (share link — server)
+        └── getSpecById() → RuiInspector variant="page"
+```
+
+**Inspector data model (maps reference §7 “Inspector v0.2”):**
+
+| UI section | RUI source | Notes |
+|------------|------------|-------|
+| App title + meta | `SavedSpec` + `rui.app.title` | specId, hash, createdAt in meta strip |
+| Entity groups | `entities[]` | Label, entrypoints, scope selectors as chips |
+| Operation cards | `operations[]` filtered by `entityId` | Type badge, route, layout, filter/metrics summary |
+| Data chips | `operation.data` | `static` → record count; `api` → method + path(s) |
+| Embedded actions | `read.presentation.actions[]` | Nested under read card — type, label, write path |
+| Transitions | `transitions[]` | fromOp → toOp, trigger, param map |
+
+---
+
+### Task list (build order)
+
+#### A — Dependencies + env
+
+1. **Install packages** — `@assistant-ui/react`, `@assistant-ui/react-ai-sdk`, `@assistant-ui/react-markdown`, `ai` (v6 — matches Phase 4 `sdk_version=6`). **Verify React 19 / Next 16 compatibility; import assistant-ui CSS** per package docs. Pin versions after one local chat smoke.
+2. **`lib/demo/agent-url.ts`** — `getAgentChatUrl()` reads `NEXT_PUBLIC_RAPIDUI_AGENT_URL` with prod default.
+3. **`lib/demo/session.ts`** — `getOrCreateSessionId()`, **`rotateSessionId()`** (sessionStorage).
+4. **`lib/demo/build-draft-spec.ts`** — `buildDraftSavedSpec(normalizedRui: Rui): SavedSpec` for draft panel (synthetic meta fields).
+5. **Document env** — add `NEXT_PUBLIC_RAPIDUI_AGENT_URL` to root README / `.env.local` example comment (local: `http://localhost:8000/chat`).
+
+#### B — Demo shell + layout
+
+6. **`components/demo/MainDemo.tsx`** — desktop split grid (~40/60), min-width guard, wires session + spec state.
+7. **`components/demo/SessionBar.tsx`** — truncated session id, copy button, link to `/observe/api/sessions/{sessionId}`; tooltip about timeline availability after first API call.
+8. **`components/demo/ConfirmNewChatDialog.tsx`** — shared confirm for New chat + starter chip when thread non-empty.
+9. **`components/demo/OutputPanel.tsx`** — tab bar, empty/draft/saved states, badges, embeds `RuiInspector` on Spec tab.
+10. **`components/demo/OutputTabBar.tsx`** — `Preview | Spec | JSON`; Preview disabled with v0.3 tooltip.
+11. **`lib/demo/fetch-spec.ts`** — client `fetchSpecById(specId, sessionId)`.
+12. **`app/page.tsx`** — portfolio landing (humans + agent discovery); CTAs → `/chat`, `/observe`.
+13. **`app/chat/page.tsx`** — render `<MainDemo />` inside `SiteShell` (`h-dvh`).
+14. **`app/layout.tsx`** — root product metadata (not demo-internal copy).
+
+#### C — Chat (assistant-ui)
+
+13. **`components/demo/ChatPanel.tsx`** — runtime, transport, disable send while streaming.
+14. **Thread UI** — markdown; monospace heuristic for user JSON/CSV bubbles.
+15. **Reasoning** — subtle visible styling (muted, smaller); optional expand/collapse control (default visible).
+16. **`components/demo/ToolFallback.tsx`** — four tool labels; highlight `save_rui` success.
+17. **`lib/demo/useSpecPanelListener.ts`** — on `validate_rui` **`valid: true`** → draft via `buildDraftSavedSpec`; on `save_rui` → specId callback; **ignore failed validate**.
+18. **`components/demo/StarterChips.tsx`** — confirm-if-messages, clear, `rotateSessionId`, send prompt; set **`X-RapidUI-Eval-Case`** (eval case `id`) on next transport send only.
+19. **Composer** — placeholder for paste hint; multi-line textarea.
+
+#### D — Operations inspector rewrite
+
+20. **`lib/review/colors.ts`** — operation + transition colors.
+21. **`lib/review/inspector/`** — OperationCard, EmbeddedActions, TransitionsTable, EntitySection, DataChip, SpecMeta.
+22. **Rewrite `lib/review/RuiInspector.tsx`** — compose submodules; `variant`; remove placeholder copy; accept draft + saved `SavedSpec`.
+23. **`app/specs/[id]/page.tsx`** — `variant="page"`.
+
+#### E — Starter prompts + agent paste hint
+
+24. **`lib/demo/starter-prompts.ts`** — from eval cases (`id`, `title`, `prompt`).
+25. **`agent/prompts/v1.txt`** — one bullet: pasted JSON/CSV → static data in operations (no spurious API paths).
+
+#### F — Smoke + verification
+
+26. **Update `scripts/smoke-inspector.ts`** — full inspector assertions.
+27. **`npm run build`** — client bundles compile.
+
+---
+
+### Pre-flight (before task A)
+
+Confirm local stack — same as Phase 4 manual demo:
+
+| Requirement | Local value |
+|-------------|-------------|
+| Platform | `npm run dev` → `http://localhost:3000` |
+| Agent | `cd agent && uvicorn main:app --reload --port 8000` |
+| Agent env | `OPENAI_API_KEY`, `RAPIDUI_BASE_URL=http://localhost:3000` (or prod API if testing against prod validate/save) |
+| Platform env | `.env.local` with Neon `DATABASE_URL` (save + spec GET smoke) |
+| Phase 5 env | `.env.local`: `NEXT_PUBLIC_RAPIDUI_AGENT_URL=http://localhost:8000/chat` |
+| CORS | Agent already allows `http://localhost:3000` (Phase 0/4) |
+
+**Sign-off:** Phase 4 checklist complete; `npm run smoke:agent` optional; `uvicorn` + one curl/chat CLI turn succeeds.
+
+---
+
+### Files to create / modify
+
+**Create**
+
+```txt
+lib/demo/agent-url.ts
+lib/demo/session.ts
+lib/demo/build-draft-spec.ts
+lib/demo/fetch-spec.ts
+lib/demo/starter-prompts.ts
+lib/demo/useSpecPanelListener.ts
+components/demo/MainDemo.tsx
+components/demo/SessionBar.tsx
+components/demo/ConfirmNewChatDialog.tsx
+components/demo/ChatPanel.tsx
+components/demo/OutputPanel.tsx
+components/demo/OutputTabBar.tsx
+components/demo/StarterChips.tsx
+components/demo/ToolFallback.tsx
+lib/review/inspector/OperationCard.tsx
+lib/review/inspector/EmbeddedActions.tsx
+lib/review/inspector/TransitionsTable.tsx
+lib/review/inspector/EntitySection.tsx
+lib/review/inspector/DataChip.tsx
+lib/review/inspector/SpecMeta.tsx
+components/demo/NewTabLink.tsx
+components/site/SiteShell.tsx
+components/site/SiteHeader.tsx
+components/site/GitHubLink.tsx
+components/site/constants.ts
+components/observe/ObserveSidebar.tsx
+components/observe/ObserveNavIcons.tsx
+app/chat/page.tsx
+app/chat/layout.tsx
+```
+
+**Modify**
+
+```txt
+app/page.tsx                               # landing (not MainDemo)
+app/chat/page.tsx
+app/layout.tsx
+app/observe/layout.tsx                     # SiteShell + ObserveSidebar
+app/globals.css                            # @assistant-ui/react-markdown CSS
+app/specs/[id]/page.tsx
+lib/review/RuiInspector.tsx
+lib/review/colors.ts
+package.json
+scripts/smoke-inspector.ts
+README.md
+agent/prompts/v1.txt
+```
+
+---
+
+### Test plan
+
+| Test | Action | Pass criteria |
+|------|--------|---------------|
+| Local stack | `uvicorn` + `npm run dev`; open **`/chat`** | Split layout; landing at `/` |
+| Session bar | Copy session id | Clipboard has full UUID; link opens `/observe/api/sessions/:id` |
+| Observe timing | Open session link **before** first message | **404** (expected); after agent’s first platform API call → **200** with timeline |
+| New chat | Click with messages in thread | Confirm dialog; after confirm, new session id + empty panel |
+| Chat stream | Send message | SSE; send disabled while streaming |
+| Draft panel | Validate succeeds before save | Spec tab shows **Draft** badge + inspector from validate tool result |
+| Failed validate | Agent validates invalid spec | Panel **unchanged**; errors visible in chat/tool steps |
+| Paste data | Paste JSON array + ask for dashboard | Agent builds static browse; draft panel shows records |
+| Tools visible | UC1 chip + follow-ups | Tool steps visible; `save_rui` highlighted on success |
+| Reasoning | Run chat with o4-mini | Reasoning visible with subtle styling (not hidden) |
+| Save → saved | Complete until save | **Saved** badge; `GET /api/specs/:id` with session header |
+| Share link | Open `viewUrl` | `/specs/:id` matches panel |
+| UC2 / UC3 | Chips + follow-ups | CRUD + embedded actions patterns |
+| Observe | Copy session → API session page | Validate + save events visible |
+| Starter chip interrupt | Click UC2 mid UC1 thread | Confirm → clear → UC2 prompt sent |
+| Prod | `rapidui.dev/chat` + Render agent | CORS OK |
+| Smoke | `npm run smoke:inspector` | Passes |
+| Build | `npm run build` | No errors |
+
+**Manual demo script (S7):** Path A steps 1–3 from reference §6 — UC1, UC2, UC3 each from starter chip through save + inspector + `/specs/:id` link.
+
+---
+
+### Out of scope (Phase 5)
+
+- ChatGPT-style **past session sidebar** / server-persisted chat history
+- Manual JSON editor / validate-without-agent (paste goes **through chat**, not a separate editor)
+- **File attachments** (drag-drop upload) — text paste in composer only
+- External agent chat in UI (Path B stays terminal)
+- **Renderer / Preview tab live UI** — placeholder only; v0.3
+- **Mobile / responsive layout** — desktop only
+- UC4 starter chip / `load_spec` (stretch O1)
+- Authenticated `/chat` BFF (v0.3+)
+
+---
+
+### Handoff to Phase 6
+
+| Item | Phase 5 deliverable |
+|------|---------------------|
+| Demo session ids | Real browser sessions in `agent_runs` via chat UI |
+| Session bar | Copy + `/observe/api/sessions/:id` link on every demo |
+| Intent header | **`X-RapidUI-Eval-Case`** from starter chips → ingest + Observe session summary |
+| Agent identity | `X-RapidUI-Agent: rapidui-agent-chat` on all chat requests |
+| Observe link | **`SiteHeader`** + session bar; Phase 6 adds agent dashboard filter by session |
+
+---
 
 ### Checklist
 
-- [ ] Chat streams from Render agent in browser
-- [ ] Reasoning + tool steps visible in thread
-- [ ] Starter chips send UC1–3 prompts
-- [ ] Saved spec renders in operations inspector + JSON panel
-- [ ] `/specs/:id` works for shared links
-- [ ] Satisfies **S6**, **S7** (manual walkthrough UC1–3)
+- [x] Dependencies installed; assistant-ui CSS imported; `npm run build` passes
+- [x] Split layout (~40/60 at `lg`); responsive stack on narrow (as-built — not desktop-only gate)
+- [x] **SessionBar** — copy id, link to `/observe/api/sessions/:id`, timeline tooltip
+- [x] **`rotateSessionId()`** on New chat + post-confirm chip
+- [x] **New chat** with confirm when thread has messages
+- [x] Chat streams; send disabled while streaming
+- [x] **Output tabs:** Preview (disabled) | Spec | JSON
+- [x] **Draft panel** on `validate_rui` success; **no panel update** on failed validate
+- [x] **`buildDraftSavedSpec`** for draft inspector state
+- [x] **Saved** state via `GET /api/specs/:id` after `save_rui`
+- [ ] Paste JSON/CSV in composer (UC1-style); agent uses static data — **manual verify**
+- [x] Starter chips set **`X-RapidUI-Eval-Case`** on send; confirm if interrupting
+- [x] Reasoning visible (subtle styling)
+- [x] Tool steps + highlighted save; clickable `viewUrl` in chat (markdown)
+- [x] **RuiInspector** — entities, ops, transitions, data chips, embedded actions
+- [x] `/specs/:id` share links (server-rendered)
+- [x] **`app/layout.tsx`** product metadata; **`/`** landing; **`/chat`** builder
+- [x] Nav link to `/observe` (`SiteHeader` + landing CTAs)
+- [x] `agent/prompts/v1.txt` paste-data bullet
+- [x] `npm run smoke:inspector` updated and passing
+- [ ] Satisfies **S6**, **S7** (UC1–3 + paste-data smoke) — **manual + prod verify pending**
+
+### Phase 5 sign-off (definition of done)
+
+Phase 5 is **complete** when all of the following are true:
+
+1. **Checklist** above — every box checked (including manual rows).
+2. **S6** — assistant-ui chat on **`/chat`** with reasoning (subtle), tools, starter chips, tabbed output (Spec + JSON), session bar; landing at **`/`**.
+3. **S7** — manual Path A UC1–3 from chips through save; paste-data UC1 variant once.
+4. **`npm run build`** + **`npm run smoke:inspector`** pass. ✅ (2026-07-22)
+5. **Prod smoke** (when deployed) — `rapidui.dev/chat` → Render agent → save → `/specs/:id` + Observe session link after first API call.
+
+**Operator next steps:** local manual demo → deploy → prod smoke → set Phase 5 **Status** to *Complete* with sign-off date.
 
 ---
 
@@ -2705,4 +3141,4 @@ When something fails, fix **upstream first** — don’t tune the model if the v
 
 ---
 
-*Scaffold created: 2026-07-18. Phase 0–3 complete. Phase 4 agent implemented 2026-07-19; E2E save verified 2026-07-20 (FastAPI + Pydantic AI + tools + ingest).*
+*Scaffold created: 2026-07-18. Phase 0–3 complete. Phase 4 agent implemented 2026-07-19; E2E save verified 2026-07-20. Phase 5 UX + implement-time notes locked 2026-07-21 — ready for implementation.*

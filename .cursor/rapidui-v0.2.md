@@ -2,7 +2,7 @@
 
 Reference for planning and scoping v0.2. **Not** the implementation plan — use this to lock decisions, then derive phased implementation docs from each area.
 
-**Status:** Reference complete — all product and architecture decisions locked, including **operations-first RUI schema** (greenfield redesign; v0.1 Page/Block model retired) and **eval philosophy** (§14). Implementation scaffolding lives in **[rapidui-v0.2-implementation.md](./rapidui-v0.2-implementation.md)** — expand one phase at a time.
+**Status:** Reference complete — all product and architecture decisions locked, including **operations-first RUI schema**, **eval philosophy** (§14), and **Main UI UX** (§3 #39–42, Area 5). Phases 0–5 implemented per **[rapidui-v0.2-implementation.md](./rapidui-v0.2-implementation.md)** (Phase 5 code complete 2026-07-22; manual S7 + prod smoke pending sign-off). **Phase 6 ready to build**.
 
 **Related:**
 
@@ -45,8 +45,8 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | # | Question | Decision |
 |---|----------|----------|
 | 1 | **App shape** | Single Next.js app on Vercel for API + human UI + Observe; separate Python service for RapidUI Agent |
-| 2 | **Main page** | Split view: **left = chat** (RapidUI Agent only), **right = output** (inspector + JSON). No manual paste/validate without agent |
-| 3 | **Visual output** | **RuiInspector** (operations + transitions view) + raw JSON. Full renderer deferred to **v0.3+** |
+| 2 | **Main page** | Split view (~40/60, **desktop only**): **left = chat** (RapidUI Agent), **right = tabbed output** (`Preview` placeholder \| `Spec` inspector \| `JSON`). Paste JSON/CSV **through chat composer** — no separate validate-without-agent UI |
+| 3 | **Visual output** | **RuiInspector** (operations + transitions) on **Spec** tab + raw **JSON** tab. **Preview** tab disabled until v0.3 **renderer**. Panel shows **Draft** on successful validate, **Saved** after save. Full renderer deferred to **v0.3+** |
 | 4 | **Spec pages** | Keep `/specs/:id` route; **rewrite** inspector for operations + transitions (§7) |
 | 5 | **RUI schema goal** | **Entity-grouped operations** — `entities[]` + `operations[]` + `transitions[]` + explicit `outcomes`; renderer has **zero inference** |
 | 6 | **Observe naming** | **`/observe/*`** on **`rapidui.dev`** — same domain as API and main UI |
@@ -57,7 +57,7 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 11 | **Database** | **Neon Postgres** — shared DB for specs, events, agent runs. Observe dashboards read Neon directly from Next.js |
 | 12 | **Repo layout** | **Monorepo** — one GitHub repo; Next.js at root (Vercel), Python agent in `/agent` (Render). See §4 monorepo rationale |
 | 13 | **LLM model** | **Default `o4-mini`** via `OPENAI_API_KEY` — Responses API (`openai:o4-mini`); `reasoning_effort: medium`. Ship with this default; **confirm or change** via eval lab (Area 7 / stretch O5). Override via `RAPIDUI_AGENT_MODEL` |
-| 14 | **Chat UI** | **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown` — custom transport → `agent.rapidui.dev/chat`; **show o4-mini reasoning** (collapsible) + tool calls |
+| 14 | **Chat UI** | **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown` — custom transport → `agent.rapidui.dev/chat`; **o4-mini reasoning visible but subtle** (muted styling; not hidden by default in v0.2) + **tool calls** (`ToolFallback`). **No** past-session sidebar — single thread + **New chat** |
 | 15 | **Telemetry write path** | **Unified ingest contract** — shared insert logic in Next.js; middleware in-process; FastAPI POSTs to `/api/observe/ingest/*` (see §4) |
 | 16 | **API auth (v0.2)** | **Mock session identity** — not OAuth. **`X-RapidUI-Session-Id` required** on all agent API calls except **`GET /llms.txt`**. Missing session → **400** `MISSING_SESSION_ID`. Real agent auth (WorkOS / OAuth OBO) deferred to **v0.3+** (see §13). Observe + human UI remain open |
 | 17 | **Logfire** | Env-gated on dev + Render; Observe for product dashboards — see §8 |
@@ -70,7 +70,7 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 24 | **Embedded actions** | **`act` and `delete` embedded** in `read.presentation.actions[]` on detail screens (option B). Full-screen ops use `transitions` with `trigger: link` |
 | 25 | **Delete operation** | First-class **`delete`** type — `confirm` layout + `write.method: DELETE` |
 | 26 | **Ingest hardening** | None in v0.2 |
-| 27 | **Main UI demo UX** | **Use case starter chips** above chat — one-click demo prompts for UC1–3 (see Area 5) |
+| 27 | **Main UI demo UX** | **Starter chips** (UC1–3 canonical prompts from eval cases) + **session bar** (copy id, link to `/observe/api/sessions/:id`). See Area 5 |
 | 28 | **Charts** | **Deferred** — use `browse` + header metrics or `table`; no chart block in v0.2 |
 | 29 | **Entity umbrella** | Operations group under **`entities[]`** — one entity per domain object (Users, Orders, Drafts). Scope selectors live on entity |
 | 30 | **Spec = source of truth** | **Renderer implements the spec literally** — no inferred CTAs, routes, or post-mutation navigation. If it's not in the RUI, the renderer doesn't do it |
@@ -82,6 +82,10 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 36 | **Chat eval modes** | **`guided`** (scripted multi-turn, default for RapidUI Agent) + **`single-shot`** (one message, autonomy benchmark). External agents stay single-shot. See §14 |
 | 37 | **Session identity (mock auth)** | **`X-RapidUI-Session-Id` required** on every agent API request **except** `GET /llms.txt`. Agent generates UUID once per session (or asks user). Same id on docs → schema → validate → save. **`X-RapidUI-Agent`** recommended, not required. This is **identification for Observe**, not cryptographic auth — v0.3 replaces with WorkOS-style agent tokens |
 | 38 | **Unguarded discovery** | **`GET /llms.txt` only** — no session header; platform logs anonymous hit count. All other agent endpoints reject missing session |
+| 39 | **Main UI session bar** | Always visible on **`/chat`**: truncated **`X-RapidUI-Session-Id`**, copy button, link to **`/observe/api/sessions/:id`** (bottom footer). **New chat** / interrupting starter chip mints new session id (after confirm if thread has messages) |
+| 40 | **Main UI output state** | Right panel updates on **`validate_rui` success** (Draft) and **`save_rui`** (Saved → `GET /api/specs/:id`). Failed validate does **not** overwrite panel |
+| 41 | **Chat history UI** | **No** ChatGPT-style past-session list. Persistence = saved **specs** (`/specs/:id`) + **Observe** runs — not chat transcripts |
+| 42 | **Data paste in chat** | User pastes **JSON / CSV as plain text** in composer (UC1 / variant V3). **File drag-drop attachments** deferred to v0.3+ |
 
 ---
 
@@ -150,7 +154,9 @@ Main UI chat widget (`assistant-ui` → custom transport) calls `https://agent.r
                          │                                      │
   Human (demo) ─────────►│  Main UI  /  (rapidui.dev)          │
                          │    chat ◄──SSE── agent.rapidui.dev   │
-                         │    inspector + JSON (right panel)    │
+                         │    session bar → /observe/api/sessions │
+                         │    tabs: Preview* | Spec | JSON        │
+                         │    (* Preview = v0.3 renderer)         │
                          │                                      │
   Anyone ───────────────►                         │  Observe  /observe/*  (same domain)  │
                          │    /api · /agent · /evals (Area 7)   │
@@ -336,10 +342,12 @@ Recorded by the **FastAPI service layer** after each chat turn and when a genera
 
 ```txt
 rapidui.dev
-├── /                          ← Main UI: chat (left) + inspector/JSON (right)
-├── /specs/[id]                ← Operations inspector (rewrite of v0.1 block tree)
-├── /observe                   ← Observe overview hub (API + Agent + Evals zones)
+├── /                          ← Landing — portfolio pitch + agent discovery (/llms.txt)
+├── /chat                      ← Main UI: chat (left) + tabbed output (Spec | JSON; Preview v0.3)
+├── /specs/[id]                ← Operations inspector (share links; no chat)
+├── /observe                   ← Observe overview hub (sidebar: API · Agent · Evals)
 ├── /observe/api               ← API analytics (validate/save telemetry)
+├── /observe/api/sessions/[id] ← Session timeline (linked from main UI session bar)
 ├── /observe/agent             ← RapidUI Agent analytics (Phase 6; placeholder in Phase 3)
 ├── /observe/evals             ← Eval lab — model × prompt × case (Phase 7; placeholder in Phase 3)
 │
@@ -488,11 +496,11 @@ Four demo scenarios in §6. **Cases 1–3** are required for v0.2 ship and are t
 **Path A — RapidUI Agent (main page)**
 
 ```txt
-1. Open rapidui.dev/ — chat with RapidUI Agent (use case 1, 2, or 3)
-2. Back-and-forth → valid spec in right panel (inspector + JSON)
-3. Open /specs/:id from agent link
-4. Open /observe/agent — run latency, retries, tokens, tool calls
-5. Open /observe — overview hub, then /observe/api — same session_id
+1. Open rapidui.dev/ — chat with RapidUI Agent (starter chip or free-form; paste JSON/CSV for UC1)
+2. Back-and-forth → **Draft** spec in Spec tab after validate; **Saved** after save (inspector + JSON tabs)
+3. Copy session id or open /observe/api/sessions/:id — validate/save timeline (after agent’s first API call)
+4. Open /specs/:id from agent viewUrl
+5. Open /observe — overview hub; /observe/api for funnel; /observe/agent when Phase 6 metrics ship
 6. (Optional) Open /observe/evals — model × prompt matrix results (Area 7)
 ```
 
@@ -1279,7 +1287,7 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 | 3 | **2** | **Greenfield** — `lib/operations/*`, validator rewrite, ops docs, goldens, eval cases |
 | 4 | **3** | Observe API (agent-agnostic) |
 | 5 | **4** | Agent system prompt = operations workflow only; same tools as external agents |
-| 6 | **5** | Operations inspector rewrite; starter chips for UC1–3 |
+| 6 | **5** | Main UI: tabbed output, session bar, operations inspector rewrite, starter chips UC1–3 |
 | 7 | **6** | Agent run metrics |
 | 8 | **7** | Manual evals, **eval lab** (model matrix + `/observe/evals`), model selection doc |
 
@@ -1417,47 +1425,65 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 
 ### Area 5 — Main UI (chat + inspector split)
 
-**Purpose:** Portfolio demo surface — replaces current link-hub homepage.
+**Purpose:** Portfolio demo surface — landing at `/`, builder at **`/chat`**.
+
+**Status:** Implemented (2026-07-22). See [rapidui-v0.2-implementation.md — Phase 5](./rapidui-v0.2-implementation.md). Manual S7 + prod smoke pending sign-off.
 
 **Scope:**
 
-- **Rewrite `RuiInspector`** — operations list, transitions, data contract chips, embedded actions under `read` (§7); not v0.1 block tree
-- Split layout: chat (left) + operations inspector + JSON (right)
-- Use case starter chips — canonical prompts for UC1–3 (§6)
-- On save: right panel loads spec from `GET /api/specs/:id`
-- Footer or nav link to `/observe/*` (optional polish — api, agent, evals)
+- **Rewrite `RuiInspector`** — operations list (by entity), transitions, data contract chips, embedded actions under `read` (§7); not v0.1 block tree
+- **Split layout (~40/60 at `lg`):** chat left + **tabbed output** right: `Preview` (disabled placeholder) \| `Spec` \| `JSON`; responsive stack on narrow
+- **Output state machine:** **Draft** badge after successful `validate_rui`; **Saved** after `save_rui` + `GET /api/specs/:id`. Failed validate does not overwrite panel
+- **Session bar:** bottom footer on `/chat` — truncated session id, copy, link to `/observe/api/sessions/:id`; **New chat** (confirm if thread has messages; mint new session id)
+- **Starter chips** — canonical prompts for UC1–3 from eval cases; set **`X-RapidUI-Eval-Case`** on send; interrupt confirm if switching mid-thread
+- **Data paste** — JSON / CSV as **plain text** in composer (UC1); not file attachments
+- **`SiteShell`** nav on `/`, `/chat`, `/observe` — Build a RUI · Observe · GitHub
 
-**Layout:**
+**Layout (`/chat`):**
 
 ```txt
-┌──────────────────────────┬──────────────────────────┐
-│  Chat (RapidUI Agent)    │  Output panel             │
-│  - streaming messages    │  - RuiInspector (top)     │
-│  - reasoning (collapsed) │  - operations + transitions│
-│  - tool call steps       │  - JSON spec (bottom)     │
-│  - use case starter chips│                           │
-│  - free-form input       │                           │
-└──────────────────────────┴──────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│ RapidUI                          Build a RUI · Observe · GitHub         │
+├─────────────────────────────┬────────────────────────────────────────────┤
+│  Starter chips (UC1–3)      │  [ Preview (soon) | Spec | JSON ]          │
+│  Chat thread                │  Spec: Draft/Saved + RuiInspector          │
+│  - reasoning (subtle)       │  JSON: normalizedRui                       │
+│  - tool steps               │  Preview: disabled until v0.3 renderer     │
+│  Composer (paste JSON/CSV)  │                                            │
+├─────────────────────────────┴────────────────────────────────────────────┤
+│  Session abc… [copy] [API session ↗]                        [New chat]   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Use case starter chips (demo UX):** Clickable prompts above the chat input — one per use case (1–3), pre-fill or send a canonical demo prompt. Reduces friction in interviews; not a separate agent mode.
+**Use case starter chips (demo UX):** Clickable prompts above the chat input — one per use case (1–3), send eval case **`prompt`** only (canonical demo mode). User handles 1–2 HITL follow-ups manually (same as interviews). Not full `conversationScript` automation. Empty thread: send chip without rotating session. Mid-thread: confirm → clear → new session → send chip.
 
 **Chat stack:**
 
 | Layer | Choice |
 |-------|--------|
 | UI components | **assistant-ui** (`@assistant-ui/react`) |
-| Runtime | **`useChatRuntime`** from `@assistant-ui/react-ai-sdk` — transport points at `agent.rapidui.dev` (no Next.js `/api/chat` proxy) |
+| Runtime | **`useChatRuntime`** from `@assistant-ui/react-ai-sdk` — `DefaultChatTransport` → `agent.rapidui.dev/chat` (no Next.js proxy). Headers: `X-RapidUI-Session-Id`, `X-RapidUI-Agent: rapidui-agent-chat` |
 | Markdown | **`@assistant-ui/react-markdown`** — streaming message rendering |
-| Reasoning | **Collapsible reasoning blocks** — `MessagePrimitive.GroupedParts` / `ReasoningRoot`; stream o4-mini reasoning summaries alongside assistant text |
-| Tool calls | **ToolFallback** — surface `validate_rui`, `save_rui`, etc. in thread |
-| Stream protocol | **Vercel AI Data Stream** — matched by Pydantic AI `VercelAIAdapter` on FastAPI |
+| Reasoning | **Visible but subtle** — muted typography; not hidden by default in v0.2 (collapsible polish later). o4-mini via Vercel AI reasoning parts |
+| Tool calls | **ToolFallback** — `fetch_docs`, `fetch_schema`, `validate_rui`, `save_rui` |
+| Stream protocol | **Vercel AI Data Stream v6** — Pydantic AI `VercelAIAdapter` on FastAPI |
+| Session id | `sessionStorage` `rapidui-session-id`; same id for chat + client `GET /api/specs/:id` |
+| Agent URL (local) | `NEXT_PUBLIC_RAPIDUI_AGENT_URL` → `http://localhost:8000/chat` |
 
-**Wiring:** Chat → `https://agent.rapidui.dev/chat` (Vercel AI Data Stream SSE). On save, right panel loads spec from `GET /api/specs/:id`.
+**Wiring:** Chat → `POST …/chat` (SSE). Panel listens for **`validate_rui`** / **`save_rui`** tool results. On save, fetch spec from `GET /api/specs/:id` with session header.
 
-**Does not include:** Manual JSON editor, external agent chat, renderer, chat file attachments (text paste for UC1)
+**Explicitly not in v0.2 UI:**
+
+- ChatGPT-style **past session sidebar** / server-persisted chat history
+- Manual JSON editor without agent
+- External agent chat in UI (Path B = terminal)
+- **Live Preview / renderer** (tab placeholder only — v0.3)
+- **Desktop-only min-width gate** (responsive stack shipped instead)
+- **File drag-drop attachments** (text paste only)
 
 **Depends on:** Area 4 (agent), Area 2 (operations schema + **inspector data model**)
+
+**Implementation detail:** [Phase 5](./rapidui-v0.2-implementation.md) — full UX spec, 27 tasks, pre-flight, sign-off criteria.
 
 ---
 
@@ -1605,11 +1631,13 @@ First-class API consumers — visible in **Observe API dashboard** when headers 
 | MCP server | Out of scope |
 | API keys / multi-tenancy | Not needed for portfolio — **v0.3:** WorkOS AuthKit / OAuth OBO for agents |
 | LLM judge for semantic eval | Deterministic checklist + human spot-check sufficient |
-| Chat file attachments | Text paste in chat sufficient for UC1; drag-drop upload deferred |
+| Chat file attachments (drag-drop) | **Text paste** of JSON/CSV in composer is in scope (§3 #42, UC1); drag-drop upload deferred |
 | Interactive eval playground (live model switch in UI) | Script + `/observe/evals` table enough for v0.2 |
 | Full auth system | Observe is public on same domain |
 | **Detail as modal** | v0.3 renderer — v0.2 uses full-screen detail routes |
 | **Charts** | Use `browse` + header metrics; no chart layout in v0.2 |
+| Chat history sidebar (ChatGPT-style) | v0.2 — single thread + New chat; Observe + `/specs/:id` are persistence |
+| Mobile main UI layout | v0.2 — desktop demo only (≥1280px) |
 | **v0.1 RUI version** | `"0.2"` only — no dual validation; Page/Block model retired |
 
 ---
@@ -1620,7 +1648,7 @@ v0.1 eval infrastructure stays; v0.2 adds **operation-aware** scoring, **multi-t
 
 ### Philosophy (locked)
 
-Main-page chat is multi-turn HITL: user describes intent → agent clarifies and plans → user guides → agent validates, fixes, saves → inspector preview. Evals must reflect that **without a real human in every matrix cell**.
+Main-page chat is multi-turn HITL: user describes intent → agent clarifies and plans → user guides → agent validates, fixes, saves → **Draft** then **Saved** spec in right panel (Spec + JSON tabs). Evals must reflect that **without a real human in every matrix cell**.
 
 **Success = saved RUI that passes the checklist + acceptable process cost.** Not eloquent chat alone.
 
@@ -1823,7 +1851,7 @@ Extend v0.1 columns for eval lab joins:
 | S3 | **API telemetry** — `api_events` on validate/save + discovery (3B); **required session id** on guarded routes; documented in llms.txt + `/api/docs` |
 | S4 | **Observe** — `/observe/api` + `/observe/agent` dashboards working (`/observe/evals` = stretch O5) |
 | S5 | **RapidUI Agent** — `agent.rapidui.dev` chat → validate → save; default **o4-mini** + optional Logfire |
-| S6 | **Main UI** — **assistant-ui** chat (reasoning + tools visible) + **operations inspector** split; **use case starter chips** for UC1–3 |
+| S6 | **Main UI** — **assistant-ui** chat (subtle visible reasoning + tools) + **tabbed output** (Spec inspector + JSON; Preview placeholder); **session bar** + **starter chips** for UC1–3; draft panel on validate |
 | S7 | **Use cases 1–3** demonstrable end-to-end (agent → spec → Observe) |
 | S8 | **Path B** — external agent run with **session id** visible in `/observe/api` (full funnel after 3B) |
 | S9 | **Monorepo** — `agent/` deployed on Render; README demo script |
@@ -1852,6 +1880,7 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 | UC4 seed `specId` for demo | 2 / 4 | Pre-save seed to Neon vs load from file only |
 | `/observe` overview hub | 3 | ✅ Resolved — `/observe` hub + `/observe/api` + session drill-down (Phase 3 plan) |
 | Session drill-down UX depth | 3 | ✅ Resolved — `/observe/api/sessions/[sessionId]` timeline (Phase 3 plan) |
+| Main UI UX (Area 5) | 5 | ✅ Resolved — Phase 5 implementation doc (UX spec, tabs, session bar, draft panel) |
 | Discovery GET telemetry (`llms.txt`, docs, schema) | 3B | ✅ Resolved — `recordDiscoveryEvent()` + funnel (Phase 3 Stage 3B) |
 | Session identity enforcement | 3B | ✅ Resolved — required `X-RapidUI-Session-Id` except `GET /llms.txt` (§3 #37–38) |
 | WorkOS / OAuth agent auth | v0.3+ | Replaces UUID mock identity slot |
@@ -1869,7 +1898,7 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 **Depth threads:**
 
 1. **Product engineering:** Operations-first specs beat component trees; validate → correct → save loop
-2. **Frontend:** Main demo UI (**assistant-ui** chat with visible reasoning + tools), operations inspector, Observe dashboards
+2. **Frontend:** Main demo UI (**assistant-ui** chat, session bar, tabbed output, subtle reasoning + tools), operations inspector, Observe dashboards
 3. **Backend:** Next.js API, Postgres schema, telemetry middleware, ingest pattern
 4. **Python / agents:** Pydantic AI + default **o4-mini** (eval-lab validated), same discovery path as external agents; operations planning workflow
 5. **Data:** Neon + unified ingest; Logfire for traces, Observe for pass rates and retry analytics
@@ -1896,8 +1925,11 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 | `eval_runs` + `scripts/log-eval-run.ts` | Extend with operation-aware scoring + eval lab columns (§14) |
 | `scripts/eval-matrix.ts` | *(new)* Model × prompt × case matrix runner |
 | `docs/model-selection-v0.2.md` | *(new)* Matrix results + chosen default model + prompt |
-| `app/page.tsx` | Replace with assistant-ui chat + inspector split |
+| `app/page.tsx` | Portfolio landing; builder at `app/chat/page.tsx` |
 | `lib/review/RuiInspector.tsx` | **Rewrite** for operations + transitions view |
+| `components/demo/*` | Main UI — chat, session bar, output tabs |
+| `components/site/*` | Shared shell — SiteHeader, SiteShell, GitHub link |
+| `lib/demo/*` | Session, agent URL, draft spec helper, panel listener |
 | `@vercel/postgres` | Replace with **fresh Neon** — no data migration |
 | *(new)* `agent/` | FastAPI + Pydantic AI; `prompts/` versions; operations workflow system prompt |
 
@@ -1905,11 +1937,11 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 
 ## 19. Next Steps
 
-1. **Reference doc complete** — operations-first schema (§7) + eval philosophy & lab (§14) locked
-2. **Implementation scaffold** — [rapidui-v0.2-implementation.md](./rapidui-v0.2-implementation.md) (expand phases in order)
-3. **Draft eval cases** with `requiredOperations`, `conversationScript` (guided), and variants (§7, §14)
-4. **Start:** Phase 0 → 1 → 2 → (4 + 5 in parallel with 3) → 6 → 7
+1. **Reference doc complete** — operations-first schema (§7) + eval philosophy & lab (§14) + Main UI UX (§3 #39–42, Area 5) locked
+2. **Phase 5** — Main UI + operations inspector implemented; manual S7 + prod smoke → sign-off
+3. **Phase 6** — Observe agent dashboard
+4. **Then:** Phase 7 (polish + eval lab)
 
 ---
 
-*Last updated: 2026-07-18 — eval lab + philosophy (§14); operations-first schema; entity umbrella; guided multi-turn evals with `conversationScript`.*
+*Last updated: 2026-07-22 — Phase 5 Main UI shipped (`/` landing, `/chat` builder, SiteShell nav). Prior: 2026-07-21 — Main UI UX locked; 2026-07-18 — eval lab + operations-first schema.*

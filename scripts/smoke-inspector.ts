@@ -26,13 +26,18 @@ const goldenSpec: SavedSpec = {
   normalizedRui: uc2Golden as Rui,
 };
 
-const html = renderToStaticMarkup(createElement(RuiInspector, { spec: goldenSpec }));
+const html = renderToStaticMarkup(
+  createElement(RuiInspector, { spec: goldenSpec, variant: "page", badge: "saved" }),
+);
 
-assert(html.includes("Operations-first RUI"), "HTML should include v0.2 placeholder notice");
-assert(html.includes("Raw JSON"), "HTML should include collapsible raw JSON");
-assert(html.includes("op-browse-users"), "HTML should list operation ids from golden spec");
 assert(html.includes("User Admin"), "HTML should include app title");
+assert(html.includes("op-browse-users"), "HTML should list operation ids from golden spec");
+assert(html.includes("Transitions"), "HTML should include transitions section");
+assert(html.includes("Embedded actions"), "HTML should show embedded delete on read");
+assert(html.includes("GET /api/users"), "HTML should show API data chips");
+assert(html.includes("Raw JSON"), "HTML should include collapsible raw JSON");
+assert(!html.includes("Phase 5"), "HTML should not include placeholder copy");
 
 console.log("Inspector smoke test passed:");
-console.log("- RuiInspector renders v0.2 SavedSpec with operations placeholder");
-console.log("- raw JSON section present");
+console.log("- RuiInspector renders full operations-first view for UC2 golden");
+console.log("- entities, operations, transitions, embedded actions, and data chips present");
