@@ -35,13 +35,17 @@ Phase 0  Infra
    │      │
    │      └─► Phase 3  Observe API dashboard
    │             └─► Phase 6  Observe Agent dashboard (needs Phase 4)
+   │                    Phase 6 P0 telemetry correctness — gate before 6 UI
    │
-   └─► Phase 7  Polish + eval lab (after 1–6)
+   └─► Phase 7  Polish + eval harness (after 1–6)
+          7.0 portfolio polish (required ship)
+          7A.0–7A.4 eval harness (grader → runner → persistence → UI)
+          7B model/prompt comparison (stretch O5)
 ```
 
-**Recommended sequence:** `0 → 1 → 2 → 4 → 5` in parallel with `3`; then `6 → 7`.
+**Recommended sequence:** `0 → 1 → 2 → 4 → 5` in parallel with `3`; then **6 P0 → 6**; then **7.0** in parallel with **7A.0 → 7A.1 → …**; **7B** last.
 
-Eval lab (Phase 7) must **not** block Phases 4–6. Ship with default `o4-mini`; matrix confirms or changes default (stretch O5).
+Eval automation (Phase 7A) must **not** block Phases 4–6 or portfolio ship (7.0). Model matrix (7B / stretch O5) must **not** run until grader + runner are trusted. Ship with default `o4-mini` + `v1`; matrix confirms or changes default before portfolio freeze.
 
 ---
 
@@ -58,7 +62,7 @@ Eval lab (Phase 7) must **not** block Phases 4–6. Ship with default `o4-mini`;
 | S7 Use cases 1–3 E2E | 4, 5 |
 | S8 Path B external agent in Observe | 1, 3 |
 | S9 Monorepo + Render agent | 0, 4 |
-| O5 Eval lab | 7 |
+| O5 Eval lab | 7B (after 7A harness) |
 
 Full definitions: reference **§15**.
 
@@ -74,10 +78,10 @@ Full definitions: reference **§15**.
 | **3** | Observe hub + API dashboard | §5, §9 Area 3 |
 | **4** | RapidUI Agent (FastAPI) | §4, §8, §9 Area 4, §11 |
 | **5** | Main UI (chat + inspector) | §5, §6, §9 Area 5 |
-| **6** | Observe Agent dashboard | §9 Area 6 |
-| **7** | Polish + eval lab | §9 Area 7, §14, §15 O* |
+| **6** | Observe Agent dashboard — **observability** (+ **6 P0** telemetry) | §9 Area 6 |
+| **7** | Polish + **eval harness** (**7.0**, **7A**, **7B**) | §9 Area 7, §14, §15 O* |
 
-**Cross-cutting (Phases 4–7):** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy)
+**Cross-cutting (Phases 4–7):** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) · [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog)
 
 ---
 
@@ -2177,7 +2181,7 @@ async def post_ingest(base_url: str, payload: dict) -> None:
 
 **When the turn ends without save** but tools recorded errors (`last_error_summary` set):
 
-- POST `run: { error_summary, validate_attempts, … }` — **does not** set `outcome: 'failed'` in v0.2 (partial run updates only). Observe can infer failure from `error_summary` + missing `spec_id`. Explicit `outcome: 'failed'` is optional hardening for Phase 6 / v0.3.
+- POST `run: { error_summary, validate_attempts, … }` — **does not** set `outcome: 'failed'` today (partial run updates only). **Phase 6 P0** adds explicit terminal outcomes (`saved` | `failed` | `abandoned`) — required before Agent Observe dashboards ship.
 
 Reference: **`lib/observe/INGEST.md`** — must match `agentIngestPayloadSchema` exactly.
 
@@ -2187,7 +2191,7 @@ Reference: **`lib/observe/INGEST.md`** — must match `agentIngestPayloadSchema`
 
 | Gap | Decision |
 |-----|----------|
-| **`outcome: 'failed'` not emitted** | v0.2 sends `error_summary` on error turns; `outcome: 'saved'` only on save. Sufficient for ingest upsert + Phase 6 dashboards; add explicit `failed` later if Observe filters require it. |
+| **`outcome: 'failed'` not emitted** | Phase 4 sends `error_summary` on error turns; `outcome: 'saved'` only on save. **Fix in Phase 6 P0** — explicit `failed` / `abandoned` required for outcome charts and eval failure classification. |
 | **Browse filter shape** | Filters **exist** in schema as `presentation.filter` (singular). Agent failures were wrong property names (`filters`, `filterBar`), not missing vocabulary. **`prompts/v1.txt`** documents the correct shape — no Zod change in Phase 4. |
 | **Agent identity header** | **`X-RapidUI-Agent`** on `POST /chat` is forwarded to platform API calls. Convention: `rapidui-agent-cli` (terminal CLI), `rapidui-agent-chat` (Phase 5 UI), `rapidui-agent-eval` (eval matrix), `rapidui-agent` (default / curl). |
 | **Terminal chat UX** | **`agent/scripts/chat_cli.py`** — multi-turn REPL over `/chat` (readable text + tool lines). Phase 5 replaces with assistant-ui. |
@@ -2857,7 +2861,9 @@ Phase 5 is **complete** when all of the following are true:
 4. **`npm run build`** + **`npm run smoke:inspector`** pass. ✅ (2026-07-22)
 5. **Prod smoke** (when deployed) — `rapidui.dev/chat` → Render agent → save → `/specs/:id` + Observe session link after first API call. ✅ (UC3: `bfb1f049-00e5-482b-bfeb-0faf55ccb145`)
 
-**Phase 6** — next: Observe agent dashboard (`/observe/agent`).
+**Phase 6** — next: **Phase 6 P0** telemetry correctness, then Observe agent dashboard (`/observe/agent`).
+
+**Strategy source:** Four-model eval strategy review synthesis (2026-07-25) — Opus repository audit + GPT grader/runner semantics + Composer packaging + Grok scope guardrails; incorporated into Phase 6/7 and Appendix D below.
 
 ---
 
@@ -2865,139 +2871,846 @@ Phase 5 is **complete** when all of the following are true:
 
 **Reference:** §9 Area 6
 
+**Strategy source:** synthesis doc § “Phase 6 P0” + “Phase 6 — Agent observability”
+
 ### Goal
 
-Analytics for **RapidUI Agent** runs — complement Phase 3 API view.
+Analytics for **RapidUI Agent** runs — complement Phase 3 API view. Make an **individual agent session** understandable: outcomes, turns, tokens, validate timeline, links to saved spec and API Observe.
+
+**Not in scope:** graders, pass-rate matrices, baseline comparison, experiment configuration — those are Phase 7A/7B.
+
+### In simple terms
+
+**Phase 6 is observability, not evaluation.** It answers: *“What happened in this Agent chat session?”*
+
+Complement the existing **API Observe** view (`/observe/api`) with an **Agent Observe** view (`/observe/agent`). Product analytics for debugging and demos — not pass/fail scoring.
+
+| Phase 6 P0 (gate) | Phase 6 UI |
+|-----------------|------------|
+| Fix telemetry so metrics are honest | Build the dashboard on top of fixed data |
+| Terminal outcomes: saved / failed / abandoned | Runs over time, outcome breakdown, latency, tokens |
+| Validate counts from **`api_events`** (durable) | Session list + filters (model, prompt, use case) |
+| Label **platform API calls** — not “LLM tool calls” | Session detail: turns, validate/save timeline, cross-links |
+
+**One line:** *See what the Agent did — dashboard + honest telemetry.*
+
+**Phase 6 vs Phase 7:** Phase 6 **measures and displays** sessions. Phase 7 **scores** whether the agent produced the right spec and (optionally) compares models. Eval trial UI links *into* Phase 6 drill-downs — it does not duplicate them.
 
 ### Depends on
 
-Phase 4 (`agent_runs` data), Phase 3 (cross-links).
+Phase 4 (`agent_runs` / `agent_turns` ingest), Phase 3 (cross-links, shared `session_id` join to `api_events`), Phase 5 (real chat sessions for demo data).
 
 ### Unlocks
 
-Full Observe story for interviews; context for Phase 7 eval lab drill-down.
+Full Observe story for interviews (**S4** with Phase 3); drill-down context for Phase 7A eval trials (join by `session_id`).
 
-### Scope
-
-- Route: **`/observe/agent`**
-- MVP metrics:
-  - Runs over time; success vs failed saves
-  - p50 / p95 latency
-  - Validate attempts per successful save
-  - Tokens per run
-  - Tool calls per run
-  - Breakdown by use case / intent / model / prompt_version
-  - Drill-down: join `api_events` by `session_id`
-- Link to `/observe/api` and placeholder `/observe/evals`
-
-### Key paths
+### Build order within Phase 6
 
 ```txt
-app/observe/agent/
-lib/observe/queries.ts
+Phase 6 P0  Telemetry correctness     ← gate; do not ship dashboard until done
+Phase 6     Agent Observe UI + queries
 ```
 
-### Out of scope
+### Implementation readiness (review 2026-07-25)
 
-- Eval lab comparison table (Phase 7)
+**Verdict:** **Ready to start Phase 6 P0.** Phases 1–5 dependencies are satisfied. Phase 6 UI is **blocked** until P0 checklist is complete.
 
-### Checklist
+| Prerequisite | Status |
+|--------------|--------|
+| `agent_runs` / `agent_turns` migrations + ingest route | ✅ |
+| Phase 3 API Observe patterns (`StatCard`, session detail, queries) | ✅ |
+| Phase 5 chat producing real `agent_runs` rows on save | ✅ |
+| Terminal outcomes from Agent | ❌ — **P0 blocker** |
+| `api_events` metric query helpers | ❌ — **P0 blocker** |
+| Agent dashboard UI | ❌ — placeholder only |
 
-- [ ] Dashboard populated from real agent sessions (Phase 4)
-- [ ] Session drill-down shows validate timeline
-- [ ] Token + latency numbers match ingest data
-- [ ] Links to API Observe view work
-- [ ] Satisfies **S4** (with Phase 3)
+**Doc ↔ code alignment:** Repo audit table above matches the repository. No doc contradictions found for Phase 6 scope.
+
+**Start here:** `agent/telemetry.py` (terminal outcomes) → `lib/observe/queries.ts` (metric helpers) → `smoke:observe-agent` → UI.
 
 ---
 
-# Phase 7 — Polish + eval lab
+## Phase 6 P0 — Telemetry correctness
 
-**Reference:** §9 Area 7, §14 (full eval harness), §15 (O*), §17
+**Gate:** Complete before building Agent dashboard summary cards or outcome breakdowns.
 
-**Improvement playbook:** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) (three trace layers + what to strengthen in order)
+### Repo audit (2026-07-25)
 
-### Goal
+| Item | Status | Notes |
+|------|--------|-------|
+| Ingest schema accepts `saved` / `failed` / `abandoned` | ✅ | `lib/observe/schemas.ts` |
+| Agent emits terminal `outcome` | ❌ | `agent/telemetry.py` — only `saved`; errors get `error_summary` only |
+| Run-level tokens/latency finalized on save only | ❌ | Non-save sessions lack complete run totals |
+| Process counters in process-local dict | ⚠️ | `agent/deps.py` `_session_states` — restart can reset `turn_index`, under-report validate/tokens |
+| Durable validate attempts | ✅ source | `api_events` WHERE `endpoint = '/api/validate'` per `session_id` |
+| Platform API call proxy | ✅ source | All four agent tools hit RapidUI HTTP → rows in `api_events` |
+| Exact LLM tool-call counts | ❌ | Not stored on `agent_turns`; use `api_events` count, label honestly |
+| HTTP status on `api_events` | ❌ | Accepted by telemetry code but not persisted — optional P0 tail |
+| Reasoning-token accounting (o4-mini) | ⚠️ unverified | Audit before any cost estimate in 7B |
 
-Interview-ready repo, manual evals, and **evidence-based model selection** (stretch O5).
+### Resolved decisions
 
-### Depends on
+| Question | Decision |
+|----------|----------|
+| **Validate attempts — source of truth** | **`api_events`** count per `session_id`. Agent `validate_attempts` is **advisory** in UI copy. |
+| **“Tool calls per run” metric** | Rename to **platform API calls per session** — count from `api_events` (discovery + validate + save). Do **not** label as “LLM tool calls”. |
+| **Terminal outcomes** | Emit **`saved`**, **`failed`**, **`abandoned`** from Agent; **`in_progress`** inferred when no terminal outcome and session recent. |
+| **Agent instance policy (v0.2)** | Pin **one Agent instance** for prod/demo; document restart collision on `(run_id, turn_index)` upsert. Derive durable counters from `api_events` where possible. |
+| **Phase 4 deferral reversed** | Explicit `outcome: 'failed'` is **required** for Phase 6 — not optional hardening. |
 
-Phases 1–6 substantially complete.
+### Task list (6 P0)
 
-### Unlocks
+#### A — Agent terminal lifecycle
 
-Portfolio freeze; optional default model change via data.
+1. **`agent/telemetry.py`** — on unrecoverable agent/tool error with no save → `outcome: 'failed'`, set `finished_at`, finalize `validate_attempts` + token totals where available.
+2. **`agent/telemetry.py`** / chat handler — on session end without save (client disconnect, max turns, explicit abort) → `outcome: 'abandoned'`.
+3. **`agent/telemetry.py`** — on `saved`: keep current behavior; ensure `finished_at`, `total_tokens`, `latency_ms` set.
+4. **`agent/README.md`** + **`lib/observe/INGEST.md`** — document outcome enum and when each fires.
+
+#### B — Metric authority
+
+5. **`lib/observe/queries.ts`** — helper `countValidateAttempts(sessionId)` from `api_events`.
+6. **`lib/observe/queries.ts`** — helper `countPlatformApiCalls(sessionId)` from `api_events`.
+7. Document in query comments: agent-reported fields are secondary.
+
+#### C — Instance + collision policy
+
+8. **`agent/deps.py`** — document `_session_states` limitation; optional: log warning on turn_index reuse after process restart.
+9. Deploy docs — single uvicorn worker / one Render instance for v0.2 demo.
+
+#### D — Audits (before dashboard)
+
+10. **Token audit** — one logged o4-mini session: confirm reasoning tokens included in reported usage before 7B cost claims.
+11. **Optional:** migration `006_api_events_http_status.sql` + wire status in `lib/observe/telemetry.ts` if transport-failure classification needed. (`httpStatus` is accepted in `recordApiEvent` today but not persisted.)
+
+### Files to create / modify (6 P0)
+
+```txt
+agent/telemetry.py
+agent/main.py                    # if abandon detection lives in handler
+agent/README.md
+lib/observe/INGEST.md
+lib/observe/queries.ts           # metric helpers
+lib/db/migrations/006_*.sql      # optional http_status
+lib/observe/telemetry.ts         # optional http_status
+scripts/smoke-observe-agent.ts   # new — terminal outcome + api_events parity
+```
+
+### Test plan (6 P0)
+
+| Test | Action | Pass criteria |
+|------|--------|---------------|
+| Saved run | UC1 chip → save via `/chat` | `agent_runs.outcome = 'saved'`, `spec_id` set, tokens/latency populated |
+| Failed run | Force validate loop without save (invalid spec path) | `outcome = 'failed'` OR `abandoned`; not stuck `in_progress` forever |
+| Validate count | Compare agent field vs SQL | `api_events` validate count ≥ agent advisory count; dashboard uses SQL count |
+| Platform calls | One full UC2 session | `api_events` rows for docs/schema/validate/save; count matches drill-down |
+| Restart doc | Read agent README | Single-instance policy documented |
+
+### Checklist (6 P0)
+
+- [ ] Agent emits `outcome: 'saved' | 'failed' | 'abandoned'` reliably
+- [ ] Terminal runs set `finished_at` and best-effort token/latency totals
+- [ ] `api_events` is authoritative for validate attempts in queries
+- [ ] Platform API calls metric defined from `api_events` (not “LLM tool calls”)
+- [ ] Single-instance / restart limitation documented
+- [ ] Reasoning-token audit completed for default model (o4-mini)
+- [ ] `smoke:observe-agent` (or equivalent) passes locally
+
+---
+
+## Phase 6 — Agent observability UI
+
+**Prerequisite:** Phase 6 P0 checklist complete.
+
+### Repo audit (2026-07-25)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `/observe/agent` page | ❌ placeholder | `app/observe/agent/page.tsx` |
+| Agent run detail route | ❌ missing | Pattern: `/observe/api/sessions/[sessionId]` |
+| `agent_runs` queries | ❌ missing | `lib/observe/queries.ts` is API-centric only |
+| Hub Agent card | ⚠️ static | “Phase 6” placeholder copy |
+| API session → agent link | ⚠️ partial | Footer placeholder from Phase 3 |
 
 ### Scope
 
-**Polish**
+#### Routes
 
-- README v0.2 — architecture, demo Paths A/B, env setup
-- Manual eval runs: agent + external on UC1–3 cases with headers
-- At least one use-case variant per UC (§7) logged to `eval_runs`
-- Smoke tests: validate, telemetry, Observe, agent health
-- Architecture diagram
-- `npm run eval:prompt` aligned to v0.2 case ids
+- **`/observe/agent`** — summary dashboard + run list + filters
+- **`/observe/agent/sessions/[sessionId]`** — run detail: turns, tokens, validate/save flags, error summary, cross-links
 
-**Eval lab (stretch O5 — do not block ship)**
+#### MVP metrics (honest sources)
 
-- Extend `eval_runs` columns (reference §14)
-- `agent/prompts/v2.txt`, `v3.txt` for matrix
-- **`scripts/eval-matrix.ts`** — model × prompt × case; **guided** mode with `conversationScript`
-- **`/observe/evals`** — pass rate, cost, latency comparison table
-- **`docs/model-selection-v0.2.md`** — results + chosen default + spot-check notes
+| Metric | Source | Null / incomplete behavior |
+|--------|--------|----------------------------|
+| Runs over time | `agent_runs.started_at` | — |
+| Outcomes: saved / failed / abandoned / in-progress | `agent_runs.outcome` + inference | In-progress when no terminal outcome |
+| p50 / p95 latency | `agent_runs.latency_ms` WHERE `outcome = 'saved'` | Show “—” if &lt; N samples |
+| Validate attempts (primary) | `api_events` `/api/validate` count | Per session and avg per saved run |
+| Tokens per run | `agent_runs.total_tokens` | Only when terminal + populated |
+| Platform API calls per session | `api_events` count | Label clearly — not LLM tool calls |
+| Breakdowns | `eval_case_id`, `intent`, `model`, `prompt_version` | From `agent_runs` |
 
-### Eval matrix (when pursuing O5)
+#### Drill-down (session detail)
+
+- `agent_runs` row + ordered `agent_turns` (`turn_index`, latency, tokens, `had_validate_call`, `had_save`)
+- Joined **`api_events`** timeline (validate errors, save, discovery)
+- Links: **`/observe/api/sessions/[sessionId]`**, **`/specs/[id]`** when saved
+- Footer link from API session page → agent run (replace Phase 3 placeholder)
+
+#### Cross-links
+
+- `/observe/agent` ↔ `/observe/api` (filter by `session_id`)
+- Link to `/observe/evals` placeholder (Phase 7A.4 replaces)
+
+### UI pattern
+
+Reuse Phase 3 API Observe patterns: `StatCard`, `SessionOutcomeBadge`, filter form, session table — see `app/observe/api/page.tsx`.
+
+Extend **`SessionOutcome`** in `lib/observe/queries.ts` to include **`abandoned`** (align with ingest schema).
+
+### Task list (6 UI)
+
+#### A — Query layer
+
+1. **`getAgentObserveSummary(filters)`** — run volume, outcome breakdown, p50/p95 latency, avg tokens, avg validate attempts (from `api_events`), platform API calls.
+2. **`listAgentRuns(filters)`** — paginated table rows with derived validate count + platform call count.
+3. **`getAgentRunDetail(sessionId)`** — run + turns + api_events timeline.
+4. **`listDistinctModels()`**, **`listDistinctPromptVersions()`** — filter dropdowns (or derive from distinct agent_runs columns).
+5. **`resolveAgentRunOutcome(run, apiEvents)`** — prefer `agent_runs.outcome`; fallback inference only when null.
+
+#### B — Pages + components
+
+6. Replace **`app/observe/agent/page.tsx`** — live dashboard (remove placeholder).
+7. Create **`app/observe/agent/sessions/[sessionId]/page.tsx`** — detail view.
+8. Update **`app/observe/page.tsx`** hub — Agent card live stats from `getAgentObserveSummary`.
+9. Update **`app/observe/api/sessions/[sessionId]/page.tsx`** — “View agent run →” link when `agent_runs` row exists.
+
+#### C — Smoke + docs
+
+10. **`scripts/smoke-observe-agent.ts`** + **`npm run smoke:observe-agent`** — summary query returns data after one chat session.
+11. Update Phase 3 smoke if cross-links asserted.
+
+### Files to create / modify (6 UI)
 
 ```txt
-eval_cases (UC1–3) × models (3–4) × prompt_versions (2–3) × eval_mode
+lib/observe/queries.ts
+components/observe/SessionOutcomeBadge.tsx   # add abandoned if needed
+app/observe/agent/page.tsx
+app/observe/agent/sessions/[sessionId]/page.tsx
+app/observe/page.tsx
+app/observe/api/sessions/[sessionId]/page.tsx
+scripts/smoke-observe-agent.ts
+package.json                                 # smoke:observe-agent
+```
+
+### Out of scope (Phase 6)
+
+- Eval lab comparison table, pass rates, baselines (Phase 7A.4 / 7B)
+- Graders or eval trial persistence
+- Duplicating full eval transcript UI
+- Cost estimation / model-selection claims
+
+### Test plan (6 UI)
+
+| Test | Action | Pass criteria |
+|------|--------|---------------|
+| Dashboard | Open `/observe/agent` after demo chat | Non-zero runs; outcome breakdown renders |
+| Filters | Filter by eval case from starter chip | Table narrows correctly |
+| Detail | Open session from UC2 save | Turns listed; validate events in timeline |
+| Cross-link | From API session page | Agent run link opens matching session |
+| Parity | Compare token total vs sum of turn tokens | Document any mismatch (advisory) |
+| S4 | Hub + API + Agent routes | All three live with real data |
+
+### Checklist (Phase 6 — full)
+
+**6 P0**
+
+- [ ] All Phase 6 P0 checklist items (above)
+
+**6 UI**
+
+- [ ] `/observe/agent` populated from real agent sessions
+- [ ] Session drill-down shows turn list + validate/save timeline from `api_events`
+- [ ] Token + latency numbers match ingest data (or mismatches documented)
+- [ ] Platform API calls labeled correctly (not “LLM tool calls”)
+- [ ] Links to `/observe/api/sessions/:id` and `/specs/:id` work
+- [ ] Hub Agent card shows live metrics
+- [ ] Satisfies **S4** (with Phase 3)
+
+### Handoff to Phase 7
+
+| Item | Phase 6 deliverable |
+|------|---------------------|
+| Session join key | `session_id` links agent runs, api events, future eval trials |
+| Outcome enum | `saved` / `failed` / `abandoned` / in-progress for 7A failure classification |
+| Validate authority | Query helpers reused by eval runner for process metrics |
+| Observe drill-down | Eval trial detail links here — do not duplicate timelines in eval UI |
+
+**Post-ship review:** [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog)
+
+---
+
+# Phase 7 — Polish + eval harness
+
+**Reference:** §9 Area 7, §14 (full eval harness), §15 (O*), §17
+
+**Improvement playbook:** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy)
+
+**Strategy source:** Four-model eval strategy review synthesis (2026-07-25) — incorporated into sections below and Appendix D.
+
+### Goal
+
+Interview-ready repo (**7.0**), credible automated regression harness (**7A**), optional evidence-based model selection (**7B** / stretch O5).
+
+**Principle:** Grader and runner must be trusted **before** pass-rate matrices or model-selection claims. A shallow grader + live LLM matrix produces misleading confidence.
+
+### In simple terms
+
+**Phase 7 is where evals live** — plus portfolio polish to ship the repo. Phase 6 tells you *what happened*; Phase 7 asks *was the result correct, and was the path reasonable?*
+
+Three tracks — only **7.0** is required to ship the portfolio:
+
+| Track | What | Blocks ship? |
+|-------|------|--------------|
+| **7.0 Portfolio polish** | README, architecture diagram, Paths A/B, manual `eval:log`, smoke tests, S1–S9 | **Yes** — required |
+| **7A Eval harness** | Grader → runner → trial store → minimal eval UI | No — strongly recommended for credible regression |
+| **7B Model comparison** | Small matrix, `model-selection-v0.2.md` | No — stretch O5 |
+
+**7A in order:**
+
+1. **7A.0 Grader** — fix scoring so bad specs cannot pass (e.g. UC1 needs two browse screens)
+2. **7A.1 Runner** — `eval:run`: scripted user drives multi-turn chat, score saved spec
+3. **7A.2 Persistence** — append-only `eval_trials` snapshots (config + results)
+4. **7A.3 Variants** — harder cases (vague request, contradiction) that discriminate models
+5. **7A.4 UI** — minimal `/observe/evals` — trial table + detail, links to Observe (no timeline duplication)
+
+**One line:** *Trust the regression harness first; compare models with evidence later.*
+
+### Evals strategy
+
+**Interview line:** *“We separated outcome, process, and conversation. Outcome and process are automated; conversation is sampled. In production the human guides the agent — in evals, a script plays them so we compare models fairly.”*
+
+#### Three layers
+
+| Layer | Question | Automate? | Where |
+|-------|----------|-----------|-------|
+| **1. Outcome** | Is the **final saved RUI** correct? | ✅ Primary gate | Grader on saved spec (`lib/eval/scoreRun.ts` → `eval_trials`) |
+| **2. Process** | Was the path **efficient**? | ✅ Tie-breaker | `api_events`, `agent_runs`, process caps in case JSON |
+| **3. Conversation** | Was the **dialogue** helpful? | ❌ Sampled | Human rubric; notes in `docs/model-selection-v0.2.md` |
+
+**Principle:** Score the **artifact**, not the transcript. No save = fail.
+
+#### Core rules (locked)
+
+1. **Grader → runner → matrix.** Do not run model comparison on a shallow grader.
+2. **Scripted user for fairness.** `conversationScript` simulates the human in guided evals (`after_agent_reply` trigger).
+3. **Start small.** Canonical UC1–UC3 first; behavioral variants after runner works; **exclude UC4** until `load_spec`.
+4. **Separate artifact from process.** Correct spec + too many retries = artifact pass, process warning — not a silent overall fail.
+5. **Do not count infra errors as model failures.** Use `status`, `failure_owner`, `failure_stage` on trial records.
+6. **CI:** blocking = grader/schema/runner tests (add GitHub workflow with 7A.0); **non-blocking** = live LLM trials on PRs.
+7. **Model selection is evidence-based.** Pass rate on three canonical cases may saturate; use failure types, retries, tokens, latency, and **trace review**; behavioral variants discriminate.
+
+#### Build sequence (eval work only)
+
+```txt
+7A.0  Harden grader + mutation tests
+7A.1  npm run eval:run (UC1–UC3, guided mode)
+7A.2  eval_trials persistence + baseline rules
+7A.3  Clarification + contradiction variants
+7A.4  /observe/evals minimal UI
+7B    eval:matrix — current vs one alternative model/prompt, 3 trials per cell
+```
+
+#### What we are not building (v0.2)
+
+- Large model × prompt × case matrix before harness is trusted
+- LLM-as-judge
+- Blocking live-LLM PR gate
+- Eval UI that duplicates Observe session timelines
+- UC4 in automated suite without `load_spec`
+
+See also: [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy).
+
+### Depends on
+
+Phases 1–6 substantially complete (especially 6 P0 outcomes + `api_events` metric authority).
+
+### Unlocks
+
+Portfolio freeze; optional default model/prompt change via data.
+
+### Build order within Phase 7
+
+```txt
+Phase 7.0   Portfolio polish (required ship)     ← parallel with 7A.0
+Phase 7A.0  Grader hardening                     ← gate before live automation
+Phase 7A.1  Core guided runner (UC1–UC3)
+Phase 7A.2  Trial persistence migration
+Phase 7A.3  Behavioral variants
+Phase 7A.4  Minimal eval UI
+Phase 7B    Optional model/prompt comparison     ← stretch O5; after 7A trusted
+```
+
+```mermaid
+flowchart LR
+  P70[7.0 Polish]
+  P7A0[7A.0 Grader]
+  P7A1[7A.1 Runner]
+  P7A2[7A.2 Persistence]
+  P7A3[7A.3 Variants]
+  P7A4[7A.4 Eval UI]
+  P7B[7B Matrix]
+  P7A0 --> P7A1 --> P7A2
+  P7A2 --> P7A3
+  P7A2 --> P7A4
+  P7A3 --> P7B
+  P7A4 --> P7B
+  P70
+```
+
+### Implementation readiness (review 2026-07-25)
+
+**Verdict:** **Ready to start 7.0 and 7A.0 in parallel** after Phase 6 P0 (for process metrics authority). **Not ready** for 7A.1 live automation until 7A.0 grader hardening ships.
+
+| Track | Readiness | Notes |
+|-------|-----------|-------|
+| **7.0 Portfolio polish** | **Can start now** | README partial v0.2; no architecture diagram; v0.2 cases only (v0.1 appears retired) |
+| **7A.0 Grader** | **Can start now** | Shallow grader + positive-only `smoke:eval` — mutation tests are first deliverable |
+| **7A.1 Runner** | **Blocked on 7A.0** | Also reuse Phase 6 P0 `api_events` metric helpers in `processMetrics.ts` |
+| **7A.2 Persistence** | **Blocked on 7A.1** | Legacy `eval_runs` exists; `eval_trials` migration **007** (reserve **006** for optional http_status) |
+| **7A.3–7A.4 / 7B** | **Not started** | As planned |
+
+**Doc ↔ code alignment:** Eval strategy and build order match the repo. Goldens already encode the *intended* UC1–UC3 bar; case JSON + grader have not caught up yet.
+
+**CI note:** Evals strategy references blocking PR checks — **no `.github/workflows` yet**. Add workflow with 7A.0 grader/mutation tests; keep live LLM trials non-blocking.
+
+**Critical path:** `7A.0 grader` → `7A.1 eval:run` → `7A.2 eval_trials` → optional 7B.
+
+---
+
+## Phase 7.0 — Portfolio polish (required ship)
+
+**Tier:** Required for portfolio — does **not** block on 7A automation.
+
+### Scope
+
+- **README v0.2** — architecture, demo Paths A/B, env setup, Neon + Render
+- **Architecture diagram** — platform + agent + Observe + eval flow
+- **Manual eval runs** — RapidUI Agent (Path A) + external agents (Path B) on UC1–UC3 with session headers → `npm run eval:log`
+- **Smoke bundle** — `smoke:validate`, `smoke:observe`, `smoke:agent`, `smoke:eval`, etc.
+- **S1–S9 verification** — reference §15
+- **S8** — one external agent session visible in `/observe/api`
+- **v0.1 eval case retired**; manual wrappers updated (`eval/manual/*`)
+- **`npm run eval:prompt`** aligned to v0.2 case ids
+
+### Resolved decisions
+
+| Question | Decision |
+|----------|----------|
+| **Variants for ship** | Canonical UC1–UC3 cases required. §7 behavioral variants → **7A.3** after runner trusted; not required for first portfolio freeze. |
+| **`POST /api/eval/log`** | **Defer to stretch O3.** CLI `eval:log` + automated runner persistence (7A.2) first. |
+
+### Checklist (7.0)
+
+- [ ] README demo script: Path A + Path B reproducible
+- [ ] Architecture diagram committed
+- [ ] **S8:** one external agent session visible in `/observe/api`
+- [ ] All **S1–S9** verified (reference §15)
+- [ ] v0.1 eval case retired; wrappers updated *(verify — repo has v0.2 cases only as of 2026-07-25)*
+- [ ] Smoke scripts pass on local (+ prod when deployed)
+
+---
+
+## Phase 7A.0 — Grader hardening
+
+**Gate:** Complete before trusting live automated pass rates or building `eval:run`.
+
+### Repo audit (2026-07-25)
+
+| Item | Status | Risk |
+|------|--------|------|
+| `lib/eval/scoreRun.ts` | Presence-only | UC1: one `browse` passes; UC2: delete placement not checked; UC3: single `act` passes |
+| `mustValidate` | Inert after save | `!(mustValidate && !spec)` always true once spec exists |
+| `maxUserTurns` | Implemented | Not passed by `log-eval-run.ts` CLI |
+| Case schema | No runtime validation | No count/placement/forbidden assertions |
+| `smoke:eval` | Golden positive only | No negative/mutation fixtures |
+| Forbidden assertions | Missing | Needed for contradiction variants (7A.3) |
+
+### Resolved decisions
+
+| Question | Decision |
+|----------|----------|
+| **Hard artifact gates** | (1) Structured save produced spec id; (2) runner retrieved exact spec; (3) validator passes; (4) all deterministic assertions pass. |
+| **`mustValidate` replacement** | **Process assertion** checked by runner: explicit validate succeeded before save when case requires it — not artifact grader. |
+| **Process vs artifact** | Report **`artifactPassed`**, **`processWithinTarget`**, **`status`** separately — do not collapse into one `passed` without detail. |
+| **Terminology** | `validateAttempts` = total validate calls; `validationFailures` = failed responses; compare `maxRetries` to `max(0, validateAttempts - 1)` or document mapping in case JSON. |
+
+### Scope — assertion vocabulary (minimum)
+
+Extend **`eval/types.ts`** + **`lib/eval/scoreRun.ts`** (or new **`lib/eval/assertions.ts`**) with runtime-validated cases:
+
+| Assertion kind | Example |
+|----------------|---------|
+| Operation count / min count | UC1: `minCount: 2` for `browse` |
+| Operation type + entity | UC2: browse entity = users |
+| Data mode | UC1: `static` on browse ops |
+| Embedded action placement | UC2: `delete` on **read** host; UC3: two `act` on detail |
+| Transition relationships | source/target when needed |
+| Required fields, filters, routes, scopes, metrics | Per case |
+| Forbidden ops/actions/paths | Contradiction variants |
+| Preservation | UC4 update cases (when `load_spec` exists) |
+
+Persist **per-assertion results**: stable id, pass/fail, expected, actual, evidence path or operation id.
+
+### UC1–UC3 criteria fixes (initial)
+
+| Case | Minimum tightening |
+|------|-------------------|
+| **static-browse-v0.2** | Two browse operations; static data mode; incidents + teams entities (or equivalent evidence) |
+| **crud-admin-v0.2** | Delete on detail/read; company scope evidence; required CRUD paths |
+| **ai-review-queue-v0.2** | Two `act` embedded actions on detail; approve + reject paths |
+
+Update **`eval/cases/*.json`** `successCriteria` and ensure goldens still pass.
+
+### Task list (7A.0)
+
+1. **`eval/types.ts`** — assertion types + Zod schema for full case validation.
+2. **`lib/eval/validateCase.ts`** — runtime validate on load; reject malformed cases in CI.
+3. **`lib/eval/assertions.ts`** — evaluate assertions against normalized RUI.
+4. **`lib/eval/scoreRun.ts`** — return `artifactPassed`, assertion results array, structured `scoreDetails`.
+5. **Fix UC1–UC3 case JSON** — tightened criteria aligned with goldens.
+6. **`lib/eval/__tests__/`** or **`scripts/smoke-eval.ts`** extension:
+   - Positive: goldens pass
+   - Negative: mutation fixtures (one-browse UC1, misplaced delete, single act UC3)
+   - Malformed case rejection
+   - No-spec result
+7. Update **`log-eval-run.ts`** — pass `userTurns` when available; store expanded score shape.
+
+### Files to create / modify (7A.0)
+
+```txt
+eval/types.ts
+eval/cases/static-browse-v0.2.json
+eval/cases/crud-admin-v0.2.json
+eval/cases/ai-review-queue-v0.2.json
+lib/eval/validateCase.ts
+lib/eval/assertions.ts
+lib/eval/scoreRun.ts
+lib/eval/collectOperations.ts          # extend if entity/placement needed
+scripts/smoke-eval.ts
+scripts/log-eval-run.ts
+lib/eval/__tests__/                     # or fixtures under eval/fixtures/
+```
+
+### Test plan (7A.0)
+
+| Test | Pass criteria |
+|------|---------------|
+| `npm run smoke:eval` | UC1–UC3 goldens pass tightened criteria |
+| Mutation UC1 one-browse | **Fails** with clear assertion id |
+| Mutation UC3 single-act | **Fails** |
+| Malformed case JSON | Runner/loader throws validation error |
+| CI | Grader tests blocking on PR |
+
+### Checklist (7A.0)
+
+- [ ] Runtime case validation (Zod) on load
+- [ ] UC1–UC3 criteria tightened; goldens pass
+- [ ] Negative + mutation grader tests in CI
+- [ ] Per-assertion results in score output
+- [ ] `artifactPassed` separated from process caps
+- [ ] `mustValidate` replaced by runner process assertion contract (documented)
+
+---
+
+## Phase 7A.1 — Core guided runner
+
+**Prerequisite:** 7A.0 complete.
+
+### Repo audit
+
+| Item | Status |
+|------|--------|
+| `conversationScript` in cases | ✅ defined |
+| Script consumer | ❌ none |
+| `eval:run` / `eval:matrix` | ❌ not in `package.json` |
+| Python `chat_cli.py` | ⚠️ text-only assistant messages — drops tool parts |
+| UC4 `spec-update-v0.2` | ❌ blocked — no `load_spec` |
+
+### Resolved decisions
+
+| Question | Decision |
+|----------|----------|
+| **`conversationScript` trigger** | **`after_agent_reply`** — already used in all v0.2 cases; locked. |
+| **Orchestrator language** | **TypeScript** — load case, score, persist, batch control |
+| **Transcript driver** | **Python** — new `agent/scripts/eval_driver.py` based on `chat_cli.py` but preserving full AI SDK message parts (tool calls + outputs) |
+| **Initial cases** | **`static-browse-v0.2`**, **`crud-admin-v0.2`**, **`ai-review-queue-v0.2`** only |
+| **UC4** | **Exclude** until `load_spec` (stretch O1) |
+| **Initial config** | One pinned model + `prompts/v1.txt`; **1 trial per case** while developing |
+| **Retry policy** | **No blind retry** after tool may have caused side effects |
+
+### Runner contract
+
+1. Runtime-validate case; refuse UC4 without `load_spec`.
+2. Create `experiment_id`, `trial_id`, `session_id`; set headers (`X-RapidUI-Eval-Case`, `X-RapidUI-Agent: rapidui-agent-eval`).
+3. Send initial `prompt` to `POST /chat`.
+4. Loop: wait for assistant turn complete → if saved, stop → else send next scripted user message.
+5. Stop on: save, script exhaustion, `maxUserTurns`, timeout, HTTP error, cancellation.
+6. Retrieve saved spec from Postgres by id.
+7. Pull process metrics from **`api_events`** (+ `agent_runs` advisory fields).
+8. Score artifact (7A.0 grader) + process caps separately.
+9. Persist trial result (7A.2 schema — stub OK initially with migration follow-up).
+10. Batch: continue after individual trial failure; exit non-zero when required trials fail.
+
+### Task list (7A.1)
+
+1. **`agent/scripts/eval_driver.py`** — SSE driver; full message parts; JSON transcript to stdout.
+2. **`scripts/eval-run.ts`** — orchestrator; spawn driver; call `scoreRun`; invoke persistence.
+3. **`lib/eval/processMetrics.ts`** — query validate attempts, platform calls, user turns from session telemetry (**reuse Phase 6 P0 helpers** in `lib/observe/queries.ts`).
+4. **`lib/eval/runnerTypes.ts`** — trial result envelope (`status`, `artifactPassed`, `processWithinTarget`, failure fields).
+5. **`package.json`** — `"eval:run": "tsx --env-file=.env.local scripts/eval-run.ts"`.
+6. **`agent/scripts/smoke_eval_run.py`** or integration test — one case dry run against local stack.
+
+### Files to create / modify (7A.1)
+
+```txt
+agent/scripts/eval_driver.py
+scripts/eval-run.ts
+lib/eval/processMetrics.ts
+lib/eval/runnerTypes.ts
+package.json
+agent/README.md
+```
+
+### Checklist (7A.1)
+
+- [ ] `npm run eval:run -- --case static-browse-v0.2` completes locally
+- [ ] All three UC1–UC3 cases runnable in batch mode
+- [ ] Driver preserves tool call parts in message history
+- [ ] Process metrics sourced from `api_events` primarily
+- [ ] Runner exits non-zero on artifact failure
+- [ ] UC4 excluded with clear error if attempted
+
+---
+
+## Phase 7A.2 — Trial persistence
+
+**Goal:** Append-only trial snapshots — not mutable interpretation of v0.1 `eval_runs` rows.
+
+### Schema — migration `007_eval_trials.sql` (reserve `006` for optional Phase 6 P0 `api_events.http_status`)
+
+**Prefer new table `eval_trials`** (keep legacy `eval_runs` for manual Path B until migrated):
+
+| Column group | Fields |
+|--------------|--------|
+| Identity | `id`, `experiment_id`, `trial_index`, `session_id` |
+| Config snapshot | `eval_case_id`, `case_hash`, `agent`, `base_url`, `model`, `provider`, `prompt_version`, `prompt_hash`, `eval_mode`, `git_commit`, `git_dirty`, `runner_version`, `validation_version`, `registry_version` |
+| Result semantics | `status`, `artifact_passed`, `process_within_target`, `failure_owner`, `failure_stage`, `failure_code`, `failure_detail` |
+| Artifact | `final_spec_id`, `content_hash`, `assertion_results` JSONB |
+| Process | `user_turns`, `validate_attempts`, `validation_failures`, `tokens_in`, `tokens_out`, `latency_ms` |
+| Trace | `transcript_ref` nullable — **see resolved decision below** |
+| Baseline | `baseline_experiment_id` nullable |
+| Timestamps | `started_at`, `completed_at` |
+
+### Resolved decisions
+
+| Question | Decision |
+|----------|----------|
+| **Transcript storage** | **Decide in 7A.2 before 7A.4 UI promises.** Options: `transcript_jsonb` on row (eval-only, small) or file ref. **Do not** retain production chat for eval UI. |
+| **Legacy `eval_runs`** | Manual `eval:log` continues writing `eval_runs` OR dual-write during transition; eval UI reads `eval_trials` for automated runs. |
+| **Baseline comparison** | Explicit baseline selection; **no regression delta** when case hash, validator, prompt, model, eval mode, runner protocol, or environment differ — show config diff instead. |
+| **`blocks_found`** | Supersede with `assertion_results` or rename to `operations_found` in new table. |
+
+### Baseline policy (locked)
+
+Compare experiments only when dimensions match intentionally. When incompatible: preserve both result sets, show configuration differences, hide regression badge.
+
+### Task list (7A.2)
+
+1. Migration + register in **`scripts/migrate.ts`**.
+2. **`lib/db/evalTrials.ts`** — insert (append-only), list by experiment, get by id.
+3. Wire **`scripts/eval-run.ts`** to persist full envelope.
+4. **`lib/eval/caseHash.ts`** — hash case JSON for comparison guards.
+5. Optional: migrate **`log-eval-run.ts`** to dual-write or add `source: manual | automated`.
+
+### Checklist (7A.2)
+
+- [ ] `eval_trials` table migrated
+- [ ] Automated runner persists complete trial snapshot
+- [ ] Case hash + config snapshot stored per trial
+- [ ] Baseline incompatibility rules documented in code/comments
+- [ ] Transcript storage decision recorded inline
+
+---
+
+## Phase 7A.3 — Behavioral variants
+
+**Prerequisite:** 7A.1 runner trusted on canonical UC1–UC3.
+
+### Scope
+
+Add **discriminating** cases (not more canonical copies):
+
+1. **Clarification / vague-request variant** (§7 V6-style) — `conversationScript` asks agent to clarify before build.
+2. **Correction or contradiction variant** (§7 V4-style) — **requires forbidden assertions** from 7A.0.
+
+Optional process assertion:
+
+> If a validation attempt failed, a later validation succeeded and the run eventually saved.
+
+### Explicitly exclude (v0.2)
+
+- **`spec-update-v0.2` (UC4)** until `load_spec` exists
+- Save-timeout / fault-injection cases without deterministic control
+- LLM user simulator
+- Forced validator-repair cases without deterministic fault injection
+
+### Checklist (7A.3)
+
+- [ ] At least one clarification variant case JSON + golden or scoring rules
+- [ ] At least one contradiction variant with forbidden assertions
+- [ ] Variants pass grader mutation tests (negative fixtures fail correctly)
+- [ ] Optional: validator-recovery process assertion documented in case format
+
+---
+
+## Phase 7A.4 — Minimal eval UI
+
+**Prerequisite:** 7A.2 persistence populated by at least one manual `eval:run` batch.
+
+### Scope
+
+Replace **`app/observe/evals/page.tsx`** placeholder:
+
+- **Experiment / trial table** — filters: failed, errored, incomplete telemetry, regressed vs baseline (when compatible)
+- **Trial detail** — assertion breakdown, process metrics, config snapshot
+- **Links only** — `/observe/agent/sessions/[id]`, `/observe/api/sessions/[id]`, `/specs/[id]`
+- **Do not duplicate** Observe timelines inside eval UI
+- Show scripted conversation **only if** `transcript_ref` / transcript JSON exists
+
+### Out of scope (7A.4)
+
+- Full model × prompt × case matrix UI (7B)
+- Cost column (until reasoning-token audit + price table)
+- Automatic “compare to latest experiment”
+
+### Checklist (7A.4)
+
+- [ ] `/observe/evals` shows trial table from `eval_trials`
+- [ ] Trial detail with assertion results
+- [ ] Cross-links to Agent + API Observe + spec work
+- [ ] No duplicated session timelines
+
+---
+
+## Phase 7B — Model/prompt comparison (stretch O5)
+
+**Prerequisite:** 7A.0–7A.2 trusted; canonical + behavioral cases stable.
+
+**Tier:** Stretch O5 — does **not** block portfolio ship (7.0).
+
+### Resolved decisions
+
+| Question | Decision |
+|----------|----------|
+| **Matrix size** | **Not** full `cases × 3–4 models × 2–3 prompts` initially. Current prompt + **one** evidence-driven alternative; current model + **at most one** alternative. |
+| **Trials per cell** | **3** before any selection claim — directional evidence, not statistical significance. |
+| **Saturation risk** | UC1–UC3 canonical cases may pass all models — use **7A.3 behavioral cases** as discriminators. |
+| **Decision order** | (1) artifact pass rate → (2) failure type/severity → (3) validate attempts + turns → (4) tokens/latency → (5) cost (versioned price table) → (6) manual trace review of every failure + sample passes |
+| **Model price table** | Required before `estimated_cost_usd` column; version the price source in results. |
+| **`eval:matrix`** | Thin wrapper over **`eval:run`** batch mode — not a separate runner. |
+
+### Scope
+
+- **`agent/prompts/v2.txt`**, **`v3.txt`** — only if 7A pass rates justify prompt experiments
+- **`scripts/eval-matrix.ts`** — batch orchestration over pinned dimensions
+- **`docs/model-selection-v0.2.md`** — chosen default + spot-check notes (conversation rubric, 2–3 runs per cell)
+- Extend eval UI with grouped comparison view (optional tail of 7B)
+
+### Eval matrix (when pursuing O5 — reduced)
+
+```txt
+core_cases (UC1–UC3 + behavioral variants) × model (1–2) × prompt (1–2) × eval_mode (guided)
 ```
 
 Default model shortlist: reference §14 + decision #34.
 
-### Key paths
+### CI policy (locked)
+
+| Blocking on PR | Non-blocking initially |
+|----------------|------------------------|
+| Case schema validation | Live LLM trials |
+| Grader positive + mutation tests | Scheduled deployed-environment smoke |
+| Runner protocol tests | Full `eval:matrix` slices |
+| Terminal outcome telemetry tests | |
+| Persistence / baseline compatibility tests | |
+
+**Trial cadence:** normal dev → one targeted live trial; PR → deterministic checks only; before release or prompt/model change → 3 trials per core case; before selection claim → 3 trials per configuration + trace review.
+
+### Key paths (7B)
 
 ```txt
 scripts/eval-matrix.ts
-scripts/log-eval-run.ts
-app/observe/evals/
-docs/model-selection-v0.2.md
 agent/prompts/v2.txt  v3.txt
+docs/model-selection-v0.2.md
+app/observe/evals/              # comparison grouping (optional)
 ```
 
-### Open questions
+### Checklist (7B — stretch O5)
 
-- `conversationScript` trigger: `after_agent_reply` vs turn index
-- Model price table for `estimated_cost_usd`
-- Which variants required vs optional for ship
-- `POST /api/eval/log` vs CLI-only
-
-### Checklist
-
-**Required for portfolio ship**
-
-- [ ] README demo script: Path A + Path B reproducible
-- [ ] **S8:** one external agent session visible in `/observe/api`
-- [ ] All **S1–S9** verified (reference §15)
-- [ ] v0.1 eval case retired; wrappers updated
-
-**Stretch O4**
-
-- [ ] All v0.2 eval cases logged in `eval_runs`
-
-**Stretch O5 (eval lab)**
-
-- [ ] `npm run eval:matrix` completes at least one matrix slice
-- [ ] `/observe/evals` shows grouped results
+- [ ] `npm run eval:matrix` completes at least one evidence-driven slice
+- [ ] `/observe/evals` shows grouped results (or comparison section)
 - [ ] `docs/model-selection-v0.2.md` documents chosen model + prompt
-- [ ] Spot-check notes for 2–3 runs per cell (conversation rubric)
+- [ ] Spot-check notes for 2–3 runs per configuration (conversation rubric)
+- [ ] No selection claim from pass rate alone on canonical cases
 
-**Stretch O1–O3**
+### Stretch O1–O4 (unchanged intent)
 
-- [ ] O1: UC4 + `load_spec` demo
-- [ ] O2: Logfire on Render (Path D)
-- [ ] O3: `POST /api/eval/log` if not CLI-only
+| Stretch | Item |
+|---------|------|
+| **O1** | UC4 + `load_spec` demo |
+| **O2** | Logfire on Render (Path D) |
+| **O3** | `POST /api/eval/log` if not CLI-only |
+| **O4** | All v0.2 eval cases logged (manual or automated) |
+
+---
+
+## Phase 7 — Master checklist
+
+**Required for portfolio ship (7.0 + Phase 6)**
+
+- [ ] Phase 6 P0 + Phase 6 UI complete (**S4**)
+- [ ] README + architecture diagram + Paths A/B
+- [ ] **S8** + **S1–S9**
+- [ ] v0.1 eval case retired
+
+**Strong v0.2 (recommended, not blocking ship)**
+
+- [ ] 7A.0 grader hardening
+- [ ] 7A.1 `npm run eval:run` for UC1–UC3
+- [ ] 7A.2 trial persistence
+
+**Stretch O5 (7B)**
+
+- [ ] 7A.3 behavioral variants
+- [ ] 7A.4 eval UI
+- [ ] 7B matrix + `model-selection-v0.2.md`
+
+**Do not adopt (v0.2)**
+
+- Large model × prompt × case matrix before grader + runner trusted
+- Eight initial automated cases
+- UC4 in automated suite before `load_spec`
+- Save-timeout tests without fault injection
+- Exact golden JSON equality as gate
+- LLM-as-judge
+- Blocking live-LLM PR gate initially
+- Three-view eval UI duplicating Observe timelines
+- Precise cost/tool-call metrics without verified sources
+- Python `chat_cli.py` unchanged as eval transcript driver
+
+**After Phase 6/7 ship:** Review [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog) for post-MVP gaps and interview positioning.
 
 ---
 
@@ -3011,8 +3724,9 @@ rapidui.dev/
 ├── /specs/[id]          Phase 5
 ├── /observe             Phase 3 (overview hub)
 ├── /observe/api         Phase 3
-├── /observe/agent       Phase 3 placeholder → Phase 6 metrics
-├── /observe/evals       Phase 3 placeholder → Phase 7 (O5)
+├── /observe/agent       Phase 3 placeholder → Phase 6 metrics + session detail
+├── /observe/agent/sessions/[sessionId]   Phase 6 drill-down
+├── /observe/evals       Phase 3 placeholder → Phase 7A.4 (7B comparison optional)
 ├── /api/validate        Phase 1 + 2
 ├── /api/specs           Phase 1 + 2
 ├── /api/schema          Phase 2
@@ -3074,7 +3788,7 @@ These complement the three layers — not replacements.
 |---------|------|------------|----------|
 | **Product analytics** | **Observe** (Neon) | Next.js `api_events`; FastAPI ingest → `agent_runs` / `agent_turns` | Session timeline, validate retry curve, pass rates, model × prompt comparison (`/observe/evals`) |
 | **Engineering traces** | **Logfire** (optional OTel) | Env-gated in `agent/main.py` | Debug one bad run — model spans, tool args/results, httpx latency to `rapidui.dev` |
-| **Regression ground truth** | **`eval_runs`** | `npm run eval:log`, `npm run eval:matrix` (Phase 7) | Matrix results, before/after prompt or model changes |
+| **Regression ground truth** | **`eval_runs`** (manual Path B) + **`eval_trials`** (automated, Phase 7A.2) | `npm run eval:log`, `npm run eval:run`, `npm run eval:matrix` (7B) | Matrix results, before/after prompt or model changes |
 
 **Rules (locked):** LLM tools call **RapidUI API only** — never ingest or Observe URLs. Telemetry lives in the **FastAPI handler** and **Next.js route handlers**, like middleware on a normal API.
 
@@ -3091,7 +3805,7 @@ Ship / change agent (Phase 4) or prompt (prompts/vN.txt)
 Trace in Observe (+ Logfire for depth)
         │
         ▼
-Run evals — manual first, then eval:matrix (Phase 7)
+Run evals — manual first (`eval:log`), then **`eval:run`** (7A.1), then **`eval:matrix`** (7B)
         │
         ▼
 Read failures — outcome checklist + process caps + Observe session drill-down
@@ -3116,9 +3830,9 @@ Production is HITL: user describes → agent clarifies → user guides → agent
 | **`single-shot`** | External agents + autonomy benchmark | One full-requirements message | Autonomy without human steering |
 | **`canonical`** | Live demo (Phase 5 starter chips) | Chip + 0–1 follow-ups | Interview path |
 
-Eval cases live in `eval/cases/*.json` (e.g. `crud-admin-v0.2` with scripted “Full CRUD…”, “Yes, build it.”). **`npm run eval:matrix`** (Phase 7) drives `POST /chat` with that script, scores the **saved spec**, logs to **`eval_runs`**.
+Eval cases live in `eval/cases/*.json` (e.g. `crud-admin-v0.2` with scripted “Full CRUD…”, “Yes, build it.”). **`npm run eval:run`** (Phase 7A.1) drives `POST /chat` with that script, scores the **saved spec**, logs to **`eval_trials`**. **`npm run eval:matrix`** (7B) batch-runs multiple configurations.
 
-Matrix dimensions: **eval_cases (UC1–3) × models (3–4) × prompt_versions (v1–v3) × eval_mode**.
+Matrix dimensions (7B only, reduced): **core cases (UC1–UC3 + behavioral variants) × model (1–2) × prompt (1–2) × eval_mode**.
 
 ---
 
@@ -3137,7 +3851,200 @@ When something fails, fix **upstream first** — don’t tune the model if the v
 
 **External agents stay in the loop:** Path B proves the API is agent-agnostic; Path A proves you ship your own; Observe ties both via **`session_id`**. Improve the platform once, both benefit.
 
-**Deferred (v0.3+):** MCP, LLM-as-judge, interactive eval playground — v0.2 uses HTTP tools + deterministic checklist + scripted user.
+**Deferred (v0.3+):** MCP, LLM-as-judge, interactive eval playground — v0.2 uses HTTP tools + deterministic checklist + scripted user. See [Appendix D](#appendix-d--industry-alignment--v03-backlog) for the full post-MVP backlog.
+
+---
+
+## Appendix D — Industry alignment & v0.3 backlog
+
+**Added:** 2026-07-25  
+**Purpose:** Return here after Phase 6/7 ship — compare what we built against industry observability/eval patterns, confirm MVP completeness, and plan v0.3.  
+**Sources reviewed:** Anthropic (Jan 2026 agent evals guide), OpenAI (trace grading + evals deprecation timeline), Pydantic Logfire/Evals, Mastra, Braintrust, Langfuse, Cursor hooks, WorkOS agent governance.
+
+### One-line pitch (interview-ready)
+
+*We built the same loop top teams use — observe production runs, debug with traces, regression-test the saved artifact with deterministic graders, and sample conversation quality by hand — scoped for a structured spec agent rather than a generic chatbot platform.*
+
+---
+
+### Industry consensus (2025–2026)
+
+| Pattern | What leaders recommend |
+|---------|------------------------|
+| **Traces before evals** | Debug with traces first; formalize evals once “good” is defined (OpenAI, LangChain) |
+| **Layered graders** | Code (deterministic) + model judge (nuance) + human (calibration) — not one boolean (Anthropic) |
+| **Outcome ≠ transcript** | Grade final environment state, not chat eloquence alone (Anthropic) |
+| **Multi-turn evals** | Scripted or simulated users for agents — not single-shot only |
+| **Trials + variance** | Multiple runs per task; pass rate alone is insufficient |
+| **Small starter suite** | ~20–50 tasks from **real failures**, not huge synthetic matrices (Anthropic) |
+| **Read transcripts** | Inspect failures regularly to catch bad graders (Anthropic, Braintrust) |
+| **Closed loop** | Production traces → datasets → offline evals → CI → ship → monitor (Braintrust, Langfuse) |
+| **CI policy** | Deterministic checks blocking; live LLM evals often non-blocking or sampled |
+| **Immutable experiments** | Append-only snapshots comparable over time |
+
+**2026 note:** OpenAI is deprecating the hosted Evals platform (read-only Oct 2026, shutdown Nov 2026) and pushing **trace grading + code-first harnesses**. Our `eval:run` / `eval_trials` approach aligns with that direction — [OpenAI evals deprecation](https://developers.openai.com/api/docs/guides/evals), [OpenAI agent evals](https://developers.openai.com/api/docs/guides/agent-evals).
+
+---
+
+### How RapidUI v0.2 maps to industry
+
+#### Architecture comparison
+
+```txt
+INDUSTRY "FULL PLATFORM"          RAPIDUI v0.2 MVP
+────────────────────────          ────────────────
+Nested OTel traces            →   Observe (Phase 6) + Logfire (O2 stretch)
+Online / production scorers   →   ❌ Out of scope v0.2
+Datasets + experiment UI      →   eval_trials + /observe/evals (7A.4)
+CI regression gates           →   Grader tests in CI (7A.0 — wire GitHub Action)
+Trace → test case promotion   →   ⚠️ Manual playbook only (see below)
+Alerts / drift detection      →   ❌ v0.3+
+LLM-as-judge                  →   ❌ Deferred — structured RUI favors code graders
+Agent identity / FGA audit    →   Session headers only — WorkOS-style defer v0.3+
+```
+
+#### By vendor (what we adopted vs deferred)
+
+| Source | Relevant pattern | RapidUI v0.2 |
+|--------|------------------|--------------|
+| **Anthropic** | Outcome grading, code + human graders, multi-turn tasks, read transcripts | ✅ Three layers; 7A grader + sampled conversation; transcript TBD in 7A.2 |
+| **OpenAI** | Traces → graders → datasets → eval runs | ✅ Observe → eval:run → eval_trials |
+| **Pydantic / Logfire** | OTel spans, span-based process evals, full tool trace | ⚠️ O2 stretch; process assertions in 7A.1 runner |
+| **Mastra / Braintrust / Langfuse** | Unified trace + eval + CI platform | ⚠️ Lightweight in-house Observe + eval harness — appropriate for MVP |
+| **Cursor** | Hooks for audit/control on external agents | ✅ Path B manual wrappers + session headers |
+| **WorkOS** | Agent credentials, FGA, audit chain | ❌ v0.3+ — not portfolio MVP |
+
+#### Our unique advantage vs generic eval platforms
+
+RapidUI evaluates a **structured artifact** (saved RUI spec), not open-ended chat. **Deterministic artifact grading is a stronger primary gate** than LLM-as-judge for this domain — aligned with Anthropic’s guidance to use code-based outcome verification when the environment state is checkable.
+
+---
+
+### MVP completeness checklist (review after Phase 6/7)
+
+Use this when Phase 6 + 7A (minimum) are done. Check boxes against what actually shipped.
+
+**Observability (Phase 6)**
+
+- [ ] Terminal outcomes: saved / failed / abandoned
+- [ ] Validate attempts from `api_events` (authoritative)
+- [ ] Platform API calls labeled honestly (not “LLM tool calls”)
+- [ ] Agent dashboard + session drill-down live
+- [ ] Cross-links: agent ↔ API ↔ spec
+- [ ] Hub Agent card shows real metrics (**S4**)
+
+**Eval harness (Phase 7A)**
+
+- [ ] Grader catches known false passes (UC1–UC3 mutations fail)
+- [ ] `npm run eval:run` for UC1–UC3 guided mode
+- [ ] `eval_trials` append-only persistence with config snapshot
+- [ ] Process vs artifact reported separately
+- [ ] Eval transcripts stored for eval runs only (7A.2 decision implemented)
+- [ ] GitHub CI runs grader + mutation tests (blocking)
+- [ ] Live LLM trials non-blocking
+
+**Portfolio (Phase 7.0)**
+
+- [ ] README + architecture diagram + Paths A/B
+- [ ] S1–S9 verified
+- [ ] One Logfire trace screenshot ready for “engineering debug” story (if O2 pursued)
+
+**Verdict template (fill in after ship)**
+
+| Question | Answer |
+|----------|--------|
+| Cohesive observability + eval story? | |
+| Credible for portfolio / interview? | |
+| Production-grade vs industry platforms? | Expect “MVP-complete, not platform-complete” |
+
+---
+
+### Tier 1 — Address in v0.2 if not already done (high ROI)
+
+These were identified in the 2026-07-25 industry review. Confirm at Phase 6/7 sign-off.
+
+| Item | Why | Where |
+|------|-----|-------|
+| **Eval transcript storage** | Anthropic: invest in viewing eval transcripts | Lock in 7A.2 — `transcript_jsonb` on `eval_trials`, eval-only |
+| **Process assertions in runner** | Pydantic span-eval equivalent: validate before save, caps | 7A.1 `processMetrics` + runner |
+| **Grader CI workflow** | Braintrust/Mastra: scorers in PR gates | GitHub Action with 7A.0 |
+| **Two-layer observability narrative** | Industry: product metrics vs engineering traces | README: Observe = product, Logfire = debug |
+| **Manual production flywheel playbook** | Braintrust: trace → test case | Document below — until automated in v0.3 |
+
+#### Manual production flywheel (until v0.3 automation)
+
+```txt
+1. Observe — find failed or high-retry session (/observe/agent or /observe/api)
+2. Hypothesize — artifact wrong vs process wrong vs conversation issue
+3. Logfire (optional) — confirm which tool/validation step failed
+4. New case — add or extend eval/cases/*.json from real failure pattern
+5. Grader — add assertion + mutation fixture; CI must fail on bad spec
+6. eval:run — confirm agent passes/fails as expected under pinned config
+7. Promote — stable cases join regression suite; note in model-selection doc
+```
+
+---
+
+### Tier 2 — v0.3+ backlog (acceptable deferrals)
+
+Do **not** block v0.2 portfolio on these. Pick up when there is real production traffic or enterprise requirements.
+
+| Item | Industry reference | Notes |
+|------|-------------------|-------|
+| **Online / production scoring** | Braintrust, Langfuse live evaluators | Sample prod traces with LLM or code scorers |
+| **One-click trace → dataset** | Braintrust, Langfuse | UI or CLI to promote Observe session to eval case |
+| **Alerting / drift monitors** | Langfuse monitors, Datadog LLM | Slack when pass rate, latency, or cost spikes |
+| **Trace clustering / Topics** | Braintrust Topics | Auto-group failure modes |
+| **LLM-as-judge** | Common for open-ended chat | Consider for conversation layer only, calibrated with humans |
+| **Full nested trace in Observe** | All platforms | Tool args/results in product UI — or keep Logfire-only |
+| **Cost dashboards** | Mastra, all platforms | After reasoning-token audit + versioned price table |
+| **Agent credentials / FGA** | WorkOS | Scoped agent identity, tool-level auth, audit chain |
+| **MCP tool tracing** | Augment, MCP roadmap | N/A until MCP ships |
+| **Interactive eval playground** | Langfuse playground | v0.2 uses CLI + Observe |
+| **POST /api/eval/log** | — | Stretch O3 |
+| **UC4 + load_spec** | — | Stretch O1 |
+
+---
+
+### Tier 3 — Not applicable to RapidUI
+
+- Multi-agent orchestration traces (single agent v0.2)
+- Browser / computer-use eval harnesses
+- Hosted eval SaaS dependency (industry moving to code-first harnesses)
+- Exact golden JSON equality as gate (too brittle for LLM output)
+
+---
+
+### Post-ship review prompts
+
+When Phase 6 and 7 are complete, answer these in `docs/model-selection-v0.2.md` or a short retro note:
+
+1. **Observability:** Can we explain any failed demo session in under 5 minutes using Observe (+ Logfire if enabled)?
+2. **Grader trust:** Did we read transcripts for every eval failure and find zero false passes / false fails?
+3. **Flywheel:** Did we promote at least one real Observe failure into a new or tightened eval case?
+4. **CI:** Do PRs block on grader tests without blocking on live LLM cost?
+5. **Interview:** Can we draw the three-layer diagram (outcome / process / conversation) and point to where each lives in the repo?
+6. **Gap honesty:** What did we intentionally defer to v0.3, and why was that the right tradeoff for MVP?
+
+---
+
+### Reference links (external)
+
+| Resource | URL |
+|----------|-----|
+| Anthropic — Demystifying evals for AI agents | https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents |
+| OpenAI — Evaluate agent workflows | https://developers.openai.com/api/docs/guides/agent-evals |
+| OpenAI — Trace grading | https://developers.openai.com/api/docs/guides/trace-grading |
+| OpenAI — Evals deprecation | https://developers.openai.com/api/docs/guides/evals |
+| Pydantic Logfire — AI observability | https://pydantic.dev/logfire |
+| Pydantic Evals — span-based evaluators | https://pydantic.dev/docs/ai/evals/evaluators/span-based/ |
+| Braintrust — Agent observability guide 2026 | https://www.braintrust.dev/articles/agent-observability-complete-guide-2026 |
+| Langfuse — Eval setup (AI engineering loop) | https://langfuse.com/blog/2026-07-16-steal-our-eval-setup |
+| Mastra — Agent observability | https://mastra.ai/articles/ai-agent-observability |
+| Cursor — Hooks | https://cursor.com/docs/hooks |
+| WorkOS — Governable agents architecture | https://workos.com/blog/ai-agents-architecture |
+
+**Internal:** Strategy synthesis (2026-07-25) — incorporated into Phase 6, Phase 7, and this appendix.
 
 ---
 
