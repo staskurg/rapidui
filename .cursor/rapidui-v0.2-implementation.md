@@ -2863,15 +2863,11 @@ Phase 5 is **complete** when all of the following are true:
 
 **Phase 6** — next: **Phase 6 P0** telemetry correctness, then Observe agent dashboard (`/observe/agent`).
 
-**Strategy source:** Four-model eval strategy review synthesis (2026-07-25) — Opus repository audit + GPT grader/runner semantics + Composer packaging + Grok scope guardrails; incorporated into Phase 6/7 and Appendix D below.
-
 ---
 
 # Phase 6 — Observe: Agent dashboard
 
 **Reference:** §9 Area 6
-
-**Strategy source:** synthesis doc § “Phase 6 P0” + “Phase 6 — Agent observability”
 
 ### Goal
 
@@ -3156,8 +3152,6 @@ package.json                                 # smoke:observe-agent
 **Reference:** §9 Area 7, §14 (full eval harness), §15 (O*), §17
 
 **Improvement playbook:** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy)
-
-**Strategy source:** Four-model eval strategy review synthesis (2026-07-25) — incorporated into sections below and Appendix D.
 
 ### Goal
 
@@ -4043,8 +4037,6 @@ When Phase 6 and 7 are complete, answer these in `docs/model-selection-v0.2.md` 
 | Mastra — Agent observability | https://mastra.ai/articles/ai-agent-observability |
 | Cursor — Hooks | https://cursor.com/docs/hooks |
 | WorkOS — Governable agents architecture | https://workos.com/blog/ai-agents-architecture |
-
-**Internal:** Strategy synthesis (2026-07-25) — incorporated into Phase 6, Phase 7, and this appendix.
 
 ---
 
