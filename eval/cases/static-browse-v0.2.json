@@ -2,15 +2,15 @@
   "id": "static-browse-v0.2",
   "title": "Use case 1 — Static browse dashboard",
   "mode": "guided",
-  "prompt": "I pasted our weekly ops summary. Build a static dashboard with an incidents table (severity, status, owner) plus header metrics for open count and resolved today. Add a second browse view for teams with headcount by region — no API wiring.",
+  "prompt": "Build a static ops dashboard with two browse screens: (1) Incidents — table with severity, status, and owner, plus header metrics for open count and resolved today; (2) Teams — table with team name, lead, headcount, and region. Use data.mode static with realistic invented sample records (about 3 incidents and 3 teams). No API wiring. Validate and save when the spec passes.",
   "conversationScript": [
     {
       "trigger": "after_agent_reply",
-      "content": "Two separate browse screens: Incidents and Teams. Static data only — no API endpoints."
+      "content": "Two separate browse screens: Incidents and Teams. Static invented data only — no API endpoints."
     },
     {
       "trigger": "after_agent_reply",
-      "content": "Yes, build it."
+      "content": "Yes, proceed and save."
     }
   ],
   "successCriteria": {

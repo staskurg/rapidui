@@ -52,7 +52,8 @@ export async function insertApiEvent(input: ApiEventInput): Promise<{ id: string
       valid,
       error_codes,
       spec_id,
-      duration_ms
+      duration_ms,
+      http_status
     )
     VALUES (
       ${parsed.endpoint},
@@ -63,7 +64,8 @@ export async function insertApiEvent(input: ApiEventInput): Promise<{ id: string
       ${parsed.valid},
       ${parsed.error_codes},
       ${parsed.spec_id},
-      ${parsed.duration_ms}
+      ${parsed.duration_ms},
+      ${parsed.http_status ?? null}
     )
     RETURNING id
   `;
@@ -114,7 +116,11 @@ export async function upsertAgentRun(
     )
     ON CONFLICT (session_id) DO UPDATE SET
       finished_at = COALESCE(EXCLUDED.finished_at, agent_runs.finished_at),
-      outcome = COALESCE(EXCLUDED.outcome, agent_runs.outcome),
+      outcome = CASE
+        WHEN agent_runs.outcome = 'saved' AND EXCLUDED.outcome = 'abandoned'
+          THEN agent_runs.outcome
+        ELSE COALESCE(EXCLUDED.outcome, agent_runs.outcome)
+      END,
       spec_id = COALESCE(EXCLUDED.spec_id, agent_runs.spec_id),
       validate_attempts = COALESCE(EXCLUDED.validate_attempts, agent_runs.validate_attempts),
       model = COALESCE(EXCLUDED.model, agent_runs.model),

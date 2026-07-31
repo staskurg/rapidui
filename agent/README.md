@@ -171,7 +171,25 @@ The LLM never calls Observe. After each chat turn, the FastAPI handler POSTs sum
 
 Contract: [lib/observe/INGEST.md](../lib/observe/INGEST.md)
 
-On each completed turn the handler POSTs `turns[]` plus partial `run` fields. When save succeeds, `run.outcome` is `"saved"` with `spec_id`. On error-only turns, `run.error_summary` may be set **without** `outcome: "failed"` (v0.2 — see implementation doc §Known gaps).
+On each completed turn the handler POSTs `turns[]` plus partial `run` fields. Terminal outcomes:
+
+| Outcome | Trigger |
+|---------|---------|
+| `saved` | Turn completes with successful `save_rui` — sets `spec_id`, tokens, run latency |
+| `failed` | Unrecoverable transport/tool error or uncaught handler exception (no save) |
+| `abandoned` | Main UI New chat (prior session) or eval runner timeout |
+
+Failed validate retries alone do **not** emit `failed` — the agent is expected to fix and retry.
+
+Sessions with no DB outcome and last activity **> 30 minutes** ago are shown as **Abandoned (inferred)** in Observe (tab close / unknown exit). FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + stale inference.
+
+### o4-mini token accounting
+
+`result.usage.input_tokens` and `output_tokens` from pydantic-ai include model-reported usage per turn. For o4-mini, reasoning tokens may be included in output counts depending on provider reporting — use Observe totals for directional comparison, not billing.
+
+### Single-instance policy (v0.2)
+
+Run **one uvicorn worker / one Render instance** for prod and demo. A process restart clears in-memory `SessionState` (`turn_index`, advisory validate counts). Durable validate and platform API call counts come from `api_events` in Observe.
 
 ### Logfire (optional O2)
 
@@ -209,6 +227,7 @@ The agent does **not** connect to Neon directly in v0.2.
 | Root directory | `agent/` |
 | Build command | `pip install -r requirements.txt` |
 | Start command | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
+| **Workers** | **1** — in-memory session state; see Telemetry § single-instance |
 | **Python version** | **3.12.13** — env `PYTHON_VERSION=3.12.13` |
 
 Production env:

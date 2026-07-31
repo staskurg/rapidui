@@ -81,7 +81,7 @@ Full definitions: reference **§15**.
 | **6** | Observe Agent dashboard — **observability** (+ **6 P0** telemetry) | §9 Area 6 |
 | **7** | Polish + **eval harness** (**7.0**, **7A**, **7B**) | §9 Area 7, §14, §15 O* |
 
-**Cross-cutting (Phases 4–7):** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) · [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog)
+**Cross-cutting (Phases 4–7):** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) · [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog) · [Appendix E — Agent latency metrics (Phase 6)](#appendix-e--agent-latency-metrics-phase-6)
 
 ---
 
@@ -1009,7 +1009,7 @@ Error `path` examples: `operations[op-read-user].presentation.actions[0].outcome
 
 | Case id | UC | mode | conversationScript |
 |---------|-----|------|-------------------|
-| `static-browse-v0.2` | 1 | `guided` | 1–2 turns clarifying static data layout |
+| `static-browse-v0.2` | 1 | `guided` | Chip prompt self-contained (invented static records); script optional for 7A runner |
 | `crud-admin-v0.2` | 2 | `guided` | 2 turns (API details + confirm build) |
 | `ai-review-queue-v0.2` | 3 | `guided` | 2 turns (endpoints + approve/reject on detail) |
 
@@ -1246,7 +1246,8 @@ v0.3  Authorization: Bearer <WorkOS agent-scoped token> + optional correlation h
 /observe                          ← Overview hub (default Observe entry)
 ├── /observe/api                  ← API dashboard (FULL — Phase 3)
 │   └── /observe/api/sessions/[sessionId]   ← Session timeline drill-down
-├── /observe/agent                ← Placeholder scaffold (Phase 6 implements)
+├── /observe/agent                ← Agent dashboard (Phase 6)
+├── /observe/agent/sessions/[sessionId]   ← Agent run drill-down (Phase 6)
 └── /observe/evals                ← Placeholder scaffold (Phase 7 implements)
 ```
 
@@ -1319,7 +1320,7 @@ v0.3  Authorization: Bearer <WorkOS agent-scoped token> + optional correlation h
 | **Filters (API page)** | URL params: **`?agent=`**, **`?evalCase=`**, **`?session=`** (exact session id search for Path B). `<form method="get">` — no client JS required. |
 | **Eval pass rate on API page** | **Removed** — belongs on `/observe/evals` (Phase 7). API page shows **eval case as session metadata** (badge/filter) only. |
 | **Agent / Evals pages** | **Placeholder scaffold only** in Phase 3 — title, “ships in Phase N”, what will appear, link back to hub/API. No queries against `agent_runs` yet. |
-| **Hub Agent / Evals cards** | **API card:** live stats from `api_events`. **Agent card:** static copy + “—” metrics + “Phase 6”. **Evals card:** optional single pass-rate % from `eval_runs` if rows exist, else “—” + “Phase 7”. |
+| **Hub Agent / Evals cards** | **API card:** live stats from `api_events`. **Agent card:** live stats from `agent_runs` (Phase 6). **Evals card:** optional pass-rate teaser from `eval_runs` or “Phase 7”. |
 | **Rendering** | RSC + `force-dynamic` on Observe pages. No public JSON API for dashboard data. |
 | **Auth** | None (§3 #7). |
 | **Charts** | Deferred — tables + stat cards only. |
@@ -1587,7 +1588,7 @@ Uses `BOOL_OR(endpoint = …)` per session — best demo metric for “agents re
 
 - Title: “Agent Observe”
 - Copy: metrics ship in **Phase 6** after RapidUI Agent (**Phase 4**) populates `agent_runs` / `agent_turns`.
-- Bulleted preview: runs over time, success vs failed, p50/p95 latency, tokens, validate attempts, drill-down joined to API events by `session_id`.
+- Bulleted preview: runs over time, success vs failed, p50/p95 latency, tokens, validate attempts, **platform API calls per session**, drill-down joined to API events by `session_id`.
 - CTA: “View API telemetry →” `/observe/api`
 
 #### `/observe/evals` — Placeholder (Phase 3)
@@ -2025,7 +2026,7 @@ Phase 5 (main UI chat transport), Phase 6 (`agent_runs` / `agent_turns` data), m
 | **`fetch_docs` vs `llms.txt`** | **Two tools not required.** `fetch_docs` → `GET /api/docs`; `fetch_schema` → `GET /api/schema`. Both require session headers (Phase 3B). Agent workflow in system prompt: call tools before authoring JSON — do not curl `llms.txt` from tool unless we add a fifth tool later. |
 | **Tool return shapes** | **`validate_rui`:** return `{ valid, errors?, normalizedRui? }` — cap error list in tool message if huge. **`save_rui`:** return `{ specId, viewUrl, url }` from 201 response — agent should share `viewUrl` in chat. Use Pydantic models for tool outputs. |
 | **Message history** | **`VercelAIAdapter`** manages history from client messages (standard Vercel AI protocol). No custom DB for chat history in v0.2. |
-| **Run outcome `abandoned`** | **Optional in v0.2.** Set only if we detect client disconnect / explicit cancel hook later. MVP: **`saved` \| `failed`** only. |
+| **Run outcome `abandoned`** | **Phase 4 shipped without it.** **Phase 6 P0:** New chat → explicit ingest `abandoned` for prior session; tab close / idle → 30m UI inference; eval runner → explicit POST in **7A.1**. See [Phase 6 P0 outcome triggers](#outcome-triggers-locked-for-p0). |
 | **Python package layout** | Split modules under `agent/` (see below) — not a single 500-line `main.py`. |
 | **Neon direct access** | **No** — agent POSTs ingest over HTTP only (reference §4). |
 | **Content in agent instructions** | **Personality + operations workflow only** — zero API URLs, schema excerpts, golden examples (reference §11). Version loaded from `prompts/{RAPIDUI_AGENT_PROMPT_VERSION}.txt` via `Agent(instructions=...)`. |
@@ -2824,6 +2825,7 @@ agent/prompts/v1.txt
 | Intent header | **`X-RapidUI-Eval-Case`** from starter chips → ingest + Observe session summary |
 | Agent identity | `X-RapidUI-Agent: rapidui-agent-chat` on all chat requests |
 | Observe link | **`SiteHeader`** + session bar; Phase 6 adds agent dashboard filter by session |
+| New chat abandon | Phase **6 P0** wires `abandonAgentSession(priorId)` before `rotateSessionId()` — see Phase 6 |
 
 ---
 
@@ -2861,13 +2863,15 @@ Phase 5 is **complete** when all of the following are true:
 4. **`npm run build`** + **`npm run smoke:inspector`** pass. ✅ (2026-07-22)
 5. **Prod smoke** (when deployed) — `rapidui.dev/chat` → Render agent → save → `/specs/:id` + Observe session link after first API call. ✅ (UC3: `bfb1f049-00e5-482b-bfeb-0faf55ccb145`)
 
-**Phase 6** — next: **Phase 6 P0** telemetry correctness, then Observe agent dashboard (`/observe/agent`).
+**Phase 7** — next: **7.0** portfolio polish in parallel with **7A.0** grader hardening.
 
 ---
 
 # Phase 6 — Observe: Agent dashboard
 
 **Reference:** §9 Area 6
+
+**Status:** Complete (verified 2026-07-31 — `smoke:observe-agent`, `npm run build`, manual UC1 save + Observe drill-down + New chat abandon).
 
 ### Goal
 
@@ -2890,7 +2894,7 @@ Complement the existing **API Observe** view (`/observe/api`) with an **Agent Ob
 
 **One line:** *See what the Agent did — dashboard + honest telemetry.*
 
-**Phase 6 vs Phase 7:** Phase 6 **measures and displays** sessions. Phase 7 **scores** whether the agent produced the right spec and (optionally) compares models. Eval trial UI links *into* Phase 6 drill-downs — it does not duplicate them.
+**Phase 6 vs Phase 7:** Phase 6 **measures and displays** sessions. Phase 7 **scores** whether the agent produced the right spec and (optionally) compares models. Eval trial UI links *into* Phase 6 drill-downs — it does not duplicate them. See [Phase 6 ↔ Phase 7 alignment](#phase-6--phase-7-alignment-locked) in Phase 7.
 
 ### Depends on
 
@@ -2907,22 +2911,92 @@ Phase 6 P0  Telemetry correctness     ← gate; do not ship dashboard until done
 Phase 6     Agent Observe UI + queries
 ```
 
-### Implementation readiness (review 2026-07-25)
+### Implementation readiness (review 2026-07-31)
 
-**Verdict:** **Ready to start Phase 6 P0.** Phases 1–5 dependencies are satisfied. Phase 6 UI is **blocked** until P0 checklist is complete.
+**Verdict:** **Complete.** P0 telemetry + Agent Observe UI shipped. Manual sign-off: UC1 save, Observe drill-down, New chat abandon, hub/API cross-links.
 
 | Prerequisite | Status |
 |--------------|--------|
 | `agent_runs` / `agent_turns` migrations + ingest route | ✅ |
 | Phase 3 API Observe patterns (`StatCard`, session detail, queries) | ✅ |
 | Phase 5 chat producing real `agent_runs` rows on save | ✅ |
-| Terminal outcomes from Agent | ❌ — **P0 blocker** |
-| `api_events` metric query helpers | ❌ — **P0 blocker** |
-| Agent dashboard UI | ❌ — placeholder only |
+| Terminal outcomes from Agent | ✅ |
+| `api_events` metric query helpers | ✅ |
+| Agent dashboard UI | ✅ |
+| P0 design decisions (outcome triggers, authority) | ✅ |
 
-**Doc ↔ code alignment:** Repo audit table above matches the repository. No doc contradictions found for Phase 6 scope.
+**Doc ↔ code alignment:** Repo audit tables below reflect shipped state (post-implementation 2026-07-31).
 
-**Start here:** `agent/telemetry.py` (terminal outcomes) → `lib/observe/queries.ts` (metric helpers) → `smoke:observe-agent` → UI.
+---
+
+### Telemetry architecture (investigation 2026-07-31)
+
+Phase 6 observability sits on **two independent write paths** joined by `session_id`:
+
+```txt
+Lane A — api_events (all agents: external + RapidUI Agent)
+  Any HTTP call to guarded platform routes
+    → Next.js route handler → recordApiEvent / recordDiscoveryEvent (in-process)
+    → Neon api_events
+    → /observe/api
+
+Lane B — agent_runs + agent_turns (RapidUI Agent only)
+  Browser → POST /chat → Pydantic AI + tools (platform API only)
+    → FastAPI on_complete → POST /api/observe/ingest/agent
+    → Neon agent_runs / agent_turns
+    → /observe/agent (JOIN api_events ON session_id)
+```
+
+**Rules (locked):**
+
+1. **LLM / tools never call Observe** — platform API routes + FastAPI handler ingest only. **Exception:** Main UI may POST terminal **`abandoned`** for the **previous** session on New chat ([outcome triggers](#outcome-triggers-locked-for-p0)).
+2. **`api_events` is authoritative** for validate attempts, platform API call counts, and (after migration 006) **`http_status`** for transport vs semantic classification.
+3. **`agent_runs` is authoritative** for terminal outcome, tokens, run latency, model/prompt/eval metadata.
+4. **Path B external agents** (curl, Cursor) write `api_events` only — no `agent_runs` row; Agent dashboard shows RapidUI Agent sessions only.
+5. **Do not unify** API Observe `resolveSessionOutcome()` (heuristic from validate rows) with Agent `resolveAgentRunOutcome()` (prefer DB `outcome`) — different views, different precedence.
+
+#### Header propagation (session context on every row)
+
+```txt
+Browser sessionStorage
+  session_id (stable per chat; rotateSessionId on New chat)
+  pending eval case (setPendingEvalCase on starter chip; consumed once)
+
+Main UI transport (every POST /chat):
+  X-RapidUI-Session-Id, X-RapidUI-Agent: rapidui-agent-chat
+  X-RapidUI-Eval-Case (first request only after chip)
+
+FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
+  → rapidui_headers() on every tool HTTP call → api_events columns
+  → handle_turn_complete run payload → agent_runs columns
+```
+
+**Agent id conventions:** `rapidui-agent-chat` (UI), `rapidui-agent-cli` (terminal), `rapidui-agent-eval` (7A runner), `rapidui-agent` (default/curl). Phase 6 filters should support separating demo vs eval traffic.
+
+#### Event catalog (what Phase 6 reads)
+
+| Event | Trigger | Written by | Table | Key fields |
+|-------|---------|------------|-------|------------|
+| Discovery GET | `fetch_docs`, `fetch_schema` | `recordDiscoveryEvent` | `api_events` | `endpoint`, `session_id`, `duration_ms`; `valid/spec_id` null |
+| Validate attempt | `validate_rui` | `recordApiEvent` | `api_events` | `valid`, `error_codes[]` |
+| Save attempt | `save_rui` | `recordApiEvent` | `api_events` | `spec_id` on 201 |
+| Gate failure | Missing session | *(none)* | — | 400, no row (by design) |
+| Turn complete | Each `/chat` assistant reply | `handle_turn_complete` → ingest | `agent_turns` + partial `agent_runs` | `turn_index`, tokens, `had_validate_call`, `had_save` |
+| Run terminal | Outcome known | Same ingest POST | `agent_runs` | `outcome`, `finished_at`, totals |
+
+**Ingest cadence:** One POST per completed assistant turn (not per tool call). Each POST carries one `turns[]` entry plus cumulative `run` fields merged via upsert.
+
+#### Realistic session flows (reference)
+
+| Flow | Turns | `api_events` (typical) | Terminal `agent_runs.outcome` |
+|------|-------|------------------------|-------------------------------|
+| **UC1 happy path** | 1 (single-turn save possible) | docs + schema + validate×N + save | `saved` |
+| **UC2 clarify → save** | 2–3 | discovery + validate per turn + save on last | `saved` on save turn |
+| **Failed run** | 1+ | validate failures accumulate | `failed` (P0 — not implemented today) |
+| **Abandoned (New chat)** | 1+ partial | docs/schema/validate up to rotate | **`abandoned`** (explicit ingest on session rotate) |
+| **Abandoned (tab close / idle)** | 1+ partial | same | **`abandoned` (inferred)** after 30m if no DB outcome |
+| **External agent (Path B)** | N/A (no `/chat`) | validate/save only | no `agent_runs` row |
+| **Agent restart mid-session** | continues | `api_events` durable | `agent_turns` turn_index may collide; use `api_events` counts |
 
 ---
 
@@ -2930,87 +3004,187 @@ Phase 6     Agent Observe UI + queries
 
 **Gate:** Complete before building Agent dashboard summary cards or outcome breakdowns.
 
-### Repo audit (2026-07-25)
+### Repo audit (post-ship 2026-07-31)
 
 | Item | Status | Notes |
 |------|--------|-------|
 | Ingest schema accepts `saved` / `failed` / `abandoned` | ✅ | `lib/observe/schemas.ts` |
-| Agent emits terminal `outcome` | ❌ | `agent/telemetry.py` — only `saved`; errors get `error_summary` only |
-| Run-level tokens/latency finalized on save only | ❌ | Non-save sessions lack complete run totals |
-| Process counters in process-local dict | ⚠️ | `agent/deps.py` `_session_states` — restart can reset `turn_index`, under-report validate/tokens |
-| Durable validate attempts | ✅ source | `api_events` WHERE `endpoint = '/api/validate'` per `session_id` |
-| Platform API call proxy | ✅ source | All four agent tools hit RapidUI HTTP → rows in `api_events` |
-| Exact LLM tool-call counts | ❌ | Not stored on `agent_turns`; use `api_events` count, label honestly |
-| HTTP status on `api_events` | ❌ | Accepted by telemetry code but not persisted — optional P0 tail |
-| Reasoning-token accounting (o4-mini) | ⚠️ unverified | Audit before any cost estimate in 7B |
+| Agent emits terminal `outcome` | ✅ | `agent/telemetry.py` — `saved` / `failed` (`terminal_failure`); client `abandoned` |
+| Run-level tokens/latency on terminal outcomes | ✅ | Agent paths finalize on save/failed; client abandon sets `outcome` + server `finished_at` |
+| Process counters in process-local dict | ⚠️ | Documented in `agent/README.md`; **`api_events`** authoritative in Observe |
+| Durable validate attempts | ✅ | `countValidateAttempts()` from `api_events` |
+| Platform API call counts | ✅ | `countPlatformApiCalls()` from `api_events`; UI label “Platform API calls” |
+| Exact LLM tool-call counts | — | Out of scope — not stored; use platform API call count |
+| HTTP status on `api_events` | ✅ | Migration `006` + `recordApiEvent` / discovery default 200 |
+| Reasoning-token accounting (o4-mini) | ✅ | Documented in `agent/README.md` — directional only, not billing |
+| "New chat" abandon hook | ✅ | `lib/demo/abandon-session.ts` + `MainDemo.tsx` |
+| API vs Agent outcome heuristics | ✅ | Separate resolvers by design — not merged |
 
-### Resolved decisions
+### Resolved decisions (2026-07-31 investigation)
 
 | Question | Decision |
 |----------|----------|
-| **Validate attempts — source of truth** | **`api_events`** count per `session_id`. Agent `validate_attempts` is **advisory** in UI copy. |
-| **“Tool calls per run” metric** | Rename to **platform API calls per session** — count from `api_events` (discovery + validate + save). Do **not** label as “LLM tool calls”. |
-| **Terminal outcomes** | Emit **`saved`**, **`failed`**, **`abandoned`** from Agent; **`in_progress`** inferred when no terminal outcome and session recent. |
-| **Agent instance policy (v0.2)** | Pin **one Agent instance** for prod/demo; document restart collision on `(run_id, turn_index)` upsert. Derive durable counters from `api_events` where possible. |
+| **Validate attempts — source of truth** | **`api_events`** count per `session_id` WHERE `endpoint = '/api/validate'`. Agent `validate_attempts` is **advisory** — show with disclaimer if it differs. |
+| **“Tool calls per run” metric** | Rename to **platform API calls per session** — `COUNT(*)` from `api_events` per session (discovery + validate + save). Do **not** label as “LLM tool calls”. |
+| **Terminal outcomes — required** | Emit **`saved`**, **`failed`**, **`abandoned`** from Agent ingest; **`in_progress`** when `outcome IS NULL` and session is recent. Phase 4 deferral reversed — not optional. |
+| **When `saved` fires** | Turn completes AND `SessionState.turn_had_save` AND `last_spec_id` set → `outcome: 'saved'`, `spec_id`, `total_tokens`, `latency_ms` (session wall clock), `finished_at`. *(Already implemented.)* |
+| **When `failed` fires** | Turn completes AND no save AND **unrecoverable failure** — see [outcome triggers](#outcome-triggers-locked-for-p0) below. **Not** on every failed validate (retries are normal). |
+| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** 30m stale inference. Eval runner (7A) POSTs explicitly on timeout. |
+| **New chat abandon (Q1/Q2)** | On session rotate, **before** minting new id: fire-and-forget `POST /api/observe/ingest/agent` with `{ session_id: priorId, run: { outcome: "abandoned" } }`. Skip if thread empty or panel already saved. **No** new FastAPI route. |
+| **Stale-session inference (Q1)** | **`AGENT_STALE_SESSION_MS = 30 minutes`** — for tab-close / unknown exit when DB `outcome` still null. Badge: “Abandoned (inferred)”. |
+| **`http_status` on `api_events` (Q3)** | **Ship in P0** — migration `006_api_events_http_status.sql`; wire `recordApiEvent` / `recordDiscoveryEvent`. |
+| **FastAPI disconnect (Q4)** | **Skip v0.2** — document as v0.3+ backlog; rely on New chat abandon + 30m inference. |
+| **Latency sample minimums (Q5)** | **p50:** show “—” if &lt; **3** saved runs; **p95:** show “—” if &lt; **10** saved runs. UI subtitle documents minimums. |
+| **Agent instance policy (v0.2)** | Pin **one Agent instance** for prod/demo; document restart collision on `(run_id, turn_index)` upsert. Derive durable counters from `api_events`. |
+| **API vs Agent outcome display** | Keep **separate** resolvers: `resolveSessionOutcome()` (API Observe) vs `resolveAgentRunOutcome()` (Agent Observe). Do not collapse. |
+| **External agents on Agent dashboard** | Agent dashboard lists **`agent_runs` rows only**. Path B sessions appear in `/observe/api` only — no synthetic agent rows. |
 | **Phase 4 deferral reversed** | Explicit `outcome: 'failed'` is **required** for Phase 6 — not optional hardening. |
+
+#### Outcome triggers (locked for P0)
+
+| Outcome | Server emit (ingest POST) | Do **not** emit when |
+|---------|---------------------------|----------------------|
+| **`saved`** | Turn with successful `save_rui` | — |
+| **`failed`** | (1) Uncaught exception in `/chat` handler or tool that aborts the turn with no save; OR (2) pydantic-ai run ends in **error** state with `error_summary` set and no save; OR (3) explicit eval-runner timeout POST (7A) | Failed validate alone (normal retry loop); user still chatting |
+| **`abandoned`** | (1) **New chat:** Main UI POSTs to existing `/api/observe/ingest/agent` for **prior** `session_id` when user rotates session; OR (2) eval runner script ends without save (7A) | Thread empty (no messages); session already **`saved`**; during normal agent turns |
+| **`in_progress` (inferred)** | No DB write — UI/query only | `outcome IS NULL` and last activity within **30 minutes** |
+| **`abandoned` (inferred)** | No DB write — UI/query only | `outcome IS NULL` and last activity **> 30 minutes** ago; badge: “Abandoned (inferred)” |
+
+**Ingest rule exception (locked):** Only FastAPI posts turn/run metrics during `/chat`. **Exception:** Main UI may POST terminal **`abandoned`** for the **previous** session id on explicit New chat only — not from LLM/tools.
+
+**Outcome downgrade guard:** `upsertAgentRun` must **not** overwrite `outcome = 'saved'` with `abandoned` (client skip + server COALESCE rule).
+
+**New chat flow:**
+
+```txt
+User confirms New chat
+  → read priorSessionId = getSessionId()
+  → if priorSessionId && hadMessages && !panelSaved:
+       POST /api/observe/ingest/agent { session_id: priorSessionId, run: { outcome: "abandoned" } }
+       (fire-and-forget; errors logged client-side only)
+  → rotateSessionId()  // mint new session for next chat
+```
+
+**Finalize on any terminal outcome:** `finished_at`, best-effort `total_tokens` + `latency_ms` from `SessionState` accumulators (agent-ingested runs); client abandon sends `outcome` + `finished_at` only.
+
+#### Known gaps and mitigations
+
+| Gap | Impact | Mitigation (locked) |
+|-----|--------|---------------------|
+| Tab close / unknown exit | `outcome NULL` until stale | 30m inference → “Abandoned (inferred)” |
+| New chat without save | Was NULL forever | **P0:** ingest `abandoned` for prior session on rotate |
+| Process restart resets `_session_states` | Wrong `turn_index`, advisory validate count | Single-instance policy; **`api_events`** authoritative for counts |
+| Ingest POST failure | Missing agent row/metrics | Log + continue (chat unaffected); smoke tests catch |
+| `http_status` not in `api_events` | Can't SQL-filter transport vs semantic | **P0:** migration 006 + wire telemetry |
+| Token sum vs turn sum mismatch | Dashboard parity warning | Document in UI; turn tokens advisory after restart |
+| FastAPI disconnect detection | Tab close untracked server-side | **Deferred v0.3** — documented; use inference |
+
+### Locked decisions (2026-07-31 final — all open questions resolved)
+
+| # | Question | **Decision** |
+|---|----------|--------------|
+| **Q1** | Stale-session threshold | **30 minutes** for inferred abandon when DB `outcome` is still null (tab close, etc.) |
+| **Q1b** | New chat | **Abandon prior session on rotate** — not inference; see New chat flow above |
+| **Q2** | New endpoint for abandon? | **No.** Reuse existing **`POST /api/observe/ingest/agent`** with prior `session_id`. Abandon is part of session rotation, not a separate API product. |
+| **Q3** | `http_status` on `api_events` | **Ship in P0** — migration 006 + wire `insertApiEvent` / discovery inserts |
+| **Q4** | FastAPI disconnect detection | **Skip v0.2** — unreliable; document in v0.3 backlog + agent README |
+| **Q5** | Latency card minimums | **p50:** ≥ **3** saved runs; **p95:** ≥ **10** saved runs; show “—” below threshold with subtitle |
+
+**All telemetry design questions resolved** — proceed with P0 implementation.
 
 ### Task list (6 P0)
 
 #### A — Agent terminal lifecycle
 
-1. **`agent/telemetry.py`** — on unrecoverable agent/tool error with no save → `outcome: 'failed'`, set `finished_at`, finalize `validate_attempts` + token totals where available.
-2. **`agent/telemetry.py`** / chat handler — on session end without save (client disconnect, max turns, explicit abort) → `outcome: 'abandoned'`.
-3. **`agent/telemetry.py`** — on `saved`: keep current behavior; ensure `finished_at`, `total_tokens`, `latency_ms` set.
-4. **`agent/README.md`** + **`lib/observe/INGEST.md`** — document outcome enum and when each fires.
+1. **`agent/telemetry.py`** — refactor `handle_turn_complete`:
+   - **`saved`:** keep current branch; ensure `finished_at` via ingest schema.
+   - **`failed`:** when turn completes without save AND (`result` error state OR `SessionState.terminal_failure`) → `outcome: 'failed'`, `error_summary`, finalize tokens/latency.
+   - Add helper `_build_terminal_run_payload(state, outcome)` to avoid duplicated finalize logic.
+2. **`agent/main.py`** — on uncaught handler/tool exception without save → terminal ingest `failed` (no disconnect detection in v0.2).
+3. **`agent/tools/rapidui.py`** — set `SessionState.terminal_failure` on unrecoverable errors (non-JSON transport, etc.).
+4. **`agent/deps.py`** — add `SessionState.terminal_failure: bool`; document `_session_states` restart limitation.
+5. **`agent/README.md`** — document outcome enum, triggers, disconnect deferred to v0.3, single-instance policy.
 
-#### B — Metric authority
+#### A2 — New chat abandon (Main UI — no new endpoint)
 
-5. **`lib/observe/queries.ts`** — helper `countValidateAttempts(sessionId)` from `api_events`.
-6. **`lib/observe/queries.ts`** — helper `countPlatformApiCalls(sessionId)` from `api_events`.
-7. Document in query comments: agent-reported fields are secondary.
+6. **`lib/demo/abandon-session.ts`** — `abandonAgentSession(sessionId)` → fire-and-forget `POST /api/observe/ingest/agent` with `{ run: { outcome: "abandoned" } }`.
+7. **`lib/demo/session.ts`** or **`components/demo/MainDemo.tsx`** — on New chat confirm: call `abandonAgentSession(priorId)` when `hadMessages && !saved` **before** `rotateSessionId()`.
+8. **`lib/observe/writes.ts`** — outcome downgrade guard: do not replace `saved` with `abandoned` on upsert.
+9. **`lib/observe/INGEST.md`** — document New chat client abandon exception + downgrade guard.
+
+#### B — Metric authority + api_events http_status
+
+10. **`lib/db/migrations/006_api_events_http_status.sql`** — add nullable `http_status INT` column.
+11. **`lib/observe/schemas.ts`** + **`lib/observe/telemetry.ts`** + **`lib/observe/writes.ts`** — persist `http_status` on insert.
+12. **`app/api/validate/route.ts`**, **`app/api/specs/route.ts`**, discovery GET routes — pass response status into telemetry helpers.
+13. **`lib/observe/queries.ts`** — `countValidateAttempts(sessionId)`, `countPlatformApiCalls(sessionId)`.
+14. **`lib/observe/queries.ts`** — `resolveAgentRunOutcome(run, lastActivityAt?)` + **`AGENT_STALE_SESSION_MS = 30 * 60 * 1000`**.
+15. Comment on agent metric queries: **`api_events` counts primary**; agent fields secondary.
 
 #### C — Instance + collision policy
 
-8. **`agent/deps.py`** — document `_session_states` limitation; optional: log warning on turn_index reuse after process restart.
-9. Deploy docs — single uvicorn worker / one Render instance for v0.2 demo.
+16. **`agent/deps.py`** — optional: log warning on turn_index reuse after restart.
+17. **`agent/README.md`** — single uvicorn worker / one Render instance.
 
-#### D — Audits (before dashboard)
+#### D — Audits + smoke
 
-10. **Token audit** — one logged o4-mini session: confirm reasoning tokens included in reported usage before 7B cost claims.
-11. **Optional:** migration `006_api_events_http_status.sql` + wire status in `lib/observe/telemetry.ts` if transport-failure classification needed. (`httpStatus` is accepted in `recordApiEvent` today but not persisted.)
+18. **Token audit** — one o4-mini session; document reasoning tokens in README.
+19. **`scripts/smoke-observe-agent.ts`** + **`npm run smoke:observe-agent`** — terminal outcomes, validate parity, `http_status` persisted, New chat abandon (mock ingest).
 
 ### Files to create / modify (6 P0)
 
 ```txt
 agent/telemetry.py
-agent/main.py                    # if abandon detection lives in handler
+agent/main.py
+agent/deps.py
+agent/tools/rapidui.py
 agent/README.md
+lib/demo/abandon-session.ts              # new — New chat abandon helper
+lib/demo/session.ts                      # or MainDemo.tsx — wire on rotate
+components/demo/MainDemo.tsx             # abandon before rotateSessionId
 lib/observe/INGEST.md
-lib/observe/queries.ts           # metric helpers
-lib/db/migrations/006_*.sql      # optional http_status
-lib/observe/telemetry.ts         # optional http_status
-scripts/smoke-observe-agent.ts   # new — terminal outcome + api_events parity
+lib/observe/writes.ts                    # http_status + outcome downgrade guard
+lib/observe/schemas.ts
+lib/observe/telemetry.ts
+lib/observe/queries.ts
+lib/db/migrations/006_api_events_http_status.sql
+app/api/validate/route.ts
+app/api/specs/route.ts
+app/api/docs/route.ts                    # + schema, health, llms if needed
+scripts/smoke-observe-agent.ts
+package.json
 ```
 
 ### Test plan (6 P0)
 
 | Test | Action | Pass criteria |
 |------|--------|---------------|
-| Saved run | UC1 chip → save via `/chat` | `agent_runs.outcome = 'saved'`, `spec_id` set, tokens/latency populated |
-| Failed run | Force validate loop without save (invalid spec path) | `outcome = 'failed'` OR `abandoned`; not stuck `in_progress` forever |
-| Validate count | Compare agent field vs SQL | `api_events` validate count ≥ agent advisory count; dashboard uses SQL count |
-| Platform calls | One full UC2 session | `api_events` rows for docs/schema/validate/save; count matches drill-down |
-| Restart doc | Read agent README | Single-instance policy documented |
+| Saved run | UC1 chip → save via `/chat` | `outcome = 'saved'`, `spec_id`, `finished_at`, tokens/latency |
+| Failed run | Force tool transport error OR mock ingest | `outcome = 'failed'`; not stuck `NULL` |
+| New chat abandon | Chat without save → New chat | **Prior** session `outcome = 'abandoned'` in DB (not inferred) |
+| New chat skip saved | Save → New chat | Prior session stays **`saved`** (downgrade guard) |
+| Abandoned (inferred) | NULL outcome, backdate last activity >30m | `resolveAgentRunOutcome` → inferred abandon |
+| Validate count | UC2 session | SQL count ≥ agent advisory |
+| Platform calls | Full UC2 session | `countPlatformApiCalls` matches timeline |
+| http_status | POST validate invalid JSON | Row has `http_status = 400` |
+| Restart doc | Read agent README | Single-instance + disconnect deferred documented |
+| Token audit | One o4-mini session | Audit notes in README or smoke output |
 
 ### Checklist (6 P0)
 
-- [ ] Agent emits `outcome: 'saved' | 'failed' | 'abandoned'` reliably
-- [ ] Terminal runs set `finished_at` and best-effort token/latency totals
-- [ ] `api_events` is authoritative for validate attempts in queries
-- [ ] Platform API calls metric defined from `api_events` (not “LLM tool calls”)
-- [ ] Single-instance / restart limitation documented
-- [ ] Reasoning-token audit completed for default model (o4-mini)
-- [ ] `smoke:observe-agent` (or equivalent) passes locally
+- [x] Agent emits `outcome: 'saved' | 'failed' | 'abandoned'` per trigger table
+- [x] **New chat** abandons prior session via existing ingest (no new endpoint)
+- [x] Outcome downgrade guard: `saved` not overwritten by `abandoned`
+- [x] Terminal runs set `finished_at` and best-effort token/latency totals (agent paths)
+- [x] `failed` does **not** fire on normal validate retry loops
+- [x] `api_events.http_status` persisted (migration 006)
+- [x] `api_events` authoritative for validate attempts in queries
+- [x] Platform API calls metric from `api_events`
+- [x] Stale-session inference (30m) for non–New-chat exits
+- [x] FastAPI disconnect detection **skipped** and documented (v0.3 backlog)
+- [x] Single-instance / restart limitation documented
+- [x] Reasoning-token audit completed (o4-mini) — notes in `agent/README.md`
+- [x] `smoke:observe-agent` passes locally
 
 ---
 
@@ -3018,15 +3192,17 @@ scripts/smoke-observe-agent.ts   # new — terminal outcome + api_events parity
 
 **Prerequisite:** Phase 6 P0 checklist complete.
 
-### Repo audit (2026-07-25)
+### Repo audit (post-ship 2026-07-31)
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `/observe/agent` page | ❌ placeholder | `app/observe/agent/page.tsx` |
-| Agent run detail route | ❌ missing | Pattern: `/observe/api/sessions/[sessionId]` |
-| `agent_runs` queries | ❌ missing | `lib/observe/queries.ts` is API-centric only |
-| Hub Agent card | ⚠️ static | “Phase 6” placeholder copy |
-| API session → agent link | ⚠️ partial | Footer placeholder from Phase 3 |
+| `/observe/agent` page | ✅ | Live dashboard — “Platform API calls” labeling |
+| Agent run detail route | ✅ | `/observe/agent/sessions/[sessionId]` |
+| `agent_runs` queries | ✅ | `getAgentObserveSummary`, `listAgentRuns`, `getAgentRunDetail` |
+| P0 query helpers | ✅ | `countValidateAttempts`, `countPlatformApiCalls`, `resolveAgentRunOutcome` |
+| Hub Agent card | ✅ | Live stats from `getAgentObserveSummary` |
+| API session → agent link | ✅ | Conditional on `getAgentRunExists(sessionId)` |
+| Agent outcome badge | ✅ | `AgentRunOutcomeBadge` (separate from API `SessionOutcomeBadge`) |
 
 ### Scope
 
@@ -3037,67 +3213,75 @@ scripts/smoke-observe-agent.ts   # new — terminal outcome + api_events parity
 
 #### MVP metrics (honest sources)
 
-| Metric | Source | Null / incomplete behavior |
-|--------|--------|----------------------------|
-| Runs over time | `agent_runs.started_at` | — |
-| Outcomes: saved / failed / abandoned / in-progress | `agent_runs.outcome` + inference | In-progress when no terminal outcome |
-| p50 / p95 latency | `agent_runs.latency_ms` WHERE `outcome = 'saved'` | Show “—” if &lt; N samples |
-| Validate attempts (primary) | `api_events` `/api/validate` count | Per session and avg per saved run |
-| Tokens per run | `agent_runs.total_tokens` | Only when terminal + populated |
-| Platform API calls per session | `api_events` count | Label clearly — not LLM tool calls |
-| Breakdowns | `eval_case_id`, `intent`, `model`, `prompt_version` | From `agent_runs` |
+| Metric | Primary source | Secondary | Null / incomplete behavior |
+|--------|---------------|-----------|----------------------------|
+| Runs over time | `agent_runs.started_at` | — | Only sessions with `/chat` ingest |
+| Outcomes: saved / failed / abandoned / in-progress | `agent_runs.outcome` | `resolveAgentRunOutcome()` inference | In-progress when null + recent; “Abandoned (inferred)” when stale &gt;30m |
+| p50 latency | `agent_runs.latency_ms` WHERE `outcome = 'saved'` | — | Show “—” if &lt; **3** saved runs; subtitle: “min. 3 saved runs”. See [Appendix E](#appendix-e--agent-latency-metrics-phase-6). |
+| p95 latency | `agent_runs.latency_ms` WHERE `outcome = 'saved'` | — | Show “—” if &lt; **10** saved runs; subtitle: “min. 10 saved runs”. See [Appendix E](#appendix-e--agent-latency-metrics-phase-6). |
+| Validate attempts | **`api_events`** `/api/validate` count | `agent_runs.validate_attempts` (advisory footnote) | 0 if none |
+| Tokens per run | `agent_runs.total_tokens` | Sum of `agent_turns` (parity check) | Only when terminal + populated |
+| Platform API calls per session | **`api_events`** total count | — | Label: “Platform API calls” — not LLM tool calls |
+| Breakdowns | `eval_case_id`, `intent`, `model`, `prompt_version` | — | From `agent_runs` (set on first ingest with headers) |
+| Error detail | `api_events.error_codes` timeline | `agent_runs.error_summary` | Summary = last error only |
 
 #### Drill-down (session detail)
 
-- `agent_runs` row + ordered `agent_turns` (`turn_index`, latency, tokens, `had_validate_call`, `had_save`)
-- Joined **`api_events`** timeline (validate errors, save, discovery)
+- **`agent_runs`** row + ordered **`agent_turns`** (`turn_index`, latency, tokens, `had_validate_call`, `had_save`)
+- Joined **`api_events`** timeline via existing `getSessionTimeline(sessionId)` — discovery first, then validate/save
+- Summary cards: show **`countValidateAttempts`** and **`countPlatformApiCalls`** (SQL), not agent-reported alone
+- Advisory footnote when `agent_runs.validate_attempts ≠ countValidateAttempts` (e.g. after restart)
 - Links: **`/observe/api/sessions/[sessionId]`**, **`/specs/[id]`** when saved
-- Footer link from API session page → agent run (replace Phase 3 placeholder)
+- Footer link from API session page → agent run **only when** `agent_runs` row exists for session
 
 #### Cross-links
 
 - `/observe/agent` ↔ `/observe/api` (filter by `session_id`)
 - Link to `/observe/evals` placeholder (Phase 7A.4 replaces)
+- Path B external-agent sessions: API detail only — no broken agent link
 
 ### UI pattern
 
 Reuse Phase 3 API Observe patterns: `StatCard`, `SessionOutcomeBadge`, filter form, session table — see `app/observe/api/page.tsx`.
 
-Extend **`SessionOutcome`** in `lib/observe/queries.ts` to include **`abandoned`** (align with ingest schema).
+- Add **`AgentRunOutcome`** type + **`AgentRunOutcomeBadge`** for **`abandoned`** and **`abandoned_inferred`** — keep API **`SessionOutcomeBadge`** unchanged.
+- Timeline row styling: reuse Phase 3 colors (discovery zinc, validate fail amber, validate pass green, save violet).
 
 ### Task list (6 UI)
 
 #### A — Query layer
 
-1. **`getAgentObserveSummary(filters)`** — run volume, outcome breakdown, p50/p95 latency, avg tokens, avg validate attempts (from `api_events`), platform API calls.
-2. **`listAgentRuns(filters)`** — paginated table rows with derived validate count + platform call count.
-3. **`getAgentRunDetail(sessionId)`** — run + turns + api_events timeline.
-4. **`listDistinctModels()`**, **`listDistinctPromptVersions()`** — filter dropdowns (or derive from distinct agent_runs columns).
-5. **`resolveAgentRunOutcome(run, apiEvents)`** — prefer `agent_runs.outcome`; fallback inference only when null.
+1. **`getAgentObserveSummary(filters)`** — run volume, outcome breakdown (including inferred), p50 (min 3 saved), p95 (min 10 saved), avg tokens, avg validate attempts, avg platform calls.
+2. **`listAgentRuns(filters)`** — paginated rows: `agent_runs` + derived validate/platform counts + `resolveAgentRunOutcome`.
+3. **`getAgentRunDetail(sessionId)`** — run + turns + `getSessionTimeline`; include parity flags (token sum mismatch).
+4. **`getAgentRunExists(sessionId)`** — boolean for cross-link visibility on API session page.
+5. **`listDistinctModels()`**, **`listDistinctPromptVersions()`**, **`listDistinctAgents()`** (filter `rapidui-agent-*`) — filter dropdowns.
+6. **`resolveAgentRunOutcome(run, lastActivityAt?)`** — implemented in P0; consumed here.
 
 #### B — Pages + components
 
-6. Replace **`app/observe/agent/page.tsx`** — live dashboard (remove placeholder).
-7. Create **`app/observe/agent/sessions/[sessionId]/page.tsx`** — detail view.
-8. Update **`app/observe/page.tsx`** hub — Agent card live stats from `getAgentObserveSummary`.
-9. Update **`app/observe/api/sessions/[sessionId]/page.tsx`** — “View agent run →” link when `agent_runs` row exists.
+7. Replace **`app/observe/agent/page.tsx`** — live dashboard; fix placeholder copy (“Platform API calls per session”).
+8. Create **`app/observe/agent/sessions/[sessionId]/page.tsx`** — detail view (turn table + API timeline + cross-links).
+9. Update **`app/observe/page.tsx`** hub — Agent card live stats from `getAgentObserveSummary`.
+10. Update **`app/observe/api/sessions/[sessionId]/page.tsx`** — conditional “View agent run →” when `getAgentRunExists(sessionId)`.
+11. **`components/observe/AgentRunOutcomeBadge.tsx`** — agent outcomes including `abandoned` + inferred (API badge unchanged).
 
 #### C — Smoke + docs
 
-10. **`scripts/smoke-observe-agent.ts`** + **`npm run smoke:observe-agent`** — summary query returns data after one chat session.
-11. Update Phase 3 smoke if cross-links asserted.
+12. Extend **`scripts/smoke-observe-agent.ts`** — summary + list queries return expected shape after seed/mock ingest.
+13. Update Phase 3 smoke if cross-link assertions added.
 
 ### Files to create / modify (6 UI)
 
 ```txt
-lib/observe/queries.ts
-components/observe/SessionOutcomeBadge.tsx   # add abandoned if needed
+lib/observe/queries.ts                           # agent summary/list/detail/exists
+components/observe/AgentRunOutcomeBadge.tsx   # agent outcomes (abandoned + inferred)
 app/observe/agent/page.tsx
 app/observe/agent/sessions/[sessionId]/page.tsx
 app/observe/page.tsx
 app/observe/api/sessions/[sessionId]/page.tsx
 scripts/smoke-observe-agent.ts
-package.json                                 # smoke:observe-agent
+package.json                                     # smoke:observe-agent
 ```
 
 ### Out of scope (Phase 6)
@@ -3106,6 +3290,8 @@ package.json                                 # smoke:observe-agent
 - Graders or eval trial persistence
 - Duplicating full eval transcript UI
 - Cost estimation / model-selection claims
+- **FastAPI disconnect / stream-cancel abandon** (v0.3 backlog — documented only)
+- Synthetic `agent_runs` rows for Path B external agents
 
 ### Test plan (6 UI)
 
@@ -3113,35 +3299,68 @@ package.json                                 # smoke:observe-agent
 |------|--------|---------------|
 | Dashboard | Open `/observe/agent` after demo chat | Non-zero runs; outcome breakdown renders |
 | Filters | Filter by eval case from starter chip | Table narrows correctly |
-| Detail | Open session from UC2 save | Turns listed; validate events in timeline |
-| Cross-link | From API session page | Agent run link opens matching session |
-| Parity | Compare token total vs sum of turn tokens | Document any mismatch (advisory) |
+| Detail | Open session from UC2 save | Turns listed; validate events in timeline; validate count from SQL |
+| Cross-link | From API session page (agent session) | Agent link opens matching session |
+| Cross-link (Path B) | External agent session in API observe | No agent link (or hidden) |
+| Inferred abandon | Stale session fixture | Badge shows “Abandoned (inferred)” |
+| Parity | Compare token total vs sum of turn tokens | Mismatch documented in UI if present |
+| Label | Dashboard metric column | Says “Platform API calls”, not “Tool calls” |
+| Latency cards | Dashboard after 2 saves | p50 shows “—”; after 10 saves both p50 and p95 populate |
 | S4 | Hub + API + Agent routes | All three live with real data |
 
 ### Checklist (Phase 6 — full)
 
 **6 P0**
 
-- [ ] All Phase 6 P0 checklist items (above)
+- [x] All Phase 6 P0 checklist items (above)
 
 **6 UI**
 
-- [ ] `/observe/agent` populated from real agent sessions
-- [ ] Session drill-down shows turn list + validate/save timeline from `api_events`
-- [ ] Token + latency numbers match ingest data (or mismatches documented)
-- [ ] Platform API calls labeled correctly (not “LLM tool calls”)
-- [ ] Links to `/observe/api/sessions/:id` and `/specs/:id` work
-- [ ] Hub Agent card shows live metrics
-- [ ] Satisfies **S4** (with Phase 3)
+- [x] `/observe/agent` populated from real agent sessions
+- [x] Session drill-down shows turn list + validate/save timeline from `api_events`
+- [x] Validate attempts and platform calls from SQL helpers (not agent fields alone)
+- [x] Token + latency numbers match ingest data (or mismatches documented in UI)
+- [x] Platform API calls labeled correctly (not “LLM tool calls”)
+- [x] New chat abandons prior session (explicit DB outcome, not inference)
+- [x] Stale-session inference (30m) for tab-close / unknown exits
+- [x] Links to `/observe/api/sessions/:id` and `/specs/:id` work
+- [x] API → Agent cross-link conditional on `agent_runs` existence
+- [x] Hub Agent card shows live metrics
+- [x] Satisfies **S4** (with Phase 3)
+
+### Post-ship notes (2026-07-31)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Live `failed` run demo | ⚠️ optional | Smoke covers mock ingest; manual transport-error spot-check optional |
+| Discovery GET error `http_status` | ⚠️ deferred | Successful GETs record 200 via default; explicit error status on discovery failures not wired |
+| `turn_index` reuse warning log | — | Optional task skipped; restart policy documented in README |
+| UC1 starter chip prompt | ✅ fixed | Was “I pasted…” with no data — see `eval/cases/static-browse-v0.2.json` (2026-07-31) |
+| Prod deploy | 📋 required | Run `db:migrate` (006) on prod Neon; redeploy Vercel + Render agent |
+
+### Phase 6 sign-off (definition of done)
+
+Phase 6 is **complete** when all of the following are true:
+
+1. **6 P0 + 6 UI checklists** — every box checked. ✅
+2. **`npm run smoke:observe-agent`** + **`npm run build`** pass. ✅
+3. **Manual:** UC1 save → `/observe/agent` drill-down; New chat abandon; hub + API cross-links. ✅
+4. **S4** — `/observe`, `/observe/api`, `/observe/agent` live with real session data. ✅
+
+**Phase 7** — next: **7.0** portfolio polish + **7A.0** grader hardening (eval harness does not block ship).
 
 ### Handoff to Phase 7
 
-| Item | Phase 6 deliverable |
-|------|---------------------|
-| Session join key | `session_id` links agent runs, api events, future eval trials |
-| Outcome enum | `saved` / `failed` / `abandoned` / in-progress for 7A failure classification |
-| Validate authority | Query helpers reused by eval runner for process metrics |
-| Observe drill-down | Eval trial detail links here — do not duplicate timelines in eval UI |
+| Item | Phase 6 deliverable | Phase 7 consumer |
+|------|---------------------|------------------|
+| Session join key | `session_id` links agent runs, api events, eval trials | 7A.1 runner, 7A.2 `eval_trials.session_id`, 7A.4 cross-links |
+| Outcome enum | `saved` / `failed` / `abandoned` / in-progress (+ inferred) | 7A failure classification; runner must POST terminal outcome |
+| Validate authority | `countValidateAttempts`, `countPlatformApiCalls` in `lib/observe/queries.ts` | **7A.1** `processMetrics.ts` — primary source for process caps |
+| Transport vs semantic | `api_events.http_status` (migration 006) | **7A.1** `failure_owner` / `failure_stage` — infra vs model |
+| Run latency | `agent_runs.latency_ms` on saved runs — [Appendix E](#appendix-e--agent-latency-metrics-phase-6) | **7A.1** process caps (`maxLatencyMs`); not in p50/p95 eval UI |
+| Observe drill-down | `/observe/agent/sessions/[id]` + API timeline | **7A.4** links only — no timeline duplication |
+| Eval runner outcomes | — | **7A.1** POSTs `failed` / `abandoned` via ingest when script ends without save |
+| Agent Observe UI | `/observe/agent` live (**S4**) | **7A.4** prerequisite for cross-links (can stub until 7A.4) |
 
 **Post-ship review:** [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog)
 
@@ -3181,6 +3400,22 @@ Three tracks — only **7.0** is required to ship the portfolio:
 
 **One line:** *Trust the regression harness first; compare models with evidence later.*
 
+### Phase 6 ↔ Phase 7 alignment (locked)
+
+| Concern | Phase 6 (Observe) | Phase 7 (Eval) |
+|---------|-----------------|----------------|
+| **Question** | *What happened?* | *Was the result correct? Was the path OK?* |
+| **Outcome layer** | Display `agent_runs.outcome` + inference | Grader on saved spec; no save = artifact fail |
+| **Process layer** | Display metrics (honest sources) | **Score** against case caps — separate from artifact pass |
+| **Validate attempts** | `countValidateAttempts()` from **`api_events`** | Same helper in **`processMetrics.ts`** — not agent field |
+| **Platform calls** | `countPlatformApiCalls()` from **`api_events`** | Optional process cap / diagnostics |
+| **Latency** | p50/p95 on saved runs ([Appendix E](#appendix-e--agent-latency-metrics-phase-6)) | Per-trial `latency_ms` from `agent_runs` for `maxLatencyMs` |
+| **HTTP failures** | `api_events.http_status` (006) | `failure_owner: infra` when transport/storage errors |
+| **Terminal outcomes** | Agent + New chat + inference | Eval runner POSTs `failed`/`abandoned` on timeout |
+| **UI** | Session drill-down timelines | **7A.4** links to Phase 6 — never duplicates timelines |
+
+**Build gate:** Phase **6 P0** blocks **7A.1** (process metrics authority). Phase **6 UI** should ship before **7A.4** (eval cross-links). **7.0** + **7A.0** may start after **6 P0** in parallel with **6 UI**.
+
 ### Evals strategy
 
 **Interview line:** *“We separated outcome, process, and conversation. Outcome and process are automated; conversation is sampled. In production the human guides the agent — in evals, a script plays them so we compare models fairly.”*
@@ -3190,7 +3425,7 @@ Three tracks — only **7.0** is required to ship the portfolio:
 | Layer | Question | Automate? | Where |
 |-------|----------|-----------|-------|
 | **1. Outcome** | Is the **final saved RUI** correct? | ✅ Primary gate | Grader on saved spec (`lib/eval/scoreRun.ts` → `eval_trials`) |
-| **2. Process** | Was the path **efficient**? | ✅ Tie-breaker | `api_events`, `agent_runs`, process caps in case JSON |
+| **2. Process** | Was the path **efficient**? | ✅ Tie-breaker | **`countValidateAttempts`**, **`countPlatformApiCalls`**, `agent_runs.latency_ms`, `http_status` — via **`processMetrics.ts`** (Phase 6 P0 helpers) |
 | **3. Conversation** | Was the **dialogue** helpful? | ❌ Sampled | Human rubric; notes in `docs/model-selection-v0.2.md` |
 
 **Principle:** Score the **artifact**, not the transcript. No save = fail.
@@ -3201,7 +3436,7 @@ Three tracks — only **7.0** is required to ship the portfolio:
 2. **Scripted user for fairness.** `conversationScript` simulates the human in guided evals (`after_agent_reply` trigger).
 3. **Start small.** Canonical UC1–UC3 first; behavioral variants after runner works; **exclude UC4** until `load_spec`.
 4. **Separate artifact from process.** Correct spec + too many retries = artifact pass, process warning — not a silent overall fail.
-5. **Do not count infra errors as model failures.** Use `status`, `failure_owner`, `failure_stage` on trial records.
+5. **Do not count infra errors as model failures.** Use `status`, `failure_owner`, `failure_stage` on trial records. Classify via **`api_events.http_status`** (5xx, gate 400) vs semantic validate failures (`valid = false`).
 6. **CI:** blocking = grader/schema/runner tests (add GitHub workflow with 7A.0); **non-blocking** = live LLM trials on PRs.
 7. **Model selection is evidence-based.** Pass rate on three canonical cases may saturate; use failure types, retries, tokens, latency, and **trace review**; behavioral variants discriminate.
 
@@ -3228,7 +3463,14 @@ See also: [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agen
 
 ### Depends on
 
-Phases 1–6 substantially complete (especially 6 P0 outcomes + `api_events` metric authority).
+| Track | Requires |
+|-------|----------|
+| **7.0** Portfolio polish | Phase **6 P0** (honest telemetry for S4 demo script) |
+| **7A.0** Grader | Phase **6 P0** (process metric helpers exist; no live runner yet) |
+| **7A.1** Runner | **7A.0** + Phase **6 P0** complete |
+| **7A.2–7A.3** | **7A.1** |
+| **7A.4** Eval UI | **7A.2** + Phase **6 UI** (cross-links to `/observe/agent`) |
+| **7B** Matrix | **7A.0–7A.2** trusted; **7A.3** recommended for discrimination |
 
 ### Unlocks
 
@@ -3263,17 +3505,18 @@ flowchart LR
   P70
 ```
 
-### Implementation readiness (review 2026-07-25)
+### Implementation readiness (review 2026-07-31)
 
-**Verdict:** **Ready to start 7.0 and 7A.0 in parallel** after Phase 6 P0 (for process metrics authority). **Not ready** for 7A.1 live automation until 7A.0 grader hardening ships.
+**Verdict:** **Ready to start 7.0 and 7A.0 in parallel** once Phase **6 P0** lands (process metrics + outcomes + `http_status`). **7A.1** blocked on **7A.0**. **7A.4** blocked on **7A.2** + Phase **6 UI**.
 
 | Track | Readiness | Notes |
 |-------|-----------|-------|
-| **7.0 Portfolio polish** | **Can start now** | README partial v0.2; no architecture diagram; v0.2 cases only (v0.1 appears retired) |
-| **7A.0 Grader** | **Can start now** | Shallow grader + positive-only `smoke:eval` — mutation tests are first deliverable |
-| **7A.1 Runner** | **Blocked on 7A.0** | Also reuse Phase 6 P0 `api_events` metric helpers in `processMetrics.ts` |
-| **7A.2 Persistence** | **Blocked on 7A.1** | Legacy `eval_runs` exists; `eval_trials` migration **007** (reserve **006** for optional http_status) |
-| **7A.3–7A.4 / 7B** | **Not started** | As planned |
+| **7.0 Portfolio polish** | **After 6 P0** | README partial v0.2; include Observe Paths A/B + **smoke:observe-agent** |
+| **7A.0 Grader** | **After 6 P0** | Shallow grader + positive-only `smoke:eval` — mutation tests first |
+| **7A.1 Runner** | **Blocked on 7A.0 + 6 P0** | Reuse `countValidateAttempts`, `countPlatformApiCalls`; POST terminal outcomes; see Phase 6 handoff |
+| **7A.2 Persistence** | **Blocked on 7A.1** | `eval_trials` migration **007** (**006** = Phase 6 P0 `api_events.http_status`) |
+| **7A.4 Eval UI** | **Blocked on 7A.2 + 6 UI** | Links to `/observe/agent/sessions/[id]` — no timeline duplication |
+| **7A.3 / 7B** | **Not started** | As planned |
 
 **Doc ↔ code alignment:** Eval strategy and build order match the repo. Goldens already encode the *intended* UC1–UC3 bar; case JSON + grader have not caught up yet.
 
@@ -3285,14 +3528,14 @@ flowchart LR
 
 ## Phase 7.0 — Portfolio polish (required ship)
 
-**Tier:** Required for portfolio — does **not** block on 7A automation.
+**Tier:** Required for portfolio — does **not** block on 7A automation. Requires Phase **6 P0** (and **6 UI** for **S4**) for credible Observe demo script.
 
 ### Scope
 
 - **README v0.2** — architecture, demo Paths A/B, env setup, Neon + Render
 - **Architecture diagram** — platform + agent + Observe + eval flow
 - **Manual eval runs** — RapidUI Agent (Path A) + external agents (Path B) on UC1–UC3 with session headers → `npm run eval:log`
-- **Smoke bundle** — `smoke:validate`, `smoke:observe`, `smoke:agent`, `smoke:eval`, etc.
+- **Smoke bundle** — `smoke:validate`, `smoke:observe`, **`smoke:observe-agent`**, `smoke:agent`, `smoke:eval`, etc.
 - **S1–S9 verification** — reference §15
 - **S8** — one external agent session visible in `/observe/api`
 - **v0.1 eval case retired**; manual wrappers updated (`eval/manual/*`)
@@ -3443,6 +3686,9 @@ lib/eval/__tests__/                     # or fixtures under eval/fixtures/
 | **UC4** | **Exclude** until `load_spec` (stretch O1) |
 | **Initial config** | One pinned model + `prompts/v1.txt`; **1 trial per case** while developing |
 | **Retry policy** | **No blind retry** after tool may have caused side effects |
+| **Terminal outcomes** | On timeout / script end without save: POST ingest `{ outcome: 'failed' \| 'abandoned' }` for eval `session_id` — same contract as Phase 6 P0 |
+| **Process metrics** | **`processMetrics.ts`** wraps Phase 6 helpers: `countValidateAttempts`, `countPlatformApiCalls`; reads `agent_runs.latency_ms`; uses `http_status` for infra classification |
+| **Agent header** | `X-RapidUI-Agent: rapidui-agent-eval` — filterable in Phase 6 Agent dashboard |
 
 ### Runner contract
 
@@ -3451,17 +3697,18 @@ lib/eval/__tests__/                     # or fixtures under eval/fixtures/
 3. Send initial `prompt` to `POST /chat`.
 4. Loop: wait for assistant turn complete → if saved, stop → else send next scripted user message.
 5. Stop on: save, script exhaustion, `maxUserTurns`, timeout, HTTP error, cancellation.
-6. Retrieve saved spec from Postgres by id.
-7. Pull process metrics from **`api_events`** (+ `agent_runs` advisory fields).
-8. Score artifact (7A.0 grader) + process caps separately.
-9. Persist trial result (7A.2 schema — stub OK initially with migration follow-up).
-10. Batch: continue after individual trial failure; exit non-zero when required trials fail.
+6. **If stopped without save:** POST `/api/observe/ingest/agent` with terminal `failed` or `abandoned` for eval session.
+7. Retrieve saved spec from Postgres by id (when saved).
+8. Pull process metrics via **`processMetrics.ts`** — **`api_events`** primary; `agent_runs` advisory.
+9. Score artifact (7A.0 grader) + process caps separately.
+10. Persist trial result (7A.2 schema — stub OK initially with migration follow-up).
+11. Batch: continue after individual trial failure; exit non-zero when required trials fail.
 
 ### Task list (7A.1)
 
 1. **`agent/scripts/eval_driver.py`** — SSE driver; full message parts; JSON transcript to stdout.
 2. **`scripts/eval-run.ts`** — orchestrator; spawn driver; call `scoreRun`; invoke persistence.
-3. **`lib/eval/processMetrics.ts`** — query validate attempts, platform calls, user turns from session telemetry (**reuse Phase 6 P0 helpers** in `lib/observe/queries.ts`).
+3. **`lib/eval/processMetrics.ts`** — wrap Phase 6 P0 helpers (`countValidateAttempts`, `countPlatformApiCalls`); read `agent_runs.latency_ms`; classify infra via `api_events.http_status`. See [Appendix E](#appendix-e--agent-latency-metrics-phase-6).
 4. **`lib/eval/runnerTypes.ts`** — trial result envelope (`status`, `artifactPassed`, `processWithinTarget`, failure fields).
 5. **`package.json`** — `"eval:run": "tsx --env-file=.env.local scripts/eval-run.ts"`.
 6. **`agent/scripts/smoke_eval_run.py`** or integration test — one case dry run against local stack.
@@ -3482,7 +3729,8 @@ agent/README.md
 - [ ] `npm run eval:run -- --case static-browse-v0.2` completes locally
 - [ ] All three UC1–UC3 cases runnable in batch mode
 - [ ] Driver preserves tool call parts in message history
-- [ ] Process metrics sourced from `api_events` primarily
+- [ ] Process metrics sourced from **`api_events`** via Phase 6 helpers (not agent advisory fields alone)
+- [ ] Eval runner POSTs terminal outcome when script ends without save
 - [ ] Runner exits non-zero on artifact failure
 - [ ] UC4 excluded with clear error if attempted
 
@@ -3492,7 +3740,7 @@ agent/README.md
 
 **Goal:** Append-only trial snapshots — not mutable interpretation of v0.1 `eval_runs` rows.
 
-### Schema — migration `007_eval_trials.sql` (reserve `006` for optional Phase 6 P0 `api_events.http_status`)
+### Schema — migration `007_eval_trials.sql` ( **`006`** = Phase 6 P0 `api_events.http_status` )
 
 **Prefer new table `eval_trials`** (keep legacy `eval_runs` for manual Path B until migrated):
 
@@ -3571,7 +3819,7 @@ Optional process assertion:
 
 ## Phase 7A.4 — Minimal eval UI
 
-**Prerequisite:** 7A.2 persistence populated by at least one manual `eval:run` batch.
+**Prerequisite:** 7A.2 persistence populated by at least one manual `eval:run` batch; Phase **6 UI** live (`/observe/agent` session drill-down for cross-links).
 
 ### Scope
 
@@ -3674,7 +3922,7 @@ app/observe/evals/              # comparison grouping (optional)
 
 **Required for portfolio ship (7.0 + Phase 6)**
 
-- [ ] Phase 6 P0 + Phase 6 UI complete (**S4**)
+- [x] Phase 6 P0 + Phase 6 UI complete (**S4**)
 - [ ] README + architecture diagram + Paths A/B
 - [ ] **S8** + **S1–S9**
 - [ ] v0.1 eval case retired
@@ -3682,13 +3930,13 @@ app/observe/evals/              # comparison grouping (optional)
 **Strong v0.2 (recommended, not blocking ship)**
 
 - [ ] 7A.0 grader hardening
-- [ ] 7A.1 `npm run eval:run` for UC1–UC3
+- [ ] 7A.1 `npm run eval:run` for UC1–UC3 (uses Phase 6 P0 `processMetrics` + terminal outcomes)
 - [ ] 7A.2 trial persistence
 
 **Stretch O5 (7B)**
 
 - [ ] 7A.3 behavioral variants
-- [ ] 7A.4 eval UI
+- [ ] 7A.4 eval UI (requires Phase **6 UI** for Observe cross-links)
 - [ ] 7B matrix + `model-selection-v0.2.md`
 
 **Do not adopt (v0.2)**
@@ -3920,12 +4168,14 @@ Use this when Phase 6 + 7A (minimum) are done. Check boxes against what actually
 
 **Observability (Phase 6)**
 
-- [ ] Terminal outcomes: saved / failed / abandoned
+- [ ] Terminal outcomes: saved / failed / abandoned (+ inferred abandon for stale sessions)
 - [ ] Validate attempts from `api_events` (authoritative)
 - [ ] Platform API calls labeled honestly (not “LLM tool calls”)
 - [ ] Agent dashboard + session drill-down live
-- [ ] Cross-links: agent ↔ API ↔ spec
+- [ ] Cross-links: agent ↔ API ↔ spec (conditional when `agent_runs` exists)
 - [ ] Hub Agent card shows real metrics (**S4**)
+- [ ] “New chat” abandon via ingest on session rotate (not inference)
+- [ ] `http_status` on `api_events` for transport vs semantic classification
 
 **Eval harness (Phase 7A)**
 
@@ -3960,7 +4210,7 @@ These were identified in the 2026-07-25 industry review. Confirm at Phase 6/7 si
 | Item | Why | Where |
 |------|-----|-------|
 | **Eval transcript storage** | Anthropic: invest in viewing eval transcripts | Lock in 7A.2 — `transcript_jsonb` on `eval_trials`, eval-only |
-| **Process assertions in runner** | Pydantic span-eval equivalent: validate before save, caps | 7A.1 `processMetrics` + runner |
+| **Process assertions in runner** | Pydantic span-eval equivalent: validate before save, caps | 7A.1 `processMetrics` + runner — uses Phase 6 P0 query helpers + `http_status` |
 | **Grader CI workflow** | Braintrust/Mastra: scorers in PR gates | GitHub Action with 7A.0 |
 | **Two-layer observability narrative** | Industry: product metrics vs engineering traces | README: Observe = product, Logfire = debug |
 | **Manual production flywheel playbook** | Braintrust: trace → test case | Document below — until automated in v0.3 |
@@ -3996,6 +4246,8 @@ Do **not** block v0.2 portfolio on these. Pick up when there is real production 
 | **MCP tool tracing** | Augment, MCP roadmap | N/A until MCP ships |
 | **Interactive eval playground** | Langfuse playground | v0.2 uses CLI + Observe |
 | **POST /api/eval/log** | — | Stretch O3 |
+| **FastAPI disconnect abandon** | — | Stream-cancel detection unreliable; v0.2 uses New chat ingest + 30m inference |
+| **Durable agent session state** | — | Replace `_session_states` dict with Redis/shared store for multi-instance Render |
 | **UC4 + load_spec** | — | Stretch O1 |
 
 ---
@@ -4037,6 +4289,74 @@ When Phase 6 and 7 are complete, answer these in `docs/model-selection-v0.2.md` 
 | Mastra — Agent observability | https://mastra.ai/articles/ai-agent-observability |
 | Cursor — Hooks | https://cursor.com/docs/hooks |
 | WorkOS — Governable agents architecture | https://workos.com/blog/ai-agents-architecture |
+
+---
+
+## Appendix E — Agent latency metrics (Phase 6)
+
+**Added:** 2026-07-31  
+**Purpose:** Reference for Phase 6 dashboard latency cards — what we measure, where it comes from, and why p50/p95 have different sample minimums.
+
+### One-line answer
+
+**Run latency** = wall-clock from first `/chat` touch to successful save, stored on `agent_runs.latency_ms`. Dashboard **p50/p95** aggregate **saved runs only**, with sample-size guardrails so early demos don’t fake production SLOs.
+
+### Three latency layers (don’t mix)
+
+| Layer | Source | Measures |
+|-------|--------|----------|
+| **Run** | `agent_runs.latency_ms` | Session start → save (all turns, LLM, tools, user idle between messages) |
+| **Turn** | `agent_turns.latency_ms` | One user message → one completed assistant reply |
+| **API call** | `api_events.duration_ms` | Single platform HTTP request (validate, save, docs, schema) |
+
+**Phase 6 headline cards use run latency only.** Turn + API latencies appear in session drill-down / API Observe.
+
+### Capture (agent)
+
+- **Run:** set on save turn — `time.time() - SessionState.session_started_at` in `agent/telemetry.py` → ingest `run.latency_ms`.
+- **Turn:** set every turn — `time.perf_counter() - turn_started` → ingest `turns[].latency_ms`.
+- **Includes:** all LLM inference (incl. reasoning), tool calls, network to platform.
+- **Excludes:** time after save; failed/abandoned runs may lack run latency (not in p50/p95 pool).
+
+### p50 vs p95
+
+| Metric | Meaning | Min saved runs | Why |
+|--------|---------|----------------|-----|
+| **p50** | Median — “typical successful session” | **3** | Directionally useful after a few demos; show “—” below |
+| **p95** | 95th percentile — slow tail (retries, multi-turn) | **10** | Tail needs more samples; with N=3, “p95” ≈ max |
+
+**UI copy:** show value or “—”, plus subtitle `min. 3 saved runs` / `min. 10 saved runs`.
+
+**Query sketch:** `SELECT latency_ms FROM agent_runs WHERE outcome = 'saved' AND latency_ms IS NOT NULL AND started_at >= window` → `PERCENTILE_CONT(0.5)` / `PERCENTILE_CONT(0.95)` when count thresholds met. Respect dashboard filters (model, prompt, eval case).
+
+### Saved runs only
+
+Aggregate cards filter `outcome = 'saved'`. Failed/abandoned durations aren’t comparable to “time to deliver a spec.” Phase 7 process caps (e.g. `maxLatencyMs`) reuse the same field on eval trials.
+
+### Which metric for which question
+
+| Question | Use |
+|----------|-----|
+| How long until user gets a saved spec? | `agent_runs.latency_ms` → p50/p95 |
+| Which turn was slow? | `agent_turns.latency_ms` |
+| Is validate API slow? | `api_events.duration_ms` on `/api/validate` |
+| LLM vs tool breakdown? | Logfire spans (engineering); not Observe product cards in v0.2 |
+
+### Limitations (v0.2)
+
+- User think-time between turns **counts** in run latency.
+- Agent process restart can reset in-memory clocks — prefer saved-run rows from uninterrupted sessions.
+- No LLM-only or time-to-first-token split in Observe; use Logfire for deep traces.
+
+### Phase 7 handoff
+
+`lib/eval/processMetrics.ts` (7A.1) reads:
+
+- **`countValidateAttempts`**, **`countPlatformApiCalls`** — Phase 6 P0 helpers on `api_events`
+- **`agent_runs.latency_ms`** — process caps ([Appendix E](#appendix-e--agent-latency-metrics-phase-6))
+- **`api_events.http_status`** — infra vs model failure classification
+
+Separate from artifact grader pass/fail.
 
 ---
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { StatCard } from "@/components/observe/StatCard";
-import { getEvalTeaser, getObserveHubSummary } from "@/lib/observe/queries";
+import { getAgentObserveSummary, getEvalTeaser, getObserveHubSummary } from "@/lib/observe/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,11 @@ function formatPercent(value: number | null): string {
 }
 
 export default async function ObserveHubPage() {
-  const [summary, evalTeaser] = await Promise.all([getObserveHubSummary(), getEvalTeaser()]);
+  const [summary, agentSummary, evalTeaser] = await Promise.all([
+    getObserveHubSummary(),
+    getAgentObserveSummary(),
+    getEvalTeaser(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -73,28 +77,45 @@ export default async function ObserveHubPage() {
           </dl>
         </section>
 
-        <section className="rounded-xl border border-dashed border-zinc-300 bg-zinc-100/60 p-5 dark:border-zinc-700 dark:bg-zinc-900/40">
+        <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
                 Agent
               </h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Phase 6</p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                RapidUI Agent chat sessions
+              </p>
             </div>
             <Link
               href="/observe/agent"
-              className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+              className="text-sm font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
             >
               View Agent →
             </Link>
           </div>
-          <ul className="mt-5 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <li>Runs over time</li>
-            <li>Success vs failed saves</li>
-            <li>p50 / p95 latency and tokens</li>
-            <li>Validate attempts per run</li>
-          </ul>
-          <p className="mt-5 text-sm font-medium text-zinc-500">Metrics ship after RapidUI Agent (Phase 4)</p>
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Runs</dt>
+              <dd className="mt-1 text-2xl font-semibold">{agentSummary.runCount}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Saved</dt>
+              <dd className="mt-1 text-2xl font-semibold">{agentSummary.savedCount}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Abandoned
+              </dt>
+              <dd className="mt-1 text-2xl font-semibold">{agentSummary.abandonedCount}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                In progress
+              </dt>
+              <dd className="mt-1 text-2xl font-semibold">{agentSummary.inProgressCount}</dd>
+            </div>
+          </dl>
         </section>
 
         <section className="rounded-xl border border-dashed border-zinc-300 bg-zinc-100/60 p-5 dark:border-zinc-700 dark:bg-zinc-900/40">

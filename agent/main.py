@@ -16,7 +16,7 @@ from starlette.responses import Response
 from agent_factory import create_agent
 from config import apply_settings_env, get_settings, require_openai_api_key
 from deps import build_deps
-from telemetry import handle_turn_complete
+from telemetry import handle_turn_complete, post_terminal_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -115,24 +115,44 @@ async def chat(request: Request) -> Response:
         except Exception:
             logger.exception("Turn telemetry failed session_id=%s", deps.session_id)
 
-    if _logfire_enabled:
-        with logfire.span(
-            "rapidui.chat",
-            session_id=deps.session_id,
-            prompt_version=settings.rapidui_agent_prompt_version,
-        ):
-            return await VercelAIAdapter.dispatch_request(
-                request,
-                agent=agent,
-                sdk_version=6,
-                deps=deps,
-                on_complete=on_complete,
-            )
+    try:
+        if _logfire_enabled:
+            with logfire.span(
+                "rapidui.chat",
+                session_id=deps.session_id,
+                prompt_version=settings.rapidui_agent_prompt_version,
+            ):
+                return await VercelAIAdapter.dispatch_request(
+                    request,
+                    agent=agent,
+                    sdk_version=6,
+                    deps=deps,
+                    on_complete=on_complete,
+                )
 
-    return await VercelAIAdapter.dispatch_request(
-        request,
-        agent=agent,
-        sdk_version=6,
-        deps=deps,
-        on_complete=on_complete,
-    )
+        return await VercelAIAdapter.dispatch_request(
+            request,
+            agent=agent,
+            sdk_version=6,
+            deps=deps,
+            on_complete=on_complete,
+        )
+    except Exception as exc:
+        logger.exception("Chat handler failed session_id=%s", deps.session_id)
+        state = deps.session_state
+        if not state.turn_had_save and not state.last_spec_id:
+            state.terminal_failure = True
+            if not state.last_error_summary:
+                state.last_error_summary = str(exc)[:500]
+            try:
+                await post_terminal_outcome(
+                    deps,
+                    settings,
+                    "failed",
+                    error_summary=state.last_error_summary,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed terminal ingest session_id=%s", deps.session_id
+                )
+        raise

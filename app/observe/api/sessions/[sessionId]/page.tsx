@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { SessionOutcomeBadge } from "@/components/observe/SessionOutcomeBadge";
 import {
   formatRelativeTime,
+  getAgentRunExists,
   getSessionSummary,
   getSessionTimeline,
   truncateSessionId,
@@ -48,9 +49,10 @@ export default async function SessionDetailPage({
   const { sessionId } = await params;
   const { fromAgent } = await searchParams;
 
-  const [summary, timeline] = await Promise.all([
+  const [summary, timeline, agentRunExists] = await Promise.all([
     getSessionSummary(sessionId),
     getSessionTimeline(sessionId),
+    getAgentRunExists(sessionId),
   ]);
 
   if (!summary) {
@@ -192,15 +194,16 @@ export default async function SessionDetailPage({
         )}
       </section>
 
-      <footer className="border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
-        <Link
-          href="/observe/agent"
-          className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
-        >
-          View agent run →
-        </Link>
-        <span className="ml-2 text-zinc-500">(Phase 6 placeholder)</span>
-      </footer>
+      {agentRunExists ? (
+        <footer className="border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
+          <Link
+            href={`/observe/agent/sessions/${encodeURIComponent(sessionId)}`}
+            className="font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
+          >
+            View agent run →
+          </Link>
+        </footer>
+      ) : null}
     </div>
   );
 }

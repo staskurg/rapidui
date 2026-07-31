@@ -96,6 +96,7 @@ def register_rapidui_tools(agent: Agent[Deps, str]) -> None:
         try:
             payload = response.json()
         except ValueError as exc:
+            ctx.deps.session_state.terminal_failure = True
             ctx.deps.session_state.last_error_summary = f"Non-JSON validate response: {exc}"
             raise
 
@@ -164,6 +165,7 @@ def register_rapidui_tools(agent: Agent[Deps, str]) -> None:
         try:
             payload = response.json()
         except ValueError as exc:
+            ctx.deps.session_state.terminal_failure = True
             ctx.deps.session_state.last_error_summary = f"Non-JSON save response: {exc}"
             raise
 
@@ -193,4 +195,5 @@ def register_rapidui_tools(agent: Agent[Deps, str]) -> None:
                 )
 
         response.raise_for_status()
+        ctx.deps.session_state.terminal_failure = True
         raise RuntimeError("Unexpected save response")

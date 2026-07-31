@@ -23,6 +23,7 @@ class SessionState:
     turn_index: int = 0
     turn_had_validate: bool = False
     turn_had_save: bool = False
+    terminal_failure: bool = False
     last_error_summary: str | None = None
     session_started_at: float = field(default_factory=time.time)
     total_input_tokens: int = 0
@@ -31,6 +32,7 @@ class SessionState:
     def begin_turn(self) -> None:
         self.turn_had_validate = False
         self.turn_had_save = False
+        self.terminal_failure = False
 
     def mark_validate(self) -> None:
         self.validate_attempts += 1
@@ -42,6 +44,8 @@ class SessionState:
 
 
 _session_states: dict[str, SessionState] = {}
+# Process-local only — a uvicorn restart resets turn_index and advisory counters.
+# Derive durable validate/platform counts from api_events (Observe Phase 6).
 
 
 def get_session_state(session_id: str) -> SessionState:

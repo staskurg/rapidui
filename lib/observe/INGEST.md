@@ -57,8 +57,32 @@ At least one of `run` or `turns` should be present on each POST (empty `{}` with
 ## Upsert behavior
 
 - **`agent_runs`:** `session_id` is UNIQUE. Repeated POSTs merge non-null `run` fields into the same row. `started_at` is preserved on conflict.
+- **Outcome downgrade guard:** `outcome = 'saved'` is never overwritten by `'abandoned'` on upsert.
 - **`agent_turns`:** `(run_id, turn_index)` is UNIQUE. Re-posting a turn overwrites metrics.
 - If only `turns[]` is sent, a minimal `agent_runs` row is created for `session_id` first.
+
+## Client abandon (New chat exception)
+
+The LLM and tools never call this endpoint. **Exception:** the main UI may POST a terminal **`abandoned`** outcome for the **previous** session id when the user confirms New chat (before minting a new session id):
+
+```json
+{
+  "session_id": "<prior-session-id>",
+  "run": { "outcome": "abandoned" }
+}
+```
+
+Skip when the thread is empty or the panel already saved. Fire-and-forget — chat UX must not block on ingest.
+
+## Terminal outcomes
+
+| Outcome | When |
+|---------|------|
+| `saved` | Turn completes with successful `save_rui` |
+| `failed` | Unrecoverable tool/handler error with no save (not normal validate retries) |
+| `abandoned` | New chat rotation, eval runner timeout, or explicit client POST |
+
+When `outcome` is set without `finished_at`, the platform sets `finished_at` to the ingest time.
 
 ## Examples
 

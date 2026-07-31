@@ -596,3 +596,486 @@ export async function listDistinctEvalCases(
 
   return result.rows.map((row) => String(row.eval_case_id));
 }
+
+// --- Agent Observe (Phase 6) ---
+// Validate attempts and platform API call counts are authoritative from api_events.
+
+export const AGENT_STALE_SESSION_MS = 30 * 60 * 1000;
+
+export type AgentRunOutcome =
+  | "saved"
+  | "failed"
+  | "abandoned"
+  | "abandoned_inferred"
+  | "in_progress";
+
+export type AgentObserveFilters = {
+  model?: string;
+  promptVersion?: string;
+  evalCase?: string;
+  agent?: string;
+  session?: string;
+  windowDays?: number;
+};
+
+export type AgentObserveSummary = {
+  runCount: number;
+  savedCount: number;
+  failedCount: number;
+  abandonedCount: number;
+  inProgressCount: number;
+  p50LatencyMs: number | null;
+  p95LatencyMs: number | null;
+  savedRunsForLatency: number;
+  avgTokens: number | null;
+  avgValidateAttempts: number | null;
+  avgPlatformApiCalls: number | null;
+  runsByDay: { date: string; count: number }[];
+};
+
+export type AgentRunListRow = {
+  sessionId: string;
+  startedAt: Date;
+  finishedAt: Date | null;
+  outcome: AgentRunOutcome;
+  model: string | null;
+  promptVersion: string | null;
+  evalCaseId: string | null;
+  intent: string | null;
+  totalTokens: number | null;
+  latencyMs: number | null;
+  validateAttempts: number;
+  advisoryValidateAttempts: number | null;
+  platformApiCalls: number;
+  specId: string | null;
+  lastActivityAt: Date;
+};
+
+export type AgentTurnRow = {
+  turnIndex: number;
+  latencyMs: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  hadValidateCall: boolean;
+  hadSave: boolean;
+};
+
+export type AgentRunDetail = {
+  run: AgentRunListRow & { errorSummary: string | null };
+  turns: AgentTurnRow[];
+  timeline: ApiEventRow[];
+  tokenParityMismatch: boolean;
+  validateCountMismatch: boolean;
+};
+
+function agentFilterValues(filters: AgentObserveFilters) {
+  return {
+    windowStart: windowStart(filters.windowDays),
+    model: filters.model?.trim() || null,
+    promptVersion: filters.promptVersion?.trim() || null,
+    evalCase: filters.evalCase?.trim() || null,
+    agent: filters.agent?.trim() || null,
+    session: filters.session?.trim() || null,
+  };
+}
+
+export function resolveAgentRunOutcome(
+  dbOutcome: string | null,
+  lastActivityAt: Date,
+): AgentRunOutcome {
+  if (dbOutcome === "saved") {
+    return "saved";
+  }
+  if (dbOutcome === "failed") {
+    return "failed";
+  }
+  if (dbOutcome === "abandoned") {
+    return "abandoned";
+  }
+
+  const stale = Date.now() - lastActivityAt.getTime() > AGENT_STALE_SESSION_MS;
+  return stale ? "abandoned_inferred" : "in_progress";
+}
+
+/** Authoritative validate attempt count from api_events. */
+export async function countValidateAttempts(sessionId: string): Promise<number> {
+  const result = await sql`
+    SELECT COUNT(*) AS cnt
+    FROM api_events
+    WHERE session_id = ${sessionId}
+      AND endpoint = '/api/validate'
+  `;
+  return toNumber(result.rows[0]?.cnt);
+}
+
+/** Platform API calls per session — discovery + validate + save. */
+export async function countPlatformApiCalls(sessionId: string): Promise<number> {
+  const result = await sql`
+    SELECT COUNT(*) AS cnt
+    FROM api_events
+    WHERE session_id = ${sessionId}
+  `;
+  return toNumber(result.rows[0]?.cnt);
+}
+
+function mapAgentRunRow(
+  row: Record<string, unknown>,
+  validateAttempts: number,
+  platformApiCalls: number,
+): AgentRunListRow {
+  const lastActivityAt = toDate(row.last_activity_at);
+  const dbOutcome = row.outcome ? String(row.outcome) : null;
+
+  return {
+    sessionId: String(row.session_id),
+    startedAt: toDate(row.started_at),
+    finishedAt: toNullableDate(row.finished_at),
+    outcome: resolveAgentRunOutcome(dbOutcome, lastActivityAt),
+    model: row.model ? String(row.model) : null,
+    promptVersion: row.prompt_version ? String(row.prompt_version) : null,
+    evalCaseId: row.eval_case_id ? String(row.eval_case_id) : null,
+    intent: row.intent ? String(row.intent) : null,
+    totalTokens: row.total_tokens === null ? null : toNumber(row.total_tokens),
+    latencyMs: row.latency_ms === null ? null : toNumber(row.latency_ms),
+    validateAttempts,
+    advisoryValidateAttempts:
+      row.validate_attempts === null ? null : toNumber(row.validate_attempts),
+    platformApiCalls,
+    specId: row.spec_id ? String(row.spec_id) : null,
+    lastActivityAt,
+  };
+}
+
+export async function getAgentRunExists(sessionId: string): Promise<boolean> {
+  const result = await sql`
+    SELECT 1 FROM agent_runs WHERE session_id = ${sessionId} LIMIT 1
+  `;
+  return result.rows.length > 0;
+}
+
+export async function listDistinctModels(
+  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+): Promise<string[]> {
+  const ws = windowStart(windowDays);
+  const result = await sql`
+    SELECT DISTINCT model
+    FROM agent_runs
+    WHERE started_at >= ${ws}
+      AND model IS NOT NULL
+    ORDER BY model ASC
+  `;
+  return result.rows.map((row) => String(row.model));
+}
+
+export async function listDistinctPromptVersions(
+  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+): Promise<string[]> {
+  const ws = windowStart(windowDays);
+  const result = await sql`
+    SELECT DISTINCT prompt_version
+    FROM agent_runs
+    WHERE started_at >= ${ws}
+      AND prompt_version IS NOT NULL
+    ORDER BY prompt_version ASC
+  `;
+  return result.rows.map((row) => String(row.prompt_version));
+}
+
+export async function listDistinctAgentRunAgents(
+  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+): Promise<string[]> {
+  const ws = windowStart(windowDays);
+  const result = await sql`
+    SELECT DISTINCT ae.agent
+    FROM agent_runs ar
+    JOIN api_events ae ON ae.session_id = ar.session_id
+    WHERE ar.started_at >= ${ws}
+      AND ae.agent IS NOT NULL
+    ORDER BY ae.agent ASC
+  `;
+  return result.rows.map((row) => String(row.agent));
+}
+
+export async function getAgentObserveSummary(
+  filters: AgentObserveFilters = {},
+): Promise<AgentObserveSummary> {
+  const { windowStart: ws, model, promptVersion, evalCase, session } =
+    agentFilterValues(filters);
+
+  const runsResult = await sql`
+    SELECT
+      ar.outcome,
+      ar.latency_ms,
+      ar.total_tokens,
+      ar.session_id,
+      ar.started_at,
+      ar.finished_at,
+      COALESCE(
+        (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
+        ar.finished_at,
+        ar.started_at
+      ) AS last_activity_at
+    FROM agent_runs ar
+    WHERE ar.started_at >= ${ws}
+      AND (${model}::text IS NULL OR ar.model = ${model})
+      AND (${promptVersion}::text IS NULL OR ar.prompt_version = ${promptVersion})
+      AND (${evalCase}::text IS NULL OR ar.eval_case_id = ${evalCase})
+      AND (${session}::text IS NULL OR ar.session_id = ${session})
+  `;
+
+  let savedCount = 0;
+  let failedCount = 0;
+  let abandonedCount = 0;
+  let inProgressCount = 0;
+  const savedLatencies: number[] = [];
+  const tokenTotals: number[] = [];
+
+  for (const row of runsResult.rows) {
+    const lastActivityAt = toDate(row.last_activity_at);
+    const outcome = resolveAgentRunOutcome(
+      row.outcome ? String(row.outcome) : null,
+      lastActivityAt,
+    );
+
+    switch (outcome) {
+      case "saved":
+        savedCount += 1;
+        if (row.latency_ms !== null) {
+          savedLatencies.push(toNumber(row.latency_ms));
+        }
+        break;
+      case "failed":
+        failedCount += 1;
+        break;
+      case "abandoned":
+      case "abandoned_inferred":
+        abandonedCount += 1;
+        break;
+      default:
+        inProgressCount += 1;
+    }
+
+    if (row.total_tokens !== null) {
+      tokenTotals.push(toNumber(row.total_tokens));
+    }
+  }
+
+  const savedRunsForLatency = savedLatencies.length;
+  savedLatencies.sort((a, b) => a - b);
+
+  const p50LatencyMs =
+    savedRunsForLatency >= 3
+      ? savedLatencies[Math.floor(savedRunsForLatency * 0.5)] ?? null
+      : null;
+  const p95LatencyMs =
+    savedRunsForLatency >= 10
+      ? savedLatencies[Math.floor(savedRunsForLatency * 0.95)] ?? null
+      : null;
+
+  const sessionIds = runsResult.rows.map((row) => String(row.session_id));
+
+  let avgValidateAttempts: number | null = null;
+  let avgPlatformApiCalls: number | null = null;
+
+  if (sessionIds.length > 0) {
+    const metricsResult = await sql`
+      SELECT
+        session_id,
+        COUNT(*) FILTER (WHERE endpoint = '/api/validate') AS validate_cnt,
+        COUNT(*) AS platform_cnt
+      FROM api_events
+      WHERE session_id = ANY(${sessionIds})
+      GROUP BY session_id
+    `;
+
+    const validateCounts: number[] = [];
+    const platformCounts: number[] = [];
+    for (const row of metricsResult.rows) {
+      validateCounts.push(toNumber(row.validate_cnt));
+      platformCounts.push(toNumber(row.platform_cnt));
+    }
+
+    if (validateCounts.length > 0) {
+      avgValidateAttempts =
+        validateCounts.reduce((sum, value) => sum + value, 0) / validateCounts.length;
+    }
+    if (platformCounts.length > 0) {
+      avgPlatformApiCalls =
+        platformCounts.reduce((sum, value) => sum + value, 0) / platformCounts.length;
+    }
+  }
+
+  const runsByDayResult = await sql`
+    SELECT DATE(started_at AT TIME ZONE 'UTC')::text AS day, COUNT(*) AS runs
+    FROM agent_runs
+    WHERE started_at >= ${ws}
+      AND (${model}::text IS NULL OR model = ${model})
+      AND (${promptVersion}::text IS NULL OR prompt_version = ${promptVersion})
+      AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
+      AND (${session}::text IS NULL OR session_id = ${session})
+    GROUP BY day
+    ORDER BY day DESC
+    LIMIT 14
+  `;
+
+  return {
+    runCount: runsResult.rows.length,
+    savedCount,
+    failedCount,
+    abandonedCount,
+    inProgressCount,
+    p50LatencyMs,
+    p95LatencyMs,
+    savedRunsForLatency,
+    avgTokens:
+      tokenTotals.length > 0
+        ? Math.round(tokenTotals.reduce((sum, value) => sum + value, 0) / tokenTotals.length)
+        : null,
+    avgValidateAttempts:
+      avgValidateAttempts === null ? null : Math.round(avgValidateAttempts * 10) / 10,
+    avgPlatformApiCalls:
+      avgPlatformApiCalls === null ? null : Math.round(avgPlatformApiCalls * 10) / 10,
+    runsByDay: runsByDayResult.rows.map((row) => ({
+      date: String(row.day),
+      count: toNumber(row.runs),
+    })),
+  };
+}
+
+export async function listAgentRuns(
+  filters: AgentObserveFilters = {},
+  limit = 50,
+): Promise<AgentRunListRow[]> {
+  const { windowStart: ws, model, promptVersion, evalCase, session, agent } =
+    agentFilterValues(filters);
+
+  const result = await sql`
+    SELECT
+      ar.session_id,
+      ar.started_at,
+      ar.finished_at,
+      ar.outcome,
+      ar.model,
+      ar.prompt_version,
+      ar.eval_case_id,
+      ar.intent,
+      ar.total_tokens,
+      ar.latency_ms,
+      ar.validate_attempts,
+      ar.spec_id,
+      COALESCE(
+        (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
+        ar.finished_at,
+        ar.started_at
+      ) AS last_activity_at
+    FROM agent_runs ar
+    WHERE ar.started_at >= ${ws}
+      AND (${model}::text IS NULL OR ar.model = ${model})
+      AND (${promptVersion}::text IS NULL OR ar.prompt_version = ${promptVersion})
+      AND (${evalCase}::text IS NULL OR ar.eval_case_id = ${evalCase})
+      AND (${session}::text IS NULL OR ar.session_id = ${session})
+      AND (
+        ${agent}::text IS NULL
+        OR EXISTS (
+          SELECT 1 FROM api_events ae
+          WHERE ae.session_id = ar.session_id AND ae.agent = ${agent}
+        )
+      )
+    ORDER BY ar.started_at DESC
+    LIMIT ${limit}
+  `;
+
+  const rows: AgentRunListRow[] = [];
+  for (const row of result.rows) {
+    const sessionId = String(row.session_id);
+    const [validateAttempts, platformApiCalls] = await Promise.all([
+      countValidateAttempts(sessionId),
+      countPlatformApiCalls(sessionId),
+    ]);
+    rows.push(mapAgentRunRow(row, validateAttempts, platformApiCalls));
+  }
+
+  return rows;
+}
+
+export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDetail | null> {
+  const runResult = await sql`
+    SELECT
+      ar.id,
+      ar.session_id,
+      ar.started_at,
+      ar.finished_at,
+      ar.outcome,
+      ar.model,
+      ar.prompt_version,
+      ar.eval_case_id,
+      ar.intent,
+      ar.total_tokens,
+      ar.latency_ms,
+      ar.validate_attempts,
+      ar.spec_id,
+      ar.error_summary,
+      COALESCE(
+        (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
+        ar.finished_at,
+        ar.started_at
+      ) AS last_activity_at
+    FROM agent_runs ar
+    WHERE ar.session_id = ${sessionId}
+  `;
+
+  const row = runResult.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  const [validateAttempts, platformApiCalls, turnsResult, timeline] = await Promise.all([
+    countValidateAttempts(sessionId),
+    countPlatformApiCalls(sessionId),
+    sql`
+      SELECT
+        turn_index,
+        latency_ms,
+        input_tokens,
+        output_tokens,
+        had_validate_call,
+        had_save
+      FROM agent_turns
+      WHERE run_id = ${String(row.id)}
+      ORDER BY turn_index ASC
+    `,
+    getSessionTimeline(sessionId),
+  ]);
+
+  const run = {
+    ...mapAgentRunRow(row, validateAttempts, platformApiCalls),
+    errorSummary: row.error_summary ? String(row.error_summary) : null,
+  };
+
+  const turns: AgentTurnRow[] = turnsResult.rows.map((turnRow) => ({
+    turnIndex: toNumber(turnRow.turn_index),
+    latencyMs: turnRow.latency_ms === null ? null : toNumber(turnRow.latency_ms),
+    inputTokens: turnRow.input_tokens === null ? null : toNumber(turnRow.input_tokens),
+    outputTokens: turnRow.output_tokens === null ? null : toNumber(turnRow.output_tokens),
+    hadValidateCall: Boolean(turnRow.had_validate_call),
+    hadSave: Boolean(turnRow.had_save),
+  }));
+
+  const turnTokenSum = turns.reduce(
+    (sum, turn) => sum + (turn.inputTokens ?? 0) + (turn.outputTokens ?? 0),
+    0,
+  );
+  const tokenParityMismatch =
+    run.totalTokens !== null && turns.length > 0 && turnTokenSum !== run.totalTokens;
+  const validateCountMismatch =
+    run.advisoryValidateAttempts !== null &&
+    run.advisoryValidateAttempts !== validateAttempts;
+
+  return {
+    run,
+    turns,
+    timeline,
+    tokenParityMismatch,
+    validateCountMismatch,
+  };
+}

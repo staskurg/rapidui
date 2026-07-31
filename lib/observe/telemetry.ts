@@ -7,6 +7,7 @@ type RecordDiscoveryEventOptions = {
   request: Request;
   endpoint: DiscoveryEndpoint;
   startedAt: number;
+  httpStatus?: number;
 };
 
 type RecordApiEventOptions = {
@@ -22,7 +23,7 @@ type RecordApiEventOptions = {
 export async function recordDiscoveryEvent(
   options: RecordDiscoveryEventOptions,
 ): Promise<void> {
-  const { request, endpoint, startedAt } = options;
+  const { request, endpoint, startedAt, httpStatus = 200 } = options;
   const headers = parseTelemetryHeaders(request);
 
   try {
@@ -36,6 +37,7 @@ export async function recordDiscoveryEvent(
       error_codes: null,
       spec_id: null,
       duration_ms: Math.max(0, Date.now() - startedAt),
+      http_status: httpStatus,
     });
   } catch (error) {
     console.error("[observe] Failed to insert discovery event:", error);
@@ -69,7 +71,7 @@ function mapValidationResult(result: ValidationResult, specId?: string | null) {
 
 /** Record api_events row — failures are logged, never thrown to callers. */
 export async function recordApiEvent(options: RecordApiEventOptions): Promise<void> {
-  const { request, endpoint, result, specId, startedAt } = options;
+  const { request, endpoint, result, httpStatus, specId, startedAt } = options;
   const headers = parseTelemetryHeaders(request);
   const mapped = mapValidationResult(result, specId);
 
@@ -84,6 +86,7 @@ export async function recordApiEvent(options: RecordApiEventOptions): Promise<vo
       error_codes: mapped.error_codes,
       spec_id: mapped.spec_id,
       duration_ms: Math.max(0, Date.now() - startedAt),
+      http_status: httpStatus,
     });
   } catch (error) {
     console.error("[observe] Failed to insert api_event:", error);

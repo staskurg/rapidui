@@ -25,6 +25,7 @@ export const apiEventInputSchema = z.object({
   error_codes: z.array(z.string()).nullable(),
   spec_id: z.string().uuid().nullable(),
   duration_ms: z.number().int().nonnegative(),
+  http_status: z.number().int().nullable().optional(),
 });
 
 const agentRunPayloadSchema = z.object({

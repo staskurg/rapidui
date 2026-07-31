@@ -11,11 +11,13 @@ import { ConfirmNewChatDialog } from "@/components/demo/ConfirmNewChatDialog";
 import { OutputPanel } from "@/components/demo/OutputPanel";
 import type { OutputTab } from "@/components/demo/OutputTabBar";
 import { SessionBar } from "@/components/demo/SessionBar";
+import { abandonAgentSession } from "@/lib/demo/abandon-session";
 import { getAgentChatUrl } from "@/lib/demo/agent-url";
 import { STARTER_PROMPTS, type StarterPrompt } from "@/lib/demo/starter-prompts";
 import {
   consumePendingEvalCase,
   getOrCreateSessionId,
+  getSessionId,
   rotateSessionId,
   subscribeSessionId,
 } from "@/lib/demo/session";
@@ -89,7 +91,7 @@ function DemoWorkspace({
 }: {
   sessionId: string;
   panelResetKey: number;
-  onSessionRotate: () => void;
+  onSessionRotate: (context: { hadMessages: boolean }) => void;
   panelState: SpecPanelState;
   setPanelState: (state: SpecPanelState) => void;
   outputTab: OutputTab;
@@ -111,12 +113,12 @@ function DemoWorkspace({
     (options: { rotateSession: boolean }) => {
       threadRuntime.reset();
       if (options.rotateSession) {
-        onSessionRotate();
+        onSessionRotate({ hadMessages: messageCount > 0 });
       } else {
         setPanelState({ kind: "empty" });
       }
     },
-    [onSessionRotate, setPanelState, threadRuntime],
+    [messageCount, onSessionRotate, setPanelState, threadRuntime],
   );
 
   const handleNewChat = useCallback(() => {
@@ -221,10 +223,17 @@ export function MainDemo() {
 
   const runtime = useChatRuntime({ transport });
 
-  const handleSessionRotate = useCallback(() => {
-    rotateSessionId();
-    setPanelResetKey((value) => value + 1);
-  }, []);
+  const handleSessionRotate = useCallback(
+    (context: { hadMessages: boolean }) => {
+      const priorId = getSessionId();
+      if (priorId && context.hadMessages && panelState.kind !== "saved") {
+        abandonAgentSession(priorId);
+      }
+      rotateSessionId();
+      setPanelResetKey((value) => value + 1);
+    },
+    [panelState.kind],
+  );
 
   if (!sessionId) {
     return (
