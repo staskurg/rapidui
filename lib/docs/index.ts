@@ -94,9 +94,10 @@ function getApiSection(baseUrl: string) {
       method: "GET",
       path: "/api/health",
       url: `${baseUrl}/api/health`,
-      requiredHeaders: REQUIRED_TELEMETRY_HEADERS,
+      requiredHeaders: [] as typeof REQUIRED_TELEMETRY_HEADERS,
       recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
-      notes: "Requires X-RapidUI-Session-Id. Platform health check.",
+      notes:
+        "No session required — liveness probe for monitoring and curl. Optional X-RapidUI-Session-Id for Observe.",
     },
     validate: {
       method: "POST",

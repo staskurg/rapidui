@@ -66,6 +66,25 @@ async function runSmokeObserveDiscovery(): Promise<void> {
     "Anonymous llms.txt row should have null session_id",
   );
 
+  const healthNoSession = await getHealth(new Request("http://localhost/api/health"));
+  assert(healthNoSession.status === 200, "GET /api/health without session should return 200");
+  const healthBody = (await healthNoSession.json()) as { ok: boolean };
+  assert(healthBody.ok === true, "Health body should be { ok: true }");
+
+  const anonymousHealth = await sql`
+    SELECT session_id, endpoint
+    FROM api_events
+    WHERE endpoint = '/api/health'
+      AND session_id IS NULL
+    ORDER BY occurred_at DESC
+    LIMIT 1
+  `;
+  assert(anonymousHealth.rows.length >= 1, "Health without session should insert api_events row");
+  assert(
+    anonymousHealth.rows[0]?.session_id === null,
+    "Anonymous health row should have null session_id",
+  );
+
   const headers = sessionHeaders(sessionId);
 
   assert(
@@ -145,6 +164,13 @@ async function runSmokeObserveDiscovery(): Promise<void> {
   await sql`
     DELETE FROM api_events
     WHERE endpoint = '/llms.txt'
+      AND session_id IS NULL
+      AND occurred_at >= ${startedAt}
+  `;
+
+  await sql`
+    DELETE FROM api_events
+    WHERE endpoint = '/api/health'
       AND session_id IS NULL
       AND occurred_at >= ${startedAt}
   `;
