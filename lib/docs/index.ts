@@ -18,6 +18,10 @@ const REQUIRED_TELEMETRY_HEADERS = [
   },
 ] as const;
 
+type TelemetryHeaderEntry = (typeof REQUIRED_TELEMETRY_HEADERS)[number];
+
+const NO_REQUIRED_TELEMETRY_HEADERS: readonly TelemetryHeaderEntry[] = [];
+
 const RECOMMENDED_TELEMETRY_HEADERS = [
   {
     name: TELEMETRY_HEADERS.agent,
@@ -94,7 +98,7 @@ function getApiSection(baseUrl: string) {
       method: "GET",
       path: "/api/health",
       url: `${baseUrl}/api/health`,
-      requiredHeaders: [] as typeof REQUIRED_TELEMETRY_HEADERS,
+      requiredHeaders: NO_REQUIRED_TELEMETRY_HEADERS,
       recommendedHeaders: RECOMMENDED_TELEMETRY_HEADERS,
       notes:
         "No session required — liveness probe for monitoring and curl. Optional X-RapidUI-Session-Id for Observe.",

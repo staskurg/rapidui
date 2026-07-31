@@ -40,10 +40,15 @@ const apiSection = docs.sections.find((s) => s.id === "api")?.content as {
   validate?: { requiredHeaders?: unknown[] };
   specs?: { requiredHeaders?: unknown[] };
   docs?: { requiredHeaders?: unknown[] };
+  health?: { requiredHeaders?: unknown[] };
 };
 assert(apiSection?.validate?.requiredHeaders?.length === 1, "Validate API should list requiredHeaders");
 assert(apiSection?.specs?.requiredHeaders?.length === 1, "Specs API should list requiredHeaders");
 assert(apiSection?.docs?.requiredHeaders?.length === 1, "Docs API should list requiredHeaders");
+assert(
+  apiSection?.health?.requiredHeaders?.length === 0,
+  "Health API should not require session headers",
+);
 
 const errorsSection = docs.sections.find((s) => s.id === "errors");
 assert(errorsSection?.format === "json", "Errors section should be JSON");
