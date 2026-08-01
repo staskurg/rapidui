@@ -1,6 +1,7 @@
 "use client";
 
 import type { SavedSpec } from "@/lib/db/types";
+import { JsonCodeBlock } from "@/lib/review/JsonCodeBlock";
 import { RuiInspector } from "@/lib/review/RuiInspector";
 
 import { OutputTabBar, type OutputTab } from "./OutputTabBar";
@@ -65,9 +66,10 @@ export function OutputPanel({ activeTab, onTabChange, panelState }: OutputPanelP
         {activeTab === "json" ? (
           <>
             {spec ? (
-              <pre className="overflow-x-auto rounded border border-zinc-200 bg-zinc-50 p-4 font-mono text-xs text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
-                {JSON.stringify(spec.normalizedRui, null, 2)}
-              </pre>
+              <JsonCodeBlock
+                value={spec.normalizedRui}
+                className="overflow-x-auto rounded border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950"
+              />
             ) : (
               <p className="text-sm text-zinc-500">Validated or saved RUI JSON will appear here.</p>
             )}

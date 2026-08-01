@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { GitHubLink } from "@/components/site/GitHubLink";
+import { getSitePageName, SiteBrandTitle } from "@/components/site/SiteBrandTitle";
 
 const navItems = [
   { href: "/chat", label: "Build a RUI" },
@@ -19,16 +20,12 @@ function isActive(pathname: string, href: string): boolean {
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const pageName = getSitePageName(pathname);
 
   return (
     <header className="shrink-0 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex w-full items-center justify-between gap-4 px-6 py-3">
-        <Link
-          href="/"
-          className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100"
-        >
-          RapidUI
-        </Link>
+        <SiteBrandTitle pageName={pageName} />
 
         <div className="flex items-center gap-1 sm:gap-2">
           <nav aria-label="Primary">

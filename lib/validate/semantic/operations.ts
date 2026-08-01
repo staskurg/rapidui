@@ -1,4 +1,4 @@
-import type { Operation, Rui } from "@/lib/operations";
+import type { Rui } from "@/lib/operations";
 
 import { formatError } from "../messages";
 import type { ValidationError } from "../types";

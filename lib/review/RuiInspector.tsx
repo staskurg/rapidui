@@ -1,7 +1,10 @@
+import { SitePageHeader } from "@/components/site/SitePageHeader";
 import type { SavedSpec } from "@/lib/db/types";
+import { SITE_PAGE_NAMES } from "@/lib/site/page-titles";
 import type { Rui } from "@/lib/operations";
 
 import { EntitySection, SpecMeta, TransitionsTable } from "./inspector";
+import { JsonCodeBlock } from "./JsonCodeBlock";
 
 type RuiInspectorProps = {
   spec: SavedSpec;
@@ -19,7 +22,15 @@ function isV02Rui(normalizedRui: Rui | unknown): normalizedRui is Rui {
   );
 }
 
-function OperationsInspectorBody({ rui, badge, spec }: { rui: Rui; badge?: "draft" | "saved" | null; spec: SavedSpec }) {
+function OperationsInspectorBody({
+  rui,
+  badge,
+  spec,
+}: {
+  rui: Rui;
+  badge?: "draft" | "saved" | null;
+  spec: SavedSpec;
+}) {
   return (
     <div className="space-y-6">
       <SpecMeta spec={spec} badge={badge} />
@@ -28,6 +39,20 @@ function OperationsInspectorBody({ rui, badge, spec }: { rui: Rui; badge?: "draf
       ))}
       <TransitionsTable transitions={rui.transitions} />
     </div>
+  );
+}
+
+function RawJsonPanel({ normalizedRui }: { normalizedRui: unknown }) {
+  return (
+    <section className="flex min-h-0 flex-col bg-white dark:bg-zinc-900">
+      <div className="shrink-0 border-b border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+        Raw JSON
+      </div>
+      <JsonCodeBlock
+        value={normalizedRui}
+        className="min-h-0 flex-1 overflow-auto p-4"
+      />
+    </section>
   );
 }
 
@@ -40,48 +65,44 @@ export function RuiInspector({
   const { normalizedRui } = spec;
   const isV02 = isV02Rui(normalizedRui);
 
-  const body = (
-    <>
-      {isV02 ? (
-        <OperationsInspectorBody rui={normalizedRui} badge={badge} spec={spec} />
-      ) : (
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Legacy v0.1 block-tree specs are no longer supported in the inspector. Raw JSON is
-          available below.
-        </section>
-      )}
-
-      {showJson ? (
-        <details className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Raw JSON
-          </summary>
-          <pre className="overflow-x-auto border-t border-zinc-200 p-4 font-mono text-xs text-zinc-800 dark:border-zinc-800 dark:text-zinc-200">
-            {JSON.stringify(normalizedRui, null, 2)}
-          </pre>
-        </details>
-      ) : null}
-    </>
+  const inspectorContent = isV02 ? (
+    <OperationsInspectorBody rui={normalizedRui} badge={badge} spec={spec} />
+  ) : (
+    <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      Legacy v0.1 block-tree specs are no longer supported in the inspector. Raw JSON is available
+      in the panel on the right.
+    </section>
   );
 
   if (variant === "embedded") {
-    return <div className="space-y-4">{body}</div>;
+    return (
+      <div className="space-y-4">
+        {inspectorContent}
+        {showJson ? (
+          <details className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Raw JSON
+            </summary>
+            <JsonCodeBlock
+              value={normalizedRui}
+              className="overflow-x-auto border-t border-zinc-200 p-4 dark:border-zinc-800"
+            />
+          </details>
+        ) : null}
+      </div>
+    );
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <h1 className="text-lg font-semibold tracking-tight">RUI Inspector</h1>
-          <p className="text-sm text-zinc-500">RapidUI v0.2</p>
-        </div>
-      </header>
+    <div className="flex h-dvh flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <SitePageHeader pageName={SITE_PAGE_NAMES.ruiInspector} />
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-6 py-8">{body}</main>
-
-      <footer className="border-t border-zinc-200 px-6 py-4 text-center text-sm text-zinc-500 dark:border-zinc-800">
-        rapidui.dev — RUI Inspector
-      </footer>
+      <div className="grid min-h-0 flex-1 grid-cols-[3fr_2fr]">
+        <section className="min-h-0 overflow-y-auto border-r border-zinc-200 px-6 py-6 dark:border-zinc-800">
+          {inspectorContent}
+        </section>
+        {showJson ? <RawJsonPanel normalizedRui={normalizedRui} /> : null}
+      </div>
     </div>
   );
 }

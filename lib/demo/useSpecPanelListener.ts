@@ -54,9 +54,23 @@ export function useSpecPanelListener({
   const messages = useAuiState((state) => state.thread.messages);
   const processedToolCalls = useRef<Set<string>>(new Set());
   const listenerGeneration = useRef(0);
+  const messagesRef = useRef(messages);
 
   useEffect(() => {
-    processedToolCalls.current.clear();
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    for (const message of messagesRef.current) {
+      if (message.role !== "assistant") {
+        continue;
+      }
+      for (const part of message.content) {
+        if (part.type === "tool-call") {
+          processedToolCalls.current.add(part.toolCallId);
+        }
+      }
+    }
     listenerGeneration.current += 1;
     onStateChange({ kind: "empty" });
   }, [resetKey, onStateChange]);

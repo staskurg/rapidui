@@ -35,7 +35,10 @@ assert(html.includes("op-browse-users"), "HTML should list operation ids from go
 assert(html.includes("Transitions"), "HTML should include transitions section");
 assert(html.includes("Embedded actions"), "HTML should show embedded delete on read");
 assert(html.includes("GET /api/users"), "HTML should show API data chips");
-assert(html.includes("Raw JSON"), "HTML should include collapsible raw JSON");
+assert(html.includes("Role (role · badge)"), "HTML should list table column details");
+assert(html.includes("Filter"), "HTML should show table filter details");
+assert(html.includes("RapidUI"), "HTML should include home link in header");
+assert(html.includes("Raw JSON"), "HTML should include raw JSON panel");
 assert(!html.includes("Phase 5"), "HTML should not include placeholder copy");
 
 console.log("Inspector smoke test passed:");

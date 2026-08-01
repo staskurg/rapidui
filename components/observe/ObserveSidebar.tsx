@@ -22,6 +22,37 @@ function isActive(pathname: string, href: string, exact: boolean): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
+  const shared = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-4 w-4 shrink-0",
+    "aria-hidden": true,
+  };
+
+  if (collapsed) {
+    return (
+      <svg {...shared}>
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M9 3v18" />
+        <path d="m14 9 3 3-3 3" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...shared}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+      <path d="m16 15-3-3 3-3" />
+    </svg>
+  );
+}
+
 export function ObserveSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(() => {
@@ -45,15 +76,6 @@ export function ObserveSidebar() {
         collapsed ? "w-14" : "w-48"
       }`}
     >
-      {!collapsed ? (
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Observe
-          </p>
-          <p className="mt-0.5 text-xs text-zinc-400">Platform analytics</p>
-        </div>
-      ) : null}
-
       <nav aria-label="Observe" className="flex-1 p-2">
         <ul className="space-y-1">
           {navItems.map((item) => {
@@ -86,10 +108,12 @@ export function ObserveSidebar() {
           type="button"
           onClick={toggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex w-full items-center justify-center rounded-md px-2 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          className={`flex w-full items-center rounded-md border border-transparent py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 ${
+            collapsed ? "justify-center px-2" : "gap-2.5 px-2"
+          }`}
         >
-          {collapsed ? "›" : "‹"}
+          <SidebarToggleIcon collapsed={collapsed} />
+          {!collapsed ? <span>Collapse</span> : null}
         </button>
       </div>
     </aside>

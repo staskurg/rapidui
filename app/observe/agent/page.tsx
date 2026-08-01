@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AgentRunOutcomeBadge } from "@/components/observe/AgentRunOutcomeBadge";
+import { ObserveNoticeBanner } from "@/components/observe/ObserveNoticeBanner";
 import { StatCard } from "@/components/observe/StatCard";
 import {
   formatRelativeTime,
@@ -12,6 +13,7 @@ import {
   listDistinctPromptVersions,
   truncateSessionId,
 } from "@/lib/observe/queries";
+import { getObserveNotice, isObserveNoticeKey } from "@/lib/observe/notices";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,7 @@ type AgentObservePageProps = {
     evalCase?: string;
     agent?: string;
     session?: string;
+    notice?: string;
   }>;
 };
 
@@ -67,11 +70,20 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
 
   const filterQuery = buildFilterQuery(filters);
   const hasData = summary.runCount > 0;
+  const noticeKey = isObserveNoticeKey(params.notice) ? params.notice : undefined;
+  const notice = noticeKey ? getObserveNotice(noticeKey, { sessionId: params.session }) : null;
 
   return (
     <div className="space-y-8">
+      {notice ? (
+        <ObserveNoticeBanner
+          title={notice.title}
+          message={notice.message}
+          dismissHref={filterQuery ? `/observe/agent${filterQuery}` : "/observe/agent"}
+        />
+      ) : null}
+
       <header className="space-y-2">
-        <p className="text-sm text-zinc-500">Observe › Agent</p>
         <h1 className="text-2xl font-semibold tracking-tight">Agent telemetry</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           RapidUI Agent chat sessions — outcomes, latency, tokens, and platform API usage. Last 30
@@ -170,7 +182,7 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
         </div>
       </form>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 lg:grid-cols-4">
         <StatCard label="Runs" value={String(summary.runCount)} />
         <StatCard
           label="p50 latency"
@@ -186,16 +198,10 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
           label="Avg tokens"
           value={summary.avgTokens === null ? "—" : String(summary.avgTokens)}
         />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Saved" value={String(summary.savedCount)} />
         <StatCard label="Failed" value={String(summary.failedCount)} />
         <StatCard label="Abandoned" value={String(summary.abandonedCount)} />
         <StatCard label="In progress" value={String(summary.inProgressCount)} />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Avg validate attempts"
           value={

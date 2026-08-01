@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { SessionOutcomeBadge } from "@/components/observe/SessionOutcomeBadge";
 import { StatCard } from "@/components/observe/StatCard";
+import { SpecLink } from "@/components/site/SpecLink";
 import {
   formatRelativeTime,
   getApiObserveSummary,
@@ -62,7 +63,6 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <p className="text-sm text-zinc-500">Observe › API</p>
         <h1 className="text-2xl font-semibold tracking-tight">API telemetry</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Discovery, validate, and save events from external agents and RapidUI Agent — last 30
@@ -75,7 +75,7 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Discovery &amp; health
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Discovery hits" value={String(summary.discoveryHits ?? 0)} />
             <StatCard
               label="llms.txt"
@@ -152,7 +152,7 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
         </div>
       </form>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
         <StatCard label="Sessions" value={String(summary.sessionCount)} />
         <StatCard label="Validate OK" value={formatPercent(summary.validateSuccessRate)} />
         <StatCard label="Specs saved" value={String(summary.specsSaved)} />
@@ -234,12 +234,12 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
                     </td>
                     <td className="px-4 py-3">
                       {session.finalSpecId ? (
-                        <Link
+                        <SpecLink
                           href={`/specs/${session.finalSpecId}`}
                           className="font-mono text-xs text-violet-700 hover:underline dark:text-violet-400"
                         >
                           {truncateSessionId(session.finalSpecId, 6)}
-                        </Link>
+                        </SpecLink>
                       ) : (
                         "—"
                       )}

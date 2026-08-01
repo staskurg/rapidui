@@ -25,13 +25,13 @@ export function EmbeddedActions({ actions }: EmbeddedActionsProps) {
         {actions.map((action) => (
           <li
             key={action.id}
-            className="rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5 text-xs dark:border-zinc-800 dark:bg-zinc-950"
+            className="rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
           >
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">{action.label}</span>
+            <span className="font-medium">{action.label}</span>
             <span className="mx-1.5 text-zinc-300">·</span>
-            <span className="font-mono text-violet-700">{action.type}</span>
+            <span className="font-mono text-violet-800 dark:text-violet-300">{action.type}</span>
             <span className="mx-1.5 text-zinc-300">·</span>
-            <span className="font-mono text-zinc-600 dark:text-zinc-400">{actionPath(action)}</span>
+            <span className="font-mono text-zinc-700 dark:text-zinc-300">{actionPath(action)}</span>
           </li>
         ))}
       </ul>

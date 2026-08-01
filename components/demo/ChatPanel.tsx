@@ -1,16 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
   useComposerRuntime,
 } from "@assistant-ui/react";
+import { useMessageError } from "@assistant-ui/core/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import { useAuiState } from "@assistant-ui/store";
 import type { ReasoningMessagePartProps, TextMessagePartProps } from "@assistant-ui/core/react";
 
+import { ConfirmNewChatDialog } from "@/components/demo/ConfirmNewChatDialog";
+import { SessionBar } from "@/components/demo/SessionBar";
 import type { StarterPrompt } from "@/lib/demo/starter-prompts";
+import { formatAgentChatError } from "@/lib/demo/format-agent-chat-error";
 import { setPendingEvalCase } from "@/lib/demo/session";
 
 import { demoToolComponents } from "./ToolFallback";
@@ -114,13 +119,40 @@ function UserMessage() {
   );
 }
 
+function ChatErrorBanner({ error }: { error: string }) {
+  const { title, hint } = formatAgentChatError(error);
+
+  return (
+    <div
+      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+      role="alert"
+    >
+      <p className="font-medium">{title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-red-800 dark:text-red-300">{hint}</p>
+    </div>
+  );
+}
+
+function AssistantStatusPlaceholder() {
+  const error = useMessageError();
+
+  if (error !== undefined) {
+    const message = typeof error === "string" ? error : String(error);
+    return <ChatErrorBanner error={message} />;
+  }
+
+  return (
+    <MessagePrimitive.If hasContent={false}>
+      <ThinkingIndicator />
+    </MessagePrimitive.If>
+  );
+}
+
 function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex justify-start">
       <div className="max-w-[95%] space-y-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-        <MessagePrimitive.If hasContent={false}>
-          <ThinkingIndicator />
-        </MessagePrimitive.If>
+        <AssistantStatusPlaceholder />
         <MessagePrimitive.Parts
           components={{
             Text: AssistantTextPart,
@@ -133,32 +165,93 @@ function AssistantMessage() {
   );
 }
 
-type StarterChipsProps = {
-  prompts: StarterPrompt[];
-  onChipClick: (prompt: StarterPrompt) => void;
-  disabled?: boolean;
+type ChatSessionHeaderProps = {
+  sessionId: string;
+  onNewChat: () => void;
 };
 
-export function StarterChips({ prompts, onChipClick, disabled }: StarterChipsProps) {
+export function ChatSessionHeader({ sessionId, onNewChat }: ChatSessionHeaderProps) {
+  const messageCount = useAuiState((state) => state.thread.messages.length);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  function handleNewChatClick() {
+    if (messageCount === 0) {
+      onNewChat();
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
   return (
-    <div className="flex flex-wrap gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-      {prompts.map((prompt) => (
+    <>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
+        <SessionBar sessionId={sessionId} showObserveLink={messageCount > 0} />
         <button
-          key={prompt.id}
           type="button"
-          disabled={disabled}
-          onClick={() => onChipClick(prompt)}
-          className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          title={prompt.title}
+          onClick={handleNewChatClick}
+          className="shrink-0 rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
-          {prompt.chipLabel}
+          New chat
         </button>
-      ))}
-    </div>
+      </div>
+
+      <ConfirmNewChatDialog
+        open={confirmOpen}
+        title="Start a new conversation?"
+        message="Current chat and draft spec will be cleared."
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          onNewChat();
+          setConfirmOpen(false);
+        }}
+      />
+    </>
   );
 }
 
-export function ChatThread() {
+type PromptSelectorProps = {
+  prompts: StarterPrompt[];
+  onSelect: (prompt: StarterPrompt) => void;
+  disabled?: boolean;
+};
+
+function PromptSelector({ prompts, onSelect, disabled }: PromptSelectorProps) {
+  return (
+    <label className="flex min-w-0 flex-1 items-center gap-2 text-sm sm:max-w-md">
+      <span className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Prompt:</span>
+      <select
+        disabled={disabled}
+        defaultValue=""
+        onChange={(event) => {
+          const prompt = prompts.find((item) => item.id === event.target.value);
+          if (!prompt) {
+            return;
+          }
+          onSelect(prompt);
+          event.target.value = "";
+        }}
+        className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+      >
+        <option value="" disabled>
+          Select a use case…
+        </option>
+        {prompts.map((prompt) => (
+          <option key={prompt.id} value={prompt.id}>
+            {prompt.chipLabel}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+type ChatThreadProps = {
+  prompts: StarterPrompt[];
+  onPromptSelect: (prompt: StarterPrompt) => void;
+  promptsDisabled?: boolean;
+};
+
+export function ChatThread({ prompts, onPromptSelect, promptsDisabled }: ChatThreadProps) {
   return (
     <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
       <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
@@ -177,8 +270,13 @@ export function ChatThread() {
             placeholder="Describe your UI, or paste JSON / CSV sample data…"
             className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
-          <div className="flex justify-end">
-            <ComposerPrimitive.Send className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:enabled:hover:bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <PromptSelector
+              prompts={prompts}
+              onSelect={onPromptSelect}
+              disabled={promptsDisabled}
+            />
+            <ComposerPrimitive.Send className="shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:enabled:hover:bg-white">
               Send
             </ComposerPrimitive.Send>
           </div>
@@ -188,15 +286,12 @@ export function ChatThread() {
   );
 }
 
-/** Send a starter prompt through the composer (after optional confirm + reset). */
-export function useSendStarterPrompt() {
+/** Fill the composer with a starter prompt (does not send). */
+export function usePopulateStarterPrompt() {
   const composer = useComposerRuntime();
 
-  return (prompt: string, evalCaseId?: string) => {
-    if (evalCaseId) {
-      setPendingEvalCase(evalCaseId);
-    }
-    composer.setText(prompt);
-    composer.send();
+  return (prompt: StarterPrompt) => {
+    setPendingEvalCase(prompt.id);
+    composer.setText(prompt.prompt);
   };
 }

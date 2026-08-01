@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { AgentRunOutcomeBadge } from "@/components/observe/AgentRunOutcomeBadge";
+import { SpecLink } from "@/components/site/SpecLink";
 import {
   formatRelativeTime,
   getAgentRunDetail,
   truncateSessionId,
 } from "@/lib/observe/queries";
+import { buildMissingSessionAgentObserveHref } from "@/lib/observe/notices";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,7 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
   const detail = await getAgentRunDetail(sessionId);
 
   if (!detail) {
-    notFound();
+    redirect(buildMissingSessionAgentObserveHref(sessionId));
   }
 
   const { run, turns, timeline, tokenParityMismatch, validateCountMismatch } = detail;
@@ -132,12 +134,12 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
             </dt>
             <dd className="mt-1 text-sm">
               {run.specId ? (
-                <Link
+                <SpecLink
                   href={`/specs/${run.specId}`}
                   className="font-mono text-violet-700 hover:underline dark:text-violet-400"
                 >
                   {truncateSessionId(run.specId, 6)}
-                </Link>
+                </SpecLink>
               ) : (
                 "—"
               )}
@@ -218,12 +220,12 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
                   </div>
                   <div className="text-sm">
                     {event.spec_id ? (
-                      <Link
+                      <SpecLink
                         href={`/specs/${event.spec_id}`}
                         className="font-medium text-violet-700 hover:underline dark:text-violet-400"
                       >
                         Saved → spec
-                      </Link>
+                      </SpecLink>
                     ) : event.endpoint === "/api/validate" ? (
                       <span
                         className={

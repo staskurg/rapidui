@@ -8,14 +8,14 @@ type OutputTabBarProps = {
 };
 
 const tabs: { id: OutputTab; label: string; disabled?: boolean; tooltip?: string }[] = [
+  { id: "spec", label: "Spec" },
+  { id: "json", label: "JSON" },
   {
     id: "preview",
     label: "Preview",
     disabled: true,
     tooltip: "Renderer ships in v0.3",
   },
-  { id: "spec", label: "Spec" },
-  { id: "json", label: "JSON" },
 ];
 
 export function OutputTabBar({ activeTab, onTabChange }: OutputTabBarProps) {

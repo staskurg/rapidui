@@ -12,7 +12,11 @@ export default async function EvalsObservePlaceholderPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Eval lab</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Model × prompt × use-case matrix ships in Phase 7 (stretch O5). Script-driven via{" "}
+          Model × prompt × use-case comparison ships in Phase 7.6–7.7. Script-driven via{" "}
+          <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">
+            npm run eval:run
+          </code>{" "}
+          and{" "}
           <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">
             npm run eval:matrix
           </code>

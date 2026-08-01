@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getSpecById, isValidSpecId } from "@/lib/db";
 import { RuiInspector } from "@/lib/review/RuiInspector";
+import { SITE_PAGE_TITLES } from "@/lib/site/page-titles";
 
 export const dynamic = "force-dynamic";
 
@@ -10,22 +11,9 @@ type SpecInspectorPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export async function generateMetadata({
-  params,
-}: SpecInspectorPageProps): Promise<Metadata> {
-  const { id } = await params;
-
-  if (!isValidSpecId(id)) {
-    return { title: "Not Found — RUI Inspector" };
-  }
-
-  const spec = await getSpecById(id);
-  if (!spec) {
-    return { title: "Not Found — RUI Inspector" };
-  }
-
+export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: `${spec.normalizedRui.app.title} — RUI Inspector`,
+    title: SITE_PAGE_TITLES.ruiInspector,
   };
 }
 

@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
+
 import { ObserveSidebar } from "@/components/observe/ObserveSidebar";
 import { SiteShell } from "@/components/site/SiteShell";
+import { SITE_PAGE_TITLES } from "@/lib/site/page-titles";
+
+export const metadata: Metadata = {
+  title: SITE_PAGE_TITLES.observe,
+};
 
 export default function ObserveLayout({ children }: { children: React.ReactNode }) {
   return (

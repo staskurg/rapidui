@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 
-type NewTabLinkProps = {
+type SpecLinkProps = {
   href: string;
   className?: string;
   title?: string;
   children: ReactNode;
 };
 
-/** Opens in a new tab. Uses a native anchor (not Next Link) so the router cannot hijack the click. */
-export function NewTabLink({ href, className, title, children }: NewTabLinkProps) {
+/** Opens spec / inspector links in a new tab. Uses a native anchor (not Next Link). */
+export function SpecLink({ href, className, title, children }: SpecLinkProps) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className={className} title={title}>
       {children}

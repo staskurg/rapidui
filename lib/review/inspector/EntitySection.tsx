@@ -14,7 +14,7 @@ export function EntitySection({ entity, operations }: EntitySectionProps) {
     <section className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{entity.label}</h3>
-        <p className="font-mono text-xs text-zinc-500">{entity.id}</p>
+        <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{entity.id}</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">

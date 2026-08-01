@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { SessionOutcomeBadge } from "@/components/observe/SessionOutcomeBadge";
+import { SpecLink } from "@/components/site/SpecLink";
 import {
   formatRelativeTime,
   getAgentRunExists,
@@ -9,6 +10,7 @@ import {
   getSessionTimeline,
   truncateSessionId,
 } from "@/lib/observe/queries";
+import { buildMissingSessionAgentObserveHref } from "@/lib/observe/notices";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +58,7 @@ export default async function SessionDetailPage({
   ]);
 
   if (!summary) {
-    notFound();
+    redirect(buildMissingSessionAgentObserveHref(sessionId));
   }
 
   const backHref = fromAgent
@@ -109,12 +111,12 @@ export default async function SessionDetailPage({
             </dt>
             <dd className="mt-1 text-sm">
               {summary.finalSpecId ? (
-                <Link
+                <SpecLink
                   href={`/specs/${summary.finalSpecId}`}
                   className="font-mono text-violet-700 hover:underline dark:text-violet-400"
                 >
                   {truncateSessionId(summary.finalSpecId, 6)}
-                </Link>
+                </SpecLink>
               ) : (
                 "—"
               )}
@@ -160,12 +162,12 @@ export default async function SessionDetailPage({
                   </div>
                   <div className="text-sm">
                     {event.spec_id ? (
-                      <Link
+                      <SpecLink
                         href={`/specs/${event.spec_id}`}
                         className="font-medium text-violet-700 hover:underline dark:text-violet-400"
                       >
                         Saved → spec
-                      </Link>
+                      </SpecLink>
                     ) : event.endpoint === "/api/validate" ? (
                       <span
                         className={
