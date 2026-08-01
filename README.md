@@ -55,7 +55,7 @@ flowchart TB
   Grader --> eval_trials
   eval_trials --> Observe
 
-  link session_id
+  session_id["session_id join key"]
   API -.->|X-RapidUI-Session-Id| session_id
   Chat -.->|same session_id| session_id
   Observe -.->|drill-down| session_id
