@@ -45,7 +45,7 @@ function OperationsInspectorBody({
 function RawJsonPanel({ normalizedRui }: { normalizedRui: unknown }) {
   return (
     <section className="flex min-h-0 flex-col bg-white dark:bg-zinc-900">
-      <div className="shrink-0 border-b border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+      <div className="shrink-0 border-b border-zinc-200 px-4 py-3 text-ui font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
         Raw JSON
       </div>
       <JsonCodeBlock
@@ -68,7 +68,7 @@ export function RuiInspector({
   const inspectorContent = isV02 ? (
     <OperationsInspectorBody rui={normalizedRui} badge={badge} spec={spec} />
   ) : (
-    <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-ui text-amber-900">
       Legacy v0.1 block-tree specs are no longer supported in the inspector. Raw JSON is available
       in the panel on the right.
     </section>
@@ -80,7 +80,7 @@ export function RuiInspector({
         {inspectorContent}
         {showJson ? (
           <details className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <summary className="cursor-pointer px-4 py-3 text-ui font-medium text-zinc-700 dark:text-zinc-300">
               Raw JSON
             </summary>
             <JsonCodeBlock

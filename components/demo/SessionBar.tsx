@@ -1,29 +1,48 @@
+import { ObserveNavIcon } from "@/components/observe/ObserveNavIcons";
 import { NewTabLink } from "@/components/demo/NewTabLink";
 
 type SessionBarProps = {
   sessionId: string;
-  showObserveLink?: boolean;
+  observeEnabled?: boolean;
 };
 
-export function SessionBar({ sessionId, showObserveLink = false }: SessionBarProps) {
+const observeIconClass =
+  "inline-flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors";
+
+export function SessionBar({ sessionId, observeEnabled = false }: SessionBarProps) {
+  const observeHref = `/observe/agent/sessions/${encodeURIComponent(sessionId)}`;
+  const enabledLabel = "Open session telemetry in Observe (new tab)";
+  const disabledLabel = "Send a message to open session telemetry in Observe";
+
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+    <div className="flex min-w-0 flex-wrap items-center gap-2 text-ui">
       <span className="shrink-0 text-zinc-500">Session</span>
       <code
-        className="min-w-0 break-all rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+        className="min-w-0 break-all rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-mono text-caption text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
         title={sessionId}
       >
         {sessionId}
       </code>
-      {showObserveLink ? (
+      {observeEnabled ? (
         <NewTabLink
-          href={`/observe/agent/sessions/${encodeURIComponent(sessionId)}`}
-          title="Open agent telemetry for this session in a new tab"
-          className="shrink-0 text-xs font-medium text-zinc-700 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          href={observeHref}
+          title={enabledLabel}
+          aria-label={enabledLabel}
+          className={`${observeIconClass} text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100`}
         >
-          Observe ↗
+          <ObserveNavIcon name="telemetry" className="h-4 w-4" />
         </NewTabLink>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          disabled
+          title={disabledLabel}
+          aria-label={disabledLabel}
+          className={`${observeIconClass} cursor-not-allowed text-zinc-400 dark:text-zinc-600`}
+        >
+          <ObserveNavIcon name="telemetry" className="h-4 w-4 opacity-60" />
+        </button>
+      )}
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function getSitePageName(pathname: string): string | null {
 
 export function SiteBrandTitle({ pageName }: SiteBrandTitleProps) {
   return (
-    <h1 className="text-lg font-semibold tracking-tight">
+    <h1 className="text-subhead font-semibold tracking-tight">
       <Link
         href="/"
         className="text-zinc-900 transition-colors hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"

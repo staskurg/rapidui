@@ -71,7 +71,7 @@ export function JsonCodeBlock({ value, className = "" }: JsonCodeBlockProps) {
 
   return (
     <pre
-      className={`font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 ${className}`}
+      className={`font-mono text-caption leading-relaxed text-zinc-800 dark:text-zinc-200 ${className}`}
     >
       <code>{highlightJson(json)}</code>
     </pre>

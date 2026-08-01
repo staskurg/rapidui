@@ -29,7 +29,7 @@ export function OutputTabBar({ activeTab, onTabChange }: OutputTabBarProps) {
           title={tab.tooltip}
           onClick={() => onTabChange(tab.id)}
           className={[
-            "px-3 py-2 text-sm font-medium transition-colors",
+            "px-3 py-2 text-ui font-medium transition-colors",
             tab.disabled
               ? "cursor-not-allowed text-zinc-400"
               : activeTab === tab.id

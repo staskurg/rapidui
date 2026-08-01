@@ -32,7 +32,7 @@ function ThinkingIndicator({ label = "Thinking…" }: { label?: string }) {
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.15s] dark:bg-zinc-500" />
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500" />
       </span>
-      <span className="text-xs font-medium">{label}</span>
+      <span className="text-caption font-medium">{label}</span>
     </div>
   );
 }
@@ -70,17 +70,17 @@ function UserTextPart(props: TextMessagePartProps) {
   const text = props.text ?? "";
   if (looksLikeDataPaste(text)) {
     return (
-      <pre className="overflow-x-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-100 p-3 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+      <pre className="overflow-x-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-100 p-3 font-mono text-caption text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
         {text}
       </pre>
     );
   }
-  return <p className="whitespace-pre-wrap text-sm leading-relaxed">{text}</p>;
+  return <p className="whitespace-pre-wrap text-ui leading-relaxed">{text}</p>;
 }
 
 function AssistantTextPart() {
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert">
+    <div className="max-w-none text-ui leading-relaxed">
       <MarkdownTextPrimitive />
     </div>
   );
@@ -103,7 +103,7 @@ function ReasoningPart(props: ReasoningMessagePartProps) {
   }
 
   return (
-    <div className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+    <div className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-caption leading-relaxed text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
       {props.text}
     </div>
   );
@@ -124,11 +124,11 @@ function ChatErrorBanner({ error }: { error: string }) {
 
   return (
     <div
-      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-ui text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
       role="alert"
     >
       <p className="font-medium">{title}</p>
-      <p className="mt-1 text-xs leading-relaxed text-red-800 dark:text-red-300">{hint}</p>
+      <p className="mt-1 text-caption leading-relaxed text-red-800 dark:text-red-300">{hint}</p>
     </div>
   );
 }
@@ -185,11 +185,11 @@ export function ChatSessionHeader({ sessionId, onNewChat }: ChatSessionHeaderPro
   return (
     <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
-        <SessionBar sessionId={sessionId} showObserveLink={messageCount > 0} />
+        <SessionBar sessionId={sessionId} observeEnabled={messageCount > 0} />
         <button
           type="button"
           onClick={handleNewChatClick}
-          className="shrink-0 rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          className="shrink-0 rounded-md border border-zinc-200 px-3 py-1.5 text-ui font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           New chat
         </button>
@@ -217,7 +217,7 @@ type PromptSelectorProps = {
 
 function PromptSelector({ prompts, onSelect, disabled }: PromptSelectorProps) {
   return (
-    <label className="flex min-w-0 flex-1 items-center gap-2 text-sm sm:max-w-md">
+    <label className="flex min-w-0 flex-1 items-center gap-2 text-ui sm:max-w-md">
       <span className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Prompt:</span>
       <select
         disabled={disabled}
@@ -230,7 +230,7 @@ function PromptSelector({ prompts, onSelect, disabled }: PromptSelectorProps) {
           onSelect(prompt);
           event.target.value = "";
         }}
-        className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+        className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-ui text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
       >
         <option value="" disabled>
           Select a use case…
@@ -268,7 +268,7 @@ export function ChatThread({ prompts, onPromptSelect, promptsDisabled }: ChatThr
           <ComposerPrimitive.Input
             rows={3}
             placeholder="Describe your UI, or paste JSON / CSV sample data…"
-            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-ui outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <PromptSelector
@@ -276,7 +276,7 @@ export function ChatThread({ prompts, onPromptSelect, promptsDisabled }: ChatThr
               onSelect={onPromptSelect}
               disabled={promptsDisabled}
             />
-            <ComposerPrimitive.Send className="shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:enabled:hover:bg-white">
+            <ComposerPrimitive.Send className="shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-ui font-medium text-white enabled:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:enabled:hover:bg-white">
               Send
             </ComposerPrimitive.Send>
           </div>

@@ -22,8 +22,8 @@ export default async function ObserveHubPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-title font-semibold tracking-tight">Overview</h1>
+        <p className="text-ui text-zinc-600 dark:text-zinc-400">
           Analytics for RapidUI API traffic, agent runs, and eval lab results.
         </p>
       </header>
@@ -32,45 +32,45 @@ export default async function ObserveHubPage() {
         <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">API</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <h2 className="text-ui font-semibold uppercase tracking-wide text-zinc-500">API</h2>
+              <p className="mt-1 text-ui text-zinc-600 dark:text-zinc-400">
                 Validate and save telemetry from all agents
               </p>
             </div>
             <Link
               href="/observe/api"
-              className="text-sm font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
+              className="text-ui font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
             >
               View API →
             </Link>
           </div>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
                 API requests
               </dt>
-              <dd className="mt-1 text-2xl font-semibold">{summary.apiRequestCount}</dd>
+              <dd className="mt-1 text-title font-semibold">{summary.apiRequestCount}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
                 Validate OK
               </dt>
-              <dd className="mt-1 text-2xl font-semibold">
+              <dd className="mt-1 text-title font-semibold">
                 {formatPercent(summary.validateSuccessRate)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
                 Specs saved
               </dt>
-              <dd className="mt-1 text-2xl font-semibold">{summary.specsSaved}</dd>
+              <dd className="mt-1 text-title font-semibold">{summary.specsSaved}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
                 Discovery hits
               </dt>
-              <dd className="mt-1 text-2xl font-semibold">{summary.discoveryHits ?? 0}</dd>
-              <dd className="mt-1 text-xs text-zinc-500">
+              <dd className="mt-1 text-title font-semibold">{summary.discoveryHits ?? 0}</dd>
+              <dd className="mt-1 text-caption text-zinc-500">
                 llms · docs · schema · health
               </dd>
             </div>
@@ -80,40 +80,40 @@ export default async function ObserveHubPage() {
         <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <h2 className="text-ui font-semibold uppercase tracking-wide text-zinc-500">
                 Agent
               </h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 text-ui text-zinc-600 dark:text-zinc-400">
                 RapidUI Agent chat sessions
               </p>
             </div>
             <Link
               href="/observe/agent"
-              className="text-sm font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
+              className="text-ui font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
             >
               View Agent →
             </Link>
           </div>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Runs</dt>
-              <dd className="mt-1 text-2xl font-semibold">{agentSummary.runCount}</dd>
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Runs</dt>
+              <dd className="mt-1 text-title font-semibold">{agentSummary.runCount}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Saved</dt>
-              <dd className="mt-1 text-2xl font-semibold">{agentSummary.savedCount}</dd>
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Saved</dt>
+              <dd className="mt-1 text-title font-semibold">{agentSummary.savedCount}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
                 Abandoned
               </dt>
-              <dd className="mt-1 text-2xl font-semibold">{agentSummary.abandonedCount}</dd>
+              <dd className="mt-1 text-title font-semibold">{agentSummary.abandonedCount}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
                 In progress
               </dt>
-              <dd className="mt-1 text-2xl font-semibold">{agentSummary.inProgressCount}</dd>
+              <dd className="mt-1 text-title font-semibold">{agentSummary.inProgressCount}</dd>
             </div>
           </dl>
         </section>
@@ -121,14 +121,14 @@ export default async function ObserveHubPage() {
         <section className="rounded-xl border border-dashed border-zinc-300 bg-zinc-100/60 p-5 dark:border-zinc-700 dark:bg-zinc-900/40">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <h2 className="text-ui font-semibold uppercase tracking-wide text-zinc-500">
                 Evals
               </h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Phase 7</p>
+              <p className="mt-1 text-ui text-zinc-600 dark:text-zinc-400">Phase 7</p>
             </div>
             <Link
               href="/observe/evals"
-              className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+              className="text-ui font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
             >
               View Evals →
             </Link>
@@ -146,7 +146,7 @@ export default async function ObserveHubPage() {
               />
             </div>
           ) : (
-            <p className="mt-5 text-sm font-medium text-zinc-500">
+            <p className="mt-5 text-ui font-medium text-zinc-500">
               Model × prompt matrix ships in Phase 7
             </p>
           )}

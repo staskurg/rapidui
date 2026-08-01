@@ -194,7 +194,7 @@ export function MainDemo() {
 
   if (!sessionId) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-zinc-50 text-sm text-zinc-500 dark:bg-zinc-950">
+      <div className="flex min-h-full items-center justify-center bg-zinc-50 text-ui text-zinc-500 dark:bg-zinc-950">
         Loading…
       </div>
     );

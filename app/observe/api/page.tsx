@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { SessionOutcomeBadge } from "@/components/observe/SessionOutcomeBadge";
 import { StatCard } from "@/components/observe/StatCard";
+import { StatCardGrid } from "@/components/observe/StatCardGrid";
 import { SpecLink } from "@/components/site/SpecLink";
 import {
   formatRelativeTime,
@@ -11,6 +12,7 @@ import {
   listRecentSessions,
   truncateSessionId,
 } from "@/lib/observe/queries";
+import { apiMetricTooltips } from "@/lib/observe/metric-tooltips";
 
 export const dynamic = "force-dynamic";
 
@@ -63,44 +65,23 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">API telemetry</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-title font-semibold tracking-tight">API telemetry</h1>
+        <p className="text-ui text-zinc-600 dark:text-zinc-400">
           Discovery, validate, and save events from external agents and RapidUI Agent — last 30
           days.
         </p>
       </header>
 
-      {(summary.discoveryHits ?? 0) > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Discovery &amp; health
-          </h2>
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-            <StatCard label="Discovery hits" value={String(summary.discoveryHits ?? 0)} />
-            <StatCard
-              label="llms.txt"
-              value={String(discoveryByEndpoint["/llms.txt"] ?? 0)}
-            />
-            <StatCard label="/api/docs" value={String(discoveryByEndpoint["/api/docs"] ?? 0)} />
-            <StatCard
-              label="/api/schema"
-              value={String(discoveryByEndpoint["/api/schema"] ?? 0)}
-            />
-            <StatCard
-              label="/api/health"
-              value={String(discoveryByEndpoint["/api/health"] ?? 0)}
-            />
-          </div>
-        </section>
-      ) : null}
-
-      <form method="get" className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:grid-cols-4">
-        <label className="space-y-1 text-sm">
+      <form
+        method="get"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+      >
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Agent</span>
           <select
             name="agent"
             defaultValue={params.agent ?? ""}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="">All agents</option>
             {agents.map((agent) => (
@@ -110,12 +91,12 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-sm">
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Eval case</span>
           <select
             name="evalCase"
             defaultValue={params.evalCase ?? ""}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="">All cases</option>
             {evalCases.map((evalCase) => (
@@ -125,26 +106,26 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-sm md:col-span-2">
+        <label className="min-w-[12rem] flex-[1.5] space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Session id</span>
           <input
             name="session"
             defaultValue={params.session ?? ""}
             placeholder="Paste SESSION_ID from terminal"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-ui dark:border-zinc-700 dark:bg-zinc-950"
           />
         </label>
-        <div className="flex items-end gap-2 md:col-span-4">
+        <div className="flex shrink-0 items-end gap-2">
           <button
             type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-ui font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
           >
             Apply filters
           </button>
           {filterQuery ? (
             <Link
               href="/observe/api"
-              className="rounded-md px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+              className="rounded-md px-4 py-2 text-ui font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
             >
               Clear
             </Link>
@@ -152,41 +133,53 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
         </div>
       </form>
 
-      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+      <StatCardGrid>
+        <StatCard
+          label="Discovery hits"
+          value={String(summary.discoveryHits ?? 0)}
+          tooltip={apiMetricTooltips.discoveryHits}
+        />
+        <StatCard label="llms.txt" value={String(discoveryByEndpoint["/llms.txt"] ?? 0)} />
+        <StatCard label="/api/docs" value={String(discoveryByEndpoint["/api/docs"] ?? 0)} />
+        <StatCard label="/api/schema" value={String(discoveryByEndpoint["/api/schema"] ?? 0)} />
+        <StatCard label="/api/health" value={String(discoveryByEndpoint["/api/health"] ?? 0)} />
         <StatCard label="Sessions" value={String(summary.sessionCount)} />
-        <StatCard label="Validate OK" value={formatPercent(summary.validateSuccessRate)} />
+        <StatCard
+          label="Validate OK"
+          value={formatPercent(summary.validateSuccessRate)}
+          tooltip={apiMetricTooltips.validateOk}
+        />
         <StatCard label="Specs saved" value={String(summary.specsSaved)} />
         <StatCard
           label="Avg tries before save"
           value={
-            summary.avgTriesBeforeSave === null
-              ? "—"
-              : String(summary.avgTriesBeforeSave)
+            summary.avgTriesBeforeSave === null ? "—" : String(summary.avgTriesBeforeSave)
           }
+          tooltip={apiMetricTooltips.avgTriesBeforeSave}
         />
-      </div>
+      </StatCardGrid>
 
       {summary.transportFailureCount > 0 ? (
-        <p className="text-sm text-amber-700 dark:text-amber-400">
+        <p className="text-ui text-amber-700 dark:text-amber-400">
           {summary.transportFailureCount} transport-level validate failures (valid is null)
         </p>
       ) : null}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Recent sessions</h2>
-          <span className="text-sm text-zinc-500">{sessions.length} shown</span>
+          <h2 className="text-subhead font-semibold">Recent sessions</h2>
+          <span className="text-ui text-zinc-500">{sessions.length} shown</span>
         </div>
 
         {!hasData ? (
           <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-ui text-zinc-600 dark:text-zinc-400">
               No API telemetry yet. Run an agent session: start at{" "}
-              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">
+              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-caption dark:bg-zinc-800">
                 GET /llms.txt
               </code>
               , generate a session id, then validate → save with{" "}
-              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">
+              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-caption dark:bg-zinc-800">
                 X-RapidUI-Session-Id
               </code>
               .
@@ -194,7 +187,7 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
+            <table className="min-w-full divide-y divide-zinc-200 text-ui dark:divide-zinc-800">
               <thead className="bg-zinc-50 dark:bg-zinc-950/50">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Session</th>
@@ -212,7 +205,7 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
                     <td className="px-4 py-3">
                       <Link
                         href={`/observe/api/sessions/${encodeURIComponent(session.sessionId)}${buildFilterQuery({ fromAgent: params.agent })}`}
-                        className="font-mono text-xs font-medium text-violet-700 hover:underline dark:text-violet-400"
+                        className="font-mono text-caption font-medium text-violet-700 hover:underline dark:text-violet-400"
                         title={session.sessionId}
                       >
                         {truncateSessionId(session.sessionId)}
@@ -220,14 +213,14 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
                     </td>
                     <td className="px-4 py-3">
                       {session.agent ? (
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium dark:bg-zinc-800">
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-caption font-medium dark:bg-zinc-800">
                           {session.agent}
                         </span>
                       ) : (
                         "—"
                       )}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs">{session.evalCaseId ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-caption">{session.evalCaseId ?? "—"}</td>
                     <td className="px-4 py-3">{session.validateCount}</td>
                     <td className="px-4 py-3">
                       <SessionOutcomeBadge outcome={session.outcome} />
@@ -236,7 +229,7 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
                       {session.finalSpecId ? (
                         <SpecLink
                           href={`/specs/${session.finalSpecId}`}
-                          className="font-mono text-xs text-violet-700 hover:underline dark:text-violet-400"
+                          className="font-mono text-caption text-violet-700 hover:underline dark:text-violet-400"
                         >
                           {truncateSessionId(session.finalSpecId, 6)}
                         </SpecLink>
@@ -259,12 +252,12 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
         <div className="grid gap-6 lg:grid-cols-2">
           {summary.funnel ? (
             <section className="space-y-3 lg:col-span-2">
-              <h2 className="text-base font-semibold">Session funnel</h2>
-              <p className="text-sm text-zinc-500">
+              <h2 className="text-body font-semibold">Session funnel</h2>
+              <p className="text-ui text-zinc-500">
                 Sessions that reached each stage in the window (identified by session id).
               </p>
               <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full text-ui">
                   <thead className="bg-zinc-50 dark:bg-zinc-950/50">
                     <tr>
                       <th className="px-4 py-3 text-left font-medium text-zinc-500">llms.txt</th>
@@ -336,12 +329,12 @@ function SupportingTable({
 }) {
   return (
     <section className={`space-y-3 ${className ?? ""}`}>
-      <h2 className="text-base font-semibold">{title}</h2>
+      <h2 className="text-body font-semibold">{title}</h2>
       {rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">{emptyLabel}</p>
+        <p className="text-ui text-zinc-500">{emptyLabel}</p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-ui">
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {rows.map((row) => (
                 <tr key={row.key}>

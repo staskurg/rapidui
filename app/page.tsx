@@ -42,13 +42,13 @@ export default function Home() {
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-12 px-6 py-12 sm:py-16">
         <section className="space-y-6">
           <div className="space-y-3">
-            <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
+            <p className="text-ui font-medium uppercase tracking-wide text-zinc-500">
               Agent-first platform · v0.2
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h1 className="text-display-sm font-semibold tracking-tight sm:text-display">
               Validate → correct → save RUIs
             </h1>
-            <p className="text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <p className="text-subhead leading-relaxed text-zinc-600 dark:text-zinc-400">
               RapidUI helps agents produce{" "}
               <strong className="font-medium text-zinc-900 dark:text-zinc-100">
                 RUIs
@@ -61,19 +61,19 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/chat"
-              className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2.5 text-ui font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               Build a RUI
             </Link>
             <Link
               href="/observe"
-              className="inline-flex items-center rounded-md border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-white dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              className="inline-flex items-center rounded-md border border-zinc-200 px-4 py-2.5 text-ui font-medium text-zinc-700 transition-colors hover:bg-white dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
             >
               Observe
             </Link>
           </div>
 
-          <p className="text-sm text-zinc-500">
+          <p className="text-ui text-zinc-500">
             Agents: start with{" "}
             <Link
               href="/llms.txt"
@@ -86,18 +86,18 @@ export default function Home() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold">How it works</h2>
+          <h2 className="text-heading font-semibold">How it works</h2>
           <ol className="grid gap-4 sm:grid-cols-3">
             {workflowSteps.map((step, index) => (
               <li
                 key={step.title}
                 className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                <p className="text-caption font-semibold uppercase tracking-wide text-zinc-500">
                   Step {index + 1}
                 </p>
                 <h3 className="mt-1 font-medium">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                <p className="mt-2 text-ui leading-relaxed text-zinc-600 dark:text-zinc-400">
                   {step.body}
                 </p>
               </li>
@@ -107,8 +107,8 @@ export default function Home() {
 
         <section id="for-agents" className="space-y-4">
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold">For agents</h2>
-            <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <h2 className="text-heading font-semibold">For agents</h2>
+            <p className="text-ui leading-relaxed text-zinc-600 dark:text-zinc-400">
               RapidUI is designed for programmatic discovery. Fetch{" "}
               <Link href="/llms.txt" className="font-medium underline underline-offset-2">
                 /llms.txt
@@ -125,8 +125,8 @@ export default function Home() {
                   href={link.href}
                   className="flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 >
-                  <span className="font-mono text-sm font-medium">{link.label}</span>
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  <span className="font-mono text-ui font-medium">{link.label}</span>
+                  <span className="text-ui text-zinc-600 dark:text-zinc-400">
                     {link.description}
                   </span>
                 </Link>
@@ -136,10 +136,10 @@ export default function Home() {
         </section>
 
         <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <h2 className="text-ui font-semibold uppercase tracking-wide text-zinc-500">
             Platform
           </h2>
-          <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <div className="mt-3 space-y-2 text-ui text-zinc-600 dark:text-zinc-400">
             <p>
               <Link
                 href="/observe"
@@ -161,7 +161,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="flex items-center justify-between gap-4 border-t border-zinc-200 pt-6 text-sm text-zinc-500 dark:border-zinc-800">
+        <section className="flex items-center justify-between gap-4 border-t border-zinc-200 pt-6 text-ui text-zinc-500 dark:border-zinc-800">
           <p>
             <a
               href="https://github.com/staskurg/rapidui"
@@ -178,7 +178,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-zinc-200 px-6 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 sm:hidden">
+      <footer className="border-t border-zinc-200 px-6 py-6 text-center text-ui text-zinc-500 dark:border-zinc-800 sm:hidden">
         rapidui.dev · v0.2
       </footer>
     </SiteShell>

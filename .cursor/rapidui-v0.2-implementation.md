@@ -3671,14 +3671,19 @@ Portfolio UX fixes shipped after Phase 5/6 sign-off; supersedes wireframe rows i
 
 | Area | As-built |
 |------|----------|
-| **Session bar** | Top of chat header (not footer): full session id (select to copy); **Observe ↗** after first message → `/observe/agent/sessions/:id`; hidden on empty chat; missing telemetry redirects with notice (no polling) |
+| **Typography** | Semantic scale in `app/globals.css` @theme (`text-display` … `text-micro`); reference `lib/site/typography.ts`. Body default **14px** (Geist Sans). |
+| **Session bar** | Top of chat header: full session id (select to copy); **telemetry icon** (always visible, disabled until first message) → `/observe/agent/sessions/:id` in new tab; missing telemetry redirects with notice (no polling) |
 | **Missing session** | API/agent session drill-down redirects to `/observe/agent?session=…&notice=session-not-found` with banner — no 404 |
 | **Chat layout** | Prompt selector at composer; New chat + session bar vertically centered |
 | **Output tabs** | Order: **Spec · JSON · Preview (soon)** |
 | **New chat bug** | Spec panel clears on reset; `useSpecPanelListener` marks prior tool calls processed |
 | **Agent errors** | Banner + 30s fetch timeout; standard error copy (`format-agent-chat-error`) |
 | **Branding** | `SiteBrandTitle` + stable document titles (`lib/site/page-titles.ts`); spec links open new tab (`SpecLink`) |
-| **Observe** | Overview cards full-width; compact stat cards; sidebar collapse icons; loading skeletons per route; breadcrumbs removed |
+| **Observe filters** | Agent + API filter bars: single flex row, full-width fields, Apply/Clear inline |
+| **Observe metrics** | Unified stat card grids (`StatCardGrid` — auto-fill, max ~12rem wide); API discovery + session stats in one grid |
+| **Metric tooltips** | `!` info icon on complex cards; copy in `lib/observe/metric-tooltips.ts` (Appendix E + Phase 3/6 specs) |
+| **Observe sidebar** | Collapse persisted via `useSyncExternalStore` (no hydration mismatch) |
+| **Observe loading** | Route-level skeletons per Observe page |
 | **RUI Inspector (`/specs/:id`)** | Fixed `h-dvh` split **60/40** — operations left, syntax-highlighted JSON right; independent scroll |
 | **Spec panel JSON tab** | Shared `JsonCodeBlock` syntax highlighting |
 

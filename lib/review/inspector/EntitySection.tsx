@@ -13,15 +13,15 @@ export function EntitySection({ entity, operations }: EntitySectionProps) {
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{entity.label}</h3>
-        <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{entity.id}</p>
+        <h3 className="text-ui font-semibold text-zinc-900 dark:text-zinc-100">{entity.label}</h3>
+        <p className="font-mono text-caption text-zinc-500 dark:text-zinc-400">{entity.id}</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
         {entity.entrypoints.map((entrypoint) => (
           <span
             key={entrypoint}
-            className="rounded border border-zinc-200 bg-white px-2 py-0.5 font-mono text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+            className="rounded border border-zinc-200 bg-white px-2 py-0.5 font-mono text-caption text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
           >
             entry: {entrypoint}
           </span>
@@ -33,7 +33,7 @@ export function EntitySection({ entity, operations }: EntitySectionProps) {
           {entity.scope.selectors.map((selector) => (
             <span
               key={selector.id}
-              className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-900"
+              className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-caption text-amber-900"
             >
               scope: {selector.label}
               {selector.required ? " (required)" : ""}
@@ -62,9 +62,9 @@ export function TransitionsTable({ transitions }: TransitionsTableProps) {
 
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Transitions</h3>
+      <h3 className="text-ui font-semibold text-zinc-900 dark:text-zinc-100">Transitions</h3>
       <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <table className="min-w-full text-left text-xs">
+        <table className="min-w-full text-left text-caption">
           <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-900">
             <tr>
               <th className="px-3 py-2 font-medium">From</th>

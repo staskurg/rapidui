@@ -10,7 +10,7 @@ export function ObserveNoticeBanner({ title, message, dismissHref }: ObserveNoti
   return (
     <div
       role="alert"
-      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-ui text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -22,7 +22,7 @@ export function ObserveNoticeBanner({ title, message, dismissHref }: ObserveNoti
         {dismissHref ? (
           <Link
             href={dismissHref}
-            className="shrink-0 text-xs font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950 dark:text-amber-200 dark:hover:text-amber-50"
+            className="shrink-0 text-caption font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950 dark:text-amber-200 dark:hover:text-amber-50"
           >
             Dismiss
           </Link>

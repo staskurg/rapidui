@@ -28,14 +28,14 @@ function ToolStep({
     <details
       open={defaultOpen}
       className={[
-        "rounded border px-3 py-2 text-xs",
+        "rounded border px-3 py-2 text-caption",
         highlight
           ? "border-emerald-300 bg-emerald-50 text-emerald-900"
           : "border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
       ].join(" ")}
     >
       <summary className="cursor-pointer font-medium">{label}</summary>
-      {children ? <div className="mt-2 font-mono text-[11px] opacity-80">{children}</div> : null}
+      {children ? <div className="mt-2 font-mono text-micro opacity-80">{children}</div> : null}
     </details>
   );
 }

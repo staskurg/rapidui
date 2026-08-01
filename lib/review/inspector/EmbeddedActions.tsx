@@ -18,14 +18,14 @@ export function EmbeddedActions({ actions }: EmbeddedActionsProps) {
 
   return (
     <div className="mt-3 space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+      <p className="text-caption font-medium uppercase tracking-wide text-zinc-500">
         Embedded actions
       </p>
       <ul className="space-y-1.5">
         {actions.map((action) => (
           <li
             key={action.id}
-            className="rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+            className="rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5 text-caption text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
           >
             <span className="font-medium">{action.label}</span>
             <span className="mx-1.5 text-zinc-300">·</span>

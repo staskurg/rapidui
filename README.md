@@ -140,7 +140,7 @@ Requires local stack above or production (`rapidui.dev/chat` + Render agent).
 ```txt
 1. Open /chat — click a starter chip (UC1–UC3) or paste JSON/CSV for static browse
 2. Chat until validate succeeds → Draft spec in Spec tab; save → Saved badge + inspector
-3. Select session id in the session bar (or click **Observe ↗** after the first turn) → agent run detail at `/observe/agent/sessions/:id`
+3. Select session id in the session bar (or click the **telemetry** icon after the first turn) → agent run detail at `/observe/agent/sessions/:id`
 4. Open viewUrl → /specs/:id shareable inspector
 5. Open /observe — hub overview; /observe/api for platform timeline; /observe/agent for agent run metrics
 6. (Phase 7) /observe/evals — eval trial comparison

@@ -43,7 +43,7 @@ export function OutputPanel({ activeTab, onTabChange, panelState }: OutputPanelP
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {activeTab === "preview" ? (
-          <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+          <div className="flex h-full items-center justify-center text-ui text-zinc-500">
             Preview renderer ships in v0.3
           </div>
         ) : null}
@@ -51,7 +51,7 @@ export function OutputPanel({ activeTab, onTabChange, panelState }: OutputPanelP
         {activeTab === "spec" ? (
           <>
             {panelState.kind === "empty" ? (
-              <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              <p className="text-ui leading-relaxed text-zinc-600 dark:text-zinc-400">
                 Pick a use case, paste data, or describe your UI — specs appear here as the agent
                 validates.
               </p>
@@ -71,7 +71,7 @@ export function OutputPanel({ activeTab, onTabChange, panelState }: OutputPanelP
                 className="overflow-x-auto rounded border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950"
               />
             ) : (
-              <p className="text-sm text-zinc-500">Validated or saved RUI JSON will appear here.</p>
+              <p className="text-ui text-zinc-500">Validated or saved RUI JSON will appear here.</p>
             )}
           </>
         ) : null}

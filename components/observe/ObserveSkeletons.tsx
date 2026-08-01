@@ -1,3 +1,5 @@
+import { statCardGridClass } from "@/components/observe/StatCardGrid";
+
 type SkeletonProps = {
   className?: string;
 };
@@ -30,13 +32,13 @@ export function ObservePageHeaderSkeleton() {
 
 export function StatCardsSkeleton({
   count = 4,
-  className = "grid-cols-2 sm:grid-cols-4",
+  className = statCardGridClass,
 }: {
   count?: number;
   className?: string;
 }) {
   return (
-    <div className={`grid gap-2 ${className}`}>
+    <div className={className}>
       {Array.from({ length: count }, (_, index) => (
         <div
           key={index}
@@ -52,14 +54,17 @@ export function StatCardsSkeleton({
 
 export function FilterFormSkeleton({ fields = 3 }: { fields?: number }) {
   return (
-    <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:grid-cols-4">
+    <div className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       {Array.from({ length: fields }, (_, index) => (
-        <div key={index} className="space-y-2">
+        <div
+          key={index}
+          className={`space-y-2 ${index === fields - 1 ? "min-w-[12rem] flex-[1.5]" : "min-w-[9rem] flex-1"}`}
+        >
           <Skeleton className="h-4 w-16" />
           <Skeleton className="h-10 w-full" />
         </div>
       ))}
-      <div className="flex items-end gap-2 md:col-span-4">
+      <div className="flex shrink-0 items-end gap-2">
         <Skeleton className="h-10 w-28" />
       </div>
     </div>
@@ -146,9 +151,8 @@ export function ApiDashboardSkeleton() {
     <div className="space-y-8">
       <LoadingStatus label="Loading API telemetry" />
       <ObservePageHeaderSkeleton />
-      <StatCardsSkeleton count={5} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" />
       <FilterFormSkeleton fields={3} />
-      <StatCardsSkeleton count={4} />
+      <StatCardsSkeleton count={9} />
       <TableSkeleton rows={6} columns={7} />
     </div>
   );
@@ -160,7 +164,7 @@ export function AgentDashboardSkeleton() {
       <LoadingStatus label="Loading agent telemetry" />
       <ObservePageHeaderSkeleton />
       <FilterFormSkeleton fields={5} />
-      <StatCardsSkeleton count={8} className="grid-cols-2 sm:grid-cols-4 lg:grid-cols-4" />
+      <StatCardsSkeleton count={8} />
       <TableSkeleton rows={6} columns={8} />
     </div>
   );

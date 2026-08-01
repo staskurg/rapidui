@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { ObserveNavIcon } from "@/components/observe/ObserveNavIcons";
 
 const STORAGE_KEY = "rapidui-observe-sidebar-collapsed";
+const SIDEBAR_CHANGE_EVENT = "rapidui-observe-sidebar-change";
 
 const navItems = [
   { href: "/observe", label: "Overview", icon: "overview" as const, exact: true },
@@ -53,21 +54,41 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function subscribeSidebarCollapsed(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+  window.addEventListener(SIDEBAR_CHANGE_EVENT, onStoreChange);
+  return () => window.removeEventListener(SIDEBAR_CHANGE_EVENT, onStoreChange);
+}
+
+function getSidebarCollapsedSnapshot(): boolean {
+  return localStorage.getItem(STORAGE_KEY) === "true";
+}
+
+function getSidebarCollapsedServerSnapshot(): boolean {
+  return false;
+}
+
+function useSidebarCollapsed(): boolean {
+  return useSyncExternalStore(
+    subscribeSidebarCollapsed,
+    getSidebarCollapsedSnapshot,
+    getSidebarCollapsedServerSnapshot,
+  );
+}
+
+function setSidebarCollapsed(next: boolean): void {
+  localStorage.setItem(STORAGE_KEY, String(next));
+  window.dispatchEvent(new Event(SIDEBAR_CHANGE_EVENT));
+}
+
 export function ObserveSidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  });
+  const collapsed = useSidebarCollapsed();
 
   function toggleCollapsed() {
-    setCollapsed((value) => {
-      const next = !value;
-      localStorage.setItem(STORAGE_KEY, String(next));
-      return next;
-    });
+    setSidebarCollapsed(!getSidebarCollapsedSnapshot());
   }
 
   return (
@@ -86,7 +107,7 @@ export function ObserveSidebar() {
                   href={item.href}
                   title={item.label}
                   aria-label={item.label}
-                  className={`flex items-center rounded-md px-2 py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center rounded-md px-2 py-2 text-ui font-medium transition-colors ${
                     collapsed ? "justify-center" : "gap-2.5"
                   } ${
                     active
@@ -108,7 +129,7 @@ export function ObserveSidebar() {
           type="button"
           onClick={toggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={`flex w-full items-center rounded-md border border-transparent py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 ${
+          className={`flex w-full items-center rounded-md border border-transparent py-2 text-ui font-medium text-zinc-700 transition-colors hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 ${
             collapsed ? "justify-center px-2" : "gap-2.5 px-2"
           }`}
         >

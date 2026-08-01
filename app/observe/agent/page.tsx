@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AgentRunOutcomeBadge } from "@/components/observe/AgentRunOutcomeBadge";
 import { ObserveNoticeBanner } from "@/components/observe/ObserveNoticeBanner";
 import { StatCard } from "@/components/observe/StatCard";
+import { StatCardGrid } from "@/components/observe/StatCardGrid";
 import {
   formatRelativeTime,
   getAgentObserveSummary,
@@ -14,6 +15,7 @@ import {
   truncateSessionId,
 } from "@/lib/observe/queries";
 import { getObserveNotice, isObserveNoticeKey } from "@/lib/observe/notices";
+import { agentMetricTooltips } from "@/lib/observe/metric-tooltips";
 
 export const dynamic = "force-dynamic";
 
@@ -84,8 +86,8 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
       ) : null}
 
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Agent telemetry</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-title font-semibold tracking-tight">Agent telemetry</h1>
+        <p className="text-ui text-zinc-600 dark:text-zinc-400">
           RapidUI Agent chat sessions — outcomes, latency, tokens, and platform API usage. Last 30
           days.
         </p>
@@ -93,14 +95,14 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
 
       <form
         method="get"
-        className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:grid-cols-3 lg:grid-cols-6"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
       >
-        <label className="space-y-1 text-sm">
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Model</span>
           <select
             name="model"
             defaultValue={params.model ?? ""}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="">All models</option>
             {models.map((model) => (
@@ -110,12 +112,12 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-sm">
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Prompt</span>
           <select
             name="promptVersion"
             defaultValue={params.promptVersion ?? ""}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="">All prompts</option>
             {promptVersions.map((version) => (
@@ -125,12 +127,12 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-sm">
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Eval case</span>
           <select
             name="evalCase"
             defaultValue={params.evalCase ?? ""}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="">All cases</option>
             {evalCases.map((evalCase) => (
@@ -140,12 +142,12 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-sm">
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Agent id</span>
           <select
             name="agent"
             defaultValue={params.agent ?? ""}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
             <option value="">All agents</option>
             {agents.map((agent) => (
@@ -155,26 +157,26 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-sm lg:col-span-2">
+        <label className="min-w-[12rem] flex-[1.5] space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Session id</span>
           <input
             name="session"
             defaultValue={params.session ?? ""}
             placeholder="Filter by session id"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-ui dark:border-zinc-700 dark:bg-zinc-950"
           />
         </label>
-        <div className="flex items-end gap-2 lg:col-span-6">
+        <div className="flex shrink-0 items-end gap-2">
           <button
             type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-ui font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
           >
             Apply filters
           </button>
           {filterQuery ? (
             <Link
               href="/observe/agent"
-              className="rounded-md px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+              className="rounded-md px-4 py-2 text-ui font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
             >
               Clear
             </Link>
@@ -182,21 +184,24 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
         </div>
       </form>
 
-      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 lg:grid-cols-4">
+      <StatCardGrid>
         <StatCard label="Runs" value={String(summary.runCount)} />
         <StatCard
           label="p50 latency"
           value={formatLatency(summary.p50LatencyMs, 3, summary.savedRunsForLatency)}
           hint="min. 3 saved runs"
+          tooltip={agentMetricTooltips.p50Latency}
         />
         <StatCard
           label="p95 latency"
           value={formatLatency(summary.p95LatencyMs, 10, summary.savedRunsForLatency)}
           hint="min. 10 saved runs"
+          tooltip={agentMetricTooltips.p95Latency}
         />
         <StatCard
           label="Avg tokens"
           value={summary.avgTokens === null ? "—" : String(summary.avgTokens)}
+          tooltip={agentMetricTooltips.avgTokens}
         />
         <StatCard label="Saved" value={String(summary.savedCount)} />
         <StatCard label="Failed" value={String(summary.failedCount)} />
@@ -208,6 +213,7 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             summary.avgValidateAttempts === null ? "—" : String(summary.avgValidateAttempts)
           }
           hint="from api_events"
+          tooltip={agentMetricTooltips.avgValidateAttempts}
         />
         <StatCard
           label="Avg platform API calls"
@@ -215,20 +221,21 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             summary.avgPlatformApiCalls === null ? "—" : String(summary.avgPlatformApiCalls)
           }
           hint="per session"
+          tooltip={agentMetricTooltips.avgPlatformApiCalls}
         />
-      </div>
+      </StatCardGrid>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Recent runs</h2>
-          <span className="text-sm text-zinc-500">{runs.length} shown</span>
+          <h2 className="text-subhead font-semibold">Recent runs</h2>
+          <span className="text-ui text-zinc-500">{runs.length} shown</span>
         </div>
 
         {!hasData ? (
           <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-ui text-zinc-600 dark:text-zinc-400">
               No agent runs yet. Start a chat on the demo page — each session posts to{" "}
-              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs dark:bg-zinc-800">
+              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-caption dark:bg-zinc-800">
                 agent_runs
               </code>{" "}
               after the first turn.
@@ -236,7 +243,7 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
+            <table className="min-w-full divide-y divide-zinc-200 text-ui dark:divide-zinc-800">
               <thead className="bg-zinc-50 dark:bg-zinc-950/50">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Session</th>
@@ -255,7 +262,7 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
                     <td className="px-4 py-3">
                       <Link
                         href={`/observe/agent/sessions/${encodeURIComponent(run.sessionId)}${filterQuery}`}
-                        className="font-mono text-xs font-medium text-violet-700 hover:underline dark:text-violet-400"
+                        className="font-mono text-caption font-medium text-violet-700 hover:underline dark:text-violet-400"
                         title={run.sessionId}
                       >
                         {truncateSessionId(run.sessionId)}
@@ -264,8 +271,8 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
                     <td className="px-4 py-3">
                       <AgentRunOutcomeBadge outcome={run.outcome} />
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs">{run.model ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{run.evalCaseId ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-caption">{run.model ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-caption">{run.evalCaseId ?? "—"}</td>
                     <td className="px-4 py-3">{run.validateAttempts}</td>
                     <td className="px-4 py-3">{run.platformApiCalls}</td>
                     <td className="px-4 py-3">{run.totalTokens ?? "—"}</td>
@@ -282,9 +289,9 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
 
       {hasData && summary.runsByDay.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">Runs by day</h2>
+          <h2 className="text-body font-semibold">Runs by day</h2>
           <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-ui">
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {summary.runsByDay.map((row) => (
                   <tr key={row.date}>
@@ -300,7 +307,7 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
 
       <Link
         href="/observe/api"
-        className="inline-flex text-sm font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
+        className="inline-flex text-ui font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
       >
         View API telemetry →
       </Link>

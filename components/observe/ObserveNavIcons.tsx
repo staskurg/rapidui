@@ -1,5 +1,5 @@
 type ObserveNavIconProps = {
-  name: "overview" | "api" | "agent" | "evals";
+  name: "overview" | "api" | "agent" | "evals" | "telemetry";
   className?: string;
 };
 
@@ -52,6 +52,12 @@ export function ObserveNavIcon({ name, className = "h-4 w-4 shrink-0" }: Observe
           <path d="M8 15V11" />
           <path d="M12 15V8" />
           <path d="M16 15v-5" />
+        </svg>
+      );
+    case "telemetry":
+      return (
+        <svg {...shared}>
+          <path d="M22 12h-4l-3 9L9 3 7 12H2" />
         </svg>
       );
   }

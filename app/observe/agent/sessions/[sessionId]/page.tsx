@@ -56,83 +56,83 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
       <header className="space-y-3">
         <Link
           href="/observe/agent"
-          className="text-sm font-medium text-violet-700 dark:text-violet-400"
+          className="text-ui font-medium text-violet-700 dark:text-violet-400"
         >
           ← Back to Agent dashboard
         </Link>
         <div>
-          <p className="text-sm text-zinc-500">Agent run detail</p>
-          <h1 className="mt-1 font-mono text-lg font-semibold">{sessionId}</h1>
+          <p className="text-ui text-zinc-500">Agent run detail</p>
+          <h1 className="mt-1 font-mono text-subhead font-semibold">{sessionId}</h1>
         </div>
       </header>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
             <dd className="mt-1">
               <AgentRunOutcomeBadge outcome={run.outcome} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Model</dt>
-            <dd className="mt-1 font-mono text-sm">{run.model ?? "—"}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Model</dt>
+            <dd className="mt-1 font-mono text-ui">{run.model ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Prompt</dt>
-            <dd className="mt-1 font-mono text-sm">{run.promptVersion ?? "—"}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Prompt</dt>
+            <dd className="mt-1 font-mono text-ui">{run.promptVersion ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Eval case
             </dt>
-            <dd className="mt-1 font-mono text-sm">{run.evalCaseId ?? "—"}</dd>
+            <dd className="mt-1 font-mono text-ui">{run.evalCaseId ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
-            <dd className="mt-1 text-sm">{run.intent ?? "—"}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
+            <dd className="mt-1 text-ui">{run.intent ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Validate attempts
             </dt>
-            <dd className="mt-1 text-sm">
+            <dd className="mt-1 text-ui">
               {run.validateAttempts}
               {validateCountMismatch ? (
-                <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">
+                <span className="ml-2 text-caption text-amber-700 dark:text-amber-400">
                   (agent reported {run.advisoryValidateAttempts})
                 </span>
               ) : null}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Platform API calls
             </dt>
-            <dd className="mt-1 text-sm">{run.platformApiCalls}</dd>
+            <dd className="mt-1 text-ui">{run.platformApiCalls}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Tokens</dt>
-            <dd className="mt-1 text-sm">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Tokens</dt>
+            <dd className="mt-1 text-ui">
               {run.totalTokens ?? "—"}
               {tokenParityMismatch ? (
-                <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">
+                <span className="ml-2 text-caption text-amber-700 dark:text-amber-400">
                   (turn sum differs)
                 </span>
               ) : null}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Latency</dt>
-            <dd className="mt-1 text-sm">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Latency</dt>
+            <dd className="mt-1 text-ui">
               {run.latencyMs !== null ? `${run.latencyMs}ms` : "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Saved spec
             </dt>
-            <dd className="mt-1 text-sm">
+            <dd className="mt-1 text-ui">
               {run.specId ? (
                 <SpecLink
                   href={`/specs/${run.specId}`}
@@ -146,30 +146,30 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Started</dt>
-            <dd className="mt-1 text-sm">{formatRelativeTime(run.startedAt)}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Started</dt>
+            <dd className="mt-1 text-ui">{formatRelativeTime(run.startedAt)}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Last activity
             </dt>
-            <dd className="mt-1 text-sm">{formatRelativeTime(run.lastActivityAt)}</dd>
+            <dd className="mt-1 text-ui">{formatRelativeTime(run.lastActivityAt)}</dd>
           </div>
         </dl>
         {run.errorSummary ? (
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-ui text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
             {run.errorSummary}
           </p>
         ) : null}
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Turns</h2>
+        <h2 className="text-subhead font-semibold">Turns</h2>
         {turns.length === 0 ? (
-          <p className="text-sm text-zinc-500">No turn metrics recorded.</p>
+          <p className="text-ui text-zinc-500">No turn metrics recorded.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
+            <table className="min-w-full divide-y divide-zinc-200 text-ui dark:divide-zinc-800">
               <thead className="bg-zinc-50 dark:bg-zinc-950/50">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Turn</th>
@@ -200,9 +200,9 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Platform API timeline</h2>
+        <h2 className="text-subhead font-semibold">Platform API timeline</h2>
         {timeline.length === 0 ? (
-          <p className="text-sm text-zinc-500">No platform API events for this session.</p>
+          <p className="text-ui text-zinc-500">No platform API events for this session.</p>
         ) : (
           <ol className="space-y-3">
             {timeline.map((event) => (
@@ -212,13 +212,13 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="space-y-1">
-                    <p className="font-mono text-sm font-medium">{event.endpoint}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="font-mono text-ui font-medium">{event.endpoint}</p>
+                    <p className="text-caption text-zinc-500">
                       {event.occurred_at.toISOString()}
                       {event.duration_ms !== null ? ` · ${event.duration_ms}ms` : ""}
                     </p>
                   </div>
-                  <div className="text-sm">
+                  <div className="text-ui">
                     {event.spec_id ? (
                       <SpecLink
                         href={`/specs/${event.spec_id}`}
@@ -248,7 +248,7 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
                   </div>
                 </div>
                 {event.error_codes && event.error_codes.length > 0 ? (
-                  <p className="mt-2 font-mono text-xs text-amber-800 dark:text-amber-300">
+                  <p className="mt-2 font-mono text-caption text-amber-800 dark:text-amber-300">
                     {event.error_codes.join(", ")}
                   </p>
                 ) : null}
@@ -258,7 +258,7 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
         )}
       </section>
 
-      <footer className="border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
+      <footer className="border-t border-zinc-200 pt-6 text-ui dark:border-zinc-800">
         <Link
           href={`/observe/api/sessions/${encodeURIComponent(sessionId)}`}
           className="font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"

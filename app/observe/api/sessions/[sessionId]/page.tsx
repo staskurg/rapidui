@@ -68,48 +68,48 @@ export default async function SessionDetailPage({
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <Link href={backHref} className="text-sm font-medium text-violet-700 dark:text-violet-400">
+        <Link href={backHref} className="text-ui font-medium text-violet-700 dark:text-violet-400">
           ← Back to API dashboard
         </Link>
         <div>
-          <p className="text-sm text-zinc-500">Session detail</p>
-          <h1 className="mt-1 font-mono text-lg font-semibold">{sessionId}</h1>
+          <p className="text-ui text-zinc-500">Session detail</p>
+          <h1 className="mt-1 font-mono text-subhead font-semibold">{sessionId}</h1>
         </div>
       </header>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Agent</dt>
-            <dd className="mt-1 text-sm">{summary.agent ?? "—"}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Agent</dt>
+            <dd className="mt-1 text-ui">{summary.agent ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Eval case
             </dt>
-            <dd className="mt-1 font-mono text-sm">{summary.evalCaseId ?? "—"}</dd>
+            <dd className="mt-1 font-mono text-ui">{summary.evalCaseId ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
-            <dd className="mt-1 text-sm">{summary.intent ?? "—"}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
+            <dd className="mt-1 text-ui">{summary.intent ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
             <dd className="mt-1">
               <SessionOutcomeBadge outcome={summary.outcome} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Validate attempts
             </dt>
-            <dd className="mt-1 text-sm">{summary.validateCount}</dd>
+            <dd className="mt-1 text-ui">{summary.validateCount}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Saved spec
             </dt>
-            <dd className="mt-1 text-sm">
+            <dd className="mt-1 text-ui">
               {summary.finalSpecId ? (
                 <SpecLink
                   href={`/specs/${summary.finalSpecId}`}
@@ -123,18 +123,18 @@ export default async function SessionDetailPage({
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               First activity
             </dt>
-            <dd className="mt-1 text-sm">
+            <dd className="mt-1 text-ui">
               {summary.firstActivityAt ? formatRelativeTime(summary.firstActivityAt) : "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
               Last activity
             </dt>
-            <dd className="mt-1 text-sm">
+            <dd className="mt-1 text-ui">
               {summary.lastActivityAt ? formatRelativeTime(summary.lastActivityAt) : "—"}
             </dd>
           </div>
@@ -142,9 +142,9 @@ export default async function SessionDetailPage({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Timeline</h2>
+        <h2 className="text-subhead font-semibold">Timeline</h2>
         {timeline.length === 0 ? (
-          <p className="text-sm text-zinc-500">No validate or save events for this session.</p>
+          <p className="text-ui text-zinc-500">No validate or save events for this session.</p>
         ) : (
           <ol className="space-y-3">
             {timeline.map((event) => (
@@ -154,13 +154,13 @@ export default async function SessionDetailPage({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="space-y-1">
-                    <p className="font-mono text-sm font-medium">{event.endpoint}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="font-mono text-ui font-medium">{event.endpoint}</p>
+                    <p className="text-caption text-zinc-500">
                       {event.occurred_at.toISOString()}
                       {event.duration_ms !== null ? ` · ${event.duration_ms}ms` : ""}
                     </p>
                   </div>
-                  <div className="text-sm">
+                  <div className="text-ui">
                     {event.spec_id ? (
                       <SpecLink
                         href={`/specs/${event.spec_id}`}
@@ -186,7 +186,7 @@ export default async function SessionDetailPage({
                   </div>
                 </div>
                 {event.error_codes && event.error_codes.length > 0 ? (
-                  <p className="mt-2 font-mono text-xs text-amber-800 dark:text-amber-300">
+                  <p className="mt-2 font-mono text-caption text-amber-800 dark:text-amber-300">
                     {event.error_codes.join(", ")}
                   </p>
                 ) : null}
@@ -197,7 +197,7 @@ export default async function SessionDetailPage({
       </section>
 
       {agentRunExists ? (
-        <footer className="border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
+        <footer className="border-t border-zinc-200 pt-6 text-ui dark:border-zinc-800">
           <Link
             href={`/observe/agent/sessions/${encodeURIComponent(sessionId)}`}
             className="font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"

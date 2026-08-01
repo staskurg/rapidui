@@ -17,7 +17,7 @@ function PresentationDetails({ operation }: { operation: Operation }) {
 
   if (presentation.layout === "table") {
     return (
-      <dl className="mt-2 space-y-1.5 text-xs text-zinc-800">
+      <dl className="mt-2 space-y-1.5 text-caption text-zinc-800">
         <div>
           <dt className="font-medium text-zinc-600">Columns</dt>
           <dd className="mt-0.5">{presentation.columns.map(formatColumn).join(" · ")}</dd>
@@ -47,7 +47,7 @@ function PresentationDetails({ operation }: { operation: Operation }) {
 
   if (presentation.layout === "form") {
     return (
-      <dl className="mt-2 space-y-1.5 text-xs text-zinc-800">
+      <dl className="mt-2 space-y-1.5 text-caption text-zinc-800">
         <div>
           <dt className="font-medium text-zinc-600">Fields</dt>
           <dd className="mt-0.5">
@@ -64,7 +64,7 @@ function PresentationDetails({ operation }: { operation: Operation }) {
 
   if (presentation.layout === "detail") {
     return (
-      <dl className="mt-2 space-y-1.5 text-xs text-zinc-800">
+      <dl className="mt-2 space-y-1.5 text-caption text-zinc-800">
         {presentation.sections.map((section) => (
           <div key={section.title}>
             <dt className="font-medium text-zinc-600">{section.title}</dt>
@@ -83,7 +83,7 @@ function PresentationDetails({ operation }: { operation: Operation }) {
 
   if (presentation.layout === "confirm") {
     return (
-      <p className="mt-2 text-xs text-zinc-800">
+      <p className="mt-2 text-caption text-zinc-800">
         <span className="font-medium text-zinc-600">Message: </span>
         {presentation.message}
       </p>
@@ -102,17 +102,17 @@ export function OperationCard({ operation }: OperationCardProps) {
     <article className={`rounded-lg border ${colors.border} ${colors.bg} p-3`}>
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={`rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${colors.text}`}
+          className={`rounded px-1.5 py-0.5 text-caption font-semibold uppercase ${colors.text}`}
         >
           {operation.type}
         </span>
         <span className="font-medium text-zinc-900">{operation.title}</span>
-        <span className="font-mono text-xs text-zinc-600">{operation.id}</span>
+        <span className="font-mono text-caption text-zinc-600">{operation.id}</span>
       </div>
 
-      <p className="mt-2 font-mono text-xs text-zinc-700">{operation.route}</p>
+      <p className="mt-2 font-mono text-caption text-zinc-700">{operation.route}</p>
 
-      <p className="mt-2 text-xs text-zinc-700">
+      <p className="mt-2 text-caption text-zinc-700">
         <span className="font-medium text-zinc-600">Layout: </span>
         {operation.presentation.layout}
       </p>
