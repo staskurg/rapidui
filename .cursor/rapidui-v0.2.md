@@ -56,12 +56,12 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 10 | **External agents** | Supported via public API + **required session identity** (see #37); **demo Path B** — terminal Claude run → Observe session. Main page centers on RapidUI Agent |
 | 11 | **Database** | **Neon Postgres** — shared DB for specs, events, agent runs. Observe dashboards read Neon directly from Next.js |
 | 12 | **Repo layout** | **Monorepo** — one GitHub repo; Next.js at root (Vercel), Python agent in `/agent` (Render). See §4 monorepo rationale |
-| 13 | **LLM model** | **Default `o4-mini`** via `OPENAI_API_KEY` — Responses API (`openai:o4-mini`); `reasoning_effort: medium`. Ship with this default; **confirm or change** via eval lab (Area 7 / stretch O5). Override via `RAPIDUI_AGENT_MODEL` |
+| 13 | **LLM model** | **Default `o4-mini`** via `OPENAI_API_KEY` — Responses API (`openai:o4-mini`); `reasoning_effort: medium`. Ship with this default; **confirm or change** via eval lab (**Phase 7.7**, required for v0.2). Override via `RAPIDUI_AGENT_MODEL` |
 | 14 | **Chat UI** | **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown` — custom transport → `agent.rapidui.dev/chat`; **o4-mini reasoning visible but subtle** (muted styling; not hidden by default in v0.2) + **tool calls** (`ToolFallback`). **No** past-session sidebar — single thread + **New chat** |
 | 15 | **Telemetry write path** | **Unified ingest contract** — shared insert logic in Next.js; middleware in-process; FastAPI POSTs to `/api/observe/ingest/*` (see §4) |
 | 16 | **API auth (v0.2)** | **Mock session identity** — not OAuth. **`X-RapidUI-Session-Id` required** on all agent API calls except **`GET /llms.txt`**. Missing session → **400** `MISSING_SESSION_ID`. Real agent auth (WorkOS / OAuth OBO) deferred to **v0.3+** (see §13). Observe + human UI remain open |
 | 17 | **Logfire** | Env-gated on dev + Render; Observe for product dashboards — see §8 |
-| 18 | **Eval scoring** | **Outcome:** deterministic checklist on final saved RUI. **Process:** turns, validate retries, tokens, latency. **Multi-turn:** scripted user (`conversationScript`) for RapidUI Agent evals. See §14 |
+| 18 | **Eval scoring** | **Outcome:** `passed` + deterministic `assertions[]` on final saved RUI. **Process:** numbers vs caps (not second Pass/Fail). **Multi-turn:** scripted user (`conversationScript`). See §14 + [implementation eval spec](./rapidui-v0.2-implementation.md#eval-system-specification-locked--2026-08-03) |
 | 19 | **RUI version** | **`version: "0.2"` only** — no v0.1 backward compat. Rewrite goldens; prototype forward |
 | 20 | **Navigation model** | **`entities[].entrypoints`** = sidebar nav per domain object. Sub-screens only via **`transitions`** (row, link, cta). Breadcrumb on `read` via `context.breadcrumb`. Modal deferred to v0.3 |
 | 21 | **Neon setup** | **Fresh Neon database** — no Vercel Postgres migration |
@@ -77,7 +77,7 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 31 | **Outcomes required** | Every **mutating** operation and embedded action declares **`outcomes`** — success, error, cancel paths (explicit `transition.to` or `stay`) |
 | 32 | **Explicit transitions** | **All** navigation is `transitions[]` — row, link, **cta** (e.g. browse → create). No renderer pairing heuristics |
 | 33 | **Eval lab** | **`/observe/evals`** — model × prompt × use-case matrix; pass rate, cost, latency comparison. Script-driven (`npm run eval:matrix`); not a live playground in v0.2 |
-| 34 | **Model shortlist** | **3–4 models max** for v0.2 matrix — e.g. `o4-mini`, `gpt-4.1-mini`, one quality-tier ceiling model. Document choice in `docs/model-selection-v0.2.md` |
+| 34 | **Model shortlist** | **2 models max** per **7.7** matrix slice (e.g. `o4-mini` + one baseline/ceiling). Full 3–4 model exploration is post-v0.2 unless evidence requires |
 | 35 | **Prompt variants** | Versioned in `agent/prompts/` (`v1`, `v2`, …) — test workflow emphasis vs validate-loop emphasis in eval lab |
 | 36 | **Chat eval modes** | **`guided`** (scripted multi-turn, default for RapidUI Agent) + **`single-shot`** (one message, autonomy benchmark). External agents stay single-shot. See §14 |
 | 37 | **Session identity (mock auth)** | **`X-RapidUI-Session-Id` required** on every agent API request **except** `GET /llms.txt`. Agent generates UUID once per session (or asks user). Same id on docs → schema → validate → save. **`X-RapidUI-Agent`** recommended, not required. This is **identification for Observe**, not cryptographic auth — v0.3 replaces with WorkOS-style agent tokens |
@@ -1511,26 +1511,25 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 
 **Purpose:** Interview-ready repo, demo reliability, and **evidence-based model selection** for RapidUI Agent.
 
+**Implementation contract:** [rapidui-v0.2-implementation.md — Eval system specification](./rapidui-v0.2-implementation.md#eval-system-specification-locked--2026-08-03) · Phase **7.1–7.7**.
+
 **Scope:**
 
 - README v0.2: operations-first architecture, demo script (Path A/B), env setup
-- Manual eval runs: RapidUI Agent + external agents on `static-browse-v0.2`, `crud-admin-v0.2`, `ai-review-queue-v0.2` with Observe headers
-- At least one **use case variant** per UC (§7) — log to `eval_runs`
-- Retire `support-dashboard-v0.1.json`; update `eval/manual/wrapper_*.txt` for v0.2 + headers
-- Smoke tests: operations schema validate, telemetry insert, Observe queries, agent health
-- Architecture diagram in docs
-- `npm run eval:prompt` scripts aligned to new eval case ids
+- Manual eval runs: Path B external agents on UC1–UC3 with Observe headers → `eval:log` → **`eval_runs`**
+- Automated eval runs: Path A `eval:run` / `eval:matrix` → **`eval_trials`** (**7.3–7.4**)
+- Behavioral variants (**7.5**) before model matrix (**7.7**)
+- Smoke tests, architecture diagram, S1–**S10** verification
 
-**Eval lab (model × prompt × use case):**
+**Eval lab (model × prompt × use case) — ships as S10:**
 
-- Extend `eval_runs` with `model`, `provider`, `prompt_version`, `reasoning_effort`, `eval_mode` (`guided` | `single-shot`), token counts, `estimated_cost_usd`, `user_turns`, `validate_attempts`, `latency_ms` (see §14)
-- Version system prompts in `agent/prompts/v1.txt`, `v2.txt`, … — load via env `RAPIDUI_AGENT_PROMPT_VERSION`
-- Script `npm run eval:matrix` — loops eval cases × model shortlist × prompt versions; posts results to `eval_runs` (and optional `POST /api/eval/log`)
-- **`/observe/evals`** dashboard — grouped comparison table: pass rate, avg tokens, avg validate retries, avg latency, est. cost per successful save
-- **`docs/model-selection-v0.2.md`** — results + chosen default model + prompt (includes spot-check notes from conversation rubric)
-- Human spot-check rubric (2–3 runs per matrix cell) for subjective conversation quality — notes in model-selection doc, not automated
+- **`eval_trials`** (migration **007**) — primary store for automated runs: config snapshot, `passed`, assertion results, process numbers, `session_id`, transcript
+- **`eval_runs`** — Path B manual runs only; v0.1 schema + **`session_id`** nullable (**008**) + `score_details.assertions[]` (**7.2**). **No** full model/prompt column extensions on `eval_runs` in v0.2
+- **`npm run eval:matrix`** (**7.7**) — reduced slice; persists to **`eval_trials`**, not `eval_runs`
+- **`/observe/evals`** — trial table (**7.6**); grouped matrix comparison (**7.7**)
+- **`docs/model-selection-v0.2.md`** — matrix results + chosen default
 
-**Depends on:** Areas 1–6 substantially complete
+**Depends on:** Areas 1–6 substantially complete; Phase **7.2** grader trusted before **7.3** runner
 
 ---
 
@@ -1543,7 +1542,8 @@ Extend v0.1 tables; finalize columns in implementation plan.
 | Table | Purpose |
 |-------|---------|
 | `specs` | Saved RUIs |
-| `eval_runs` | Eval outcomes + eval lab matrix results (§14 extensions) |
+| `eval_runs` | Path B manual eval outcomes (v0.1 schema + optional `session_id`) |
+| `eval_trials` | Path A automated trials — config snapshot, assertions, process numbers (**7.4**) |
 
 ### New (v0.2)
 
@@ -1572,16 +1572,16 @@ CREATE TABLE api_events (
 );
 ```
 
-### `eval_runs` extensions (v0.2 — sketch)
+### Persistence split (v0.2 — locked)
 
-```sql
--- Add to eval_runs; finalize in Area 1 / 7
--- eval_mode, model, provider, prompt_version, reasoning_effort,
--- user_turns, validate_attempts, tokens_in, tokens_out,
--- estimated_cost_usd, latency_ms, score_details (JSON)
-```
+| Table | Path | Owner phase | Contents |
+|-------|------|-------------|----------|
+| **`eval_trials`** | A — `eval:run`, `eval:matrix` | **7.4** migration `007` | Full trial: config snapshot, `passed`, `assertion_results`, process numbers, `session_id`, `transcript_jsonb` |
+| **`eval_runs`** | B — `eval:log` manual | v0.1 schema + **008** | `passed`, `score_details.assertions[]`, optional **`session_id`** for Observe cross-link |
 
-See §14 for column purposes and scoring rules.
+**Dropped for v0.2:** extending `eval_runs` with model, prompt, tokens, latency columns — those live on **`eval_trials`** only.
+
+See §14 for scoring rules and column purposes.
 
 ---
 
@@ -1644,33 +1644,35 @@ First-class API consumers — visible in **Observe API dashboard** when headers 
 
 ## 14. Eval Harness
 
-v0.1 eval infrastructure stays; v0.2 adds **operation-aware** scoring, **multi-turn chat evals**, and an **eval lab** for model + prompt selection. Manual and script-driven runs; telemetry to Observe via headers.
+v0.1 eval infrastructure stays; v0.2 adds **assertion-based** scoring, **multi-turn chat evals**, and an **eval lab** for model + prompt selection. Manual and script-driven runs; telemetry to Observe via headers.
+
+**Implementation contract (authoritative for code/UI):** [rapidui-v0.2-implementation.md — Eval system specification](./rapidui-v0.2-implementation.md#eval-system-specification-locked--2026-08-03)
 
 ### Philosophy (locked)
 
 Main-page chat is multi-turn HITL: user describes intent → agent clarifies and plans → user guides → agent validates, fixes, saves → **Draft** then **Saved** spec in right panel (Spec + JSON tabs). Evals must reflect that **without a real human in every matrix cell**.
 
-**Success = saved RUI that passes the checklist + acceptable process cost.** Not eloquent chat alone.
+**Primary success = saved RUI that passes all assertions (`passed: true`).** Operational UI correctness is the guarantee RapidUI provides. Process metrics (retries, turns, latency) are recorded for agent tuning — **not** a second Pass/Fail layered on top.
 
 | Layer | Question | Role | Automate? |
 |-------|----------|------|-----------|
-| **Outcome** | Correct final RUI? | Primary gate — deterministic checklist on saved spec | ✅ |
-| **Process** | Efficient path there? | Tie-breaker — turns, validate retries, tokens, latency, cost | ✅ |
+| **Outcome** | Correct final RUI? | **Primary gate** — `passed` + `assertions[]` on saved spec | ✅ |
+| **Process** | Efficient path there? | **Tuning signal** — numbers vs caps (validates, turns, latency) | ✅ record; display only |
 | **Conversation** | Helpful dialogue? | Sampled — human rubric on 2–3 runs/cell; notes in model-selection doc | ❌ |
 
-**Principles:** (1) Score the **artifact**, not the transcript — no save = fail. (2) **`conversationScript`** simulates the human in guided evals. (3) **`guided`** for RapidUI Agent (product-realistic); **`single-shot`** for external agents and autonomy benchmarks — always note eval mode on Observe. (4) Deterministic checklist only — no LLM judge. (5) Eval lab tests **model × prompt × use case**, not models alone; Observe (`/observe/evals`) is the scoreboard.
+**Principles:** (1) Score the **artifact**, not the transcript — no save → **Incomplete**, not failed assertions. (2) **`passed` has one meaning:** the operational UI spec is correct. (3) **`conversationScript`** simulates the human in guided evals. (4) **`guided`** for RapidUI Agent; **`single-shot`** for external agents — note eval mode on Observe. (5) Deterministic assertions only — no LLM judge on artifact. (6) Eval lab tests **model × prompt × use case**; Observe (`/observe/evals`) is the scoreboard.
 
-**Not in v0.2:** LLM-as-judge, scoring intermediate messages, real human per matrix cell, picking model before the matrix, interactive eval playground (script + table enough).
+**Not in v0.2:** LLM-as-judge on artifact, scoring intermediate messages, real human per matrix cell, blocking live-LLM CI gates before baseline data, interactive eval playground.
 
 ```txt
 PRODUCTION                         EVAL (guided)
 User prompt                   →    eval case `prompt`
 Agent clarify / plan          →    same
 User guides / confirms        →    `conversationScript`
-Agent validate → save         →    same → score spec + process metrics
+Agent validate → save         →    same → passed (artifact) + process numbers on trial
 ```
 
-**Interview line:** “We separated outcome, process, and conversation. Outcome and process are automated; conversation is sampled. In production the human guides the agent — in evals, a script plays them so we compare models fairly.”
+**Interview line:** “We separated outcome, process, and conversation. Outcome is Pass or Fail on the saved UI spec. Process is how expensive the path was — retries and latency — not a second pass/fail. Conversation we sample by hand.”
 
 ### Multi-turn evals
 
@@ -1695,7 +1697,7 @@ Agent validate → save         →    same → score spec + process metrics
 
 Vague variants (§7 V6): script answers clarifying questions. Wrong-pattern variants (V4): script rejects bad proposals.
 
-**Process metrics** (on `/observe/evals`): `user_turns`, `validate_attempts`, tokens, `estimated_cost_usd`, `latency_ms`. Optional caps: `maxUserTurns`, `maxRetries`, `maxTokensOut`.
+**Process metrics** (on `/observe/evals`): `user_turns`, `validate_attempts`, tokens, `estimated_cost_usd`, `latency_ms` — shown vs case caps (`maxUserTurns`, `maxRetries`, `maxLatencyMs`). Over-cap values highlight for agent tuning; they do **not** flip **`passed`** when the spec is correct.
 
 **Spot-check rubric** (2–3 runs/cell, 1–5): clarification, operations plan, error recovery, preview readiness.
 
@@ -1707,11 +1709,13 @@ Vague variants (§7 V6): script answers clarifying questions. Wrong-pattern vari
 
 **Purpose:** Evidence-based default model + system prompt for main-page chat. Portfolio story: cost, quality, performance tradeoffs.
 
-**Matrix:**
+**Matrix (7.7 — reduced slice, authoritative):**
 
 ```txt
-eval_cases (UC1–3)  ×  models (3–4)  ×  prompt_versions (2–3)  ×  eval_mode (guided | single-shot)
+(core_cases: UC1–UC3 + behavioral variants) × model (1–2) × prompt (1–2) × eval_mode (guided)
 ```
+
+Run evidence-driven slices first — not a full Cartesian product. Reference decision #34 shortlist still applies; matrix size is capped in [implementation Phase 7.7](./rapidui-v0.2-implementation.md#phase-77--modelprompt-comparison-s10).
 
 **Model shortlist (locked — decision #34):**
 
@@ -1729,13 +1733,13 @@ eval_cases (UC1–3)  ×  models (3–4)  ×  prompt_versions (2–3)  ×  eval_
 | `v2` | Explicit “plan operations in chat before JSON” |
 | `v3` | Stronger validate-loop / fix-systematically emphasis |
 
-**Orchestration:** `npm run eval:matrix` — not a live UI playground. Loops matrix, drives agent via chat API with scripted user, scores final spec, logs to `eval_runs`.
+**Orchestration:** `npm run eval:matrix` — not a live UI playground. Loops matrix, drives agent via chat API with scripted user, scores final spec, logs to **`eval_trials`** (automated) or **`eval_runs`** (manual Path B).
 
-**`/observe/evals` dashboard (MVP):**
+**`/observe/evals` dashboard:**
 
-- Grouped table: `(model, prompt_version, eval_mode, case_id)`
-- Columns: pass rate, avg validate retries, avg tokens, avg latency, est. cost per successful save
-- Drill-down to individual runs → join `session_id` on `/observe/agent`
+- **7.6** — trial list from **`eval_trials`** (Pass/Fail/Incomplete, assertion breakdown, process numbers vs caps); optional legacy teaser from **`eval_runs`**
+- **7.7** — grouped comparison section (model × prompt × case)
+- Drill-down → link `session_id` to `/observe/agent` or `/observe/api` (never duplicate timelines)
 
 **Deliverable:** `docs/model-selection-v0.2.md` — matrix results, chosen default, tradeoffs (philosophy lives in §14 above).
 
@@ -1748,10 +1752,11 @@ eval_cases (UC1–3)  ×  models (3–4)  ×  prompt_versions (2–3)  ×  eval_
 | Piece | Role |
 |-------|------|
 | `eval/cases/*.json` | Prompt + `conversationScript` (guided) + `successCriteria` per scenario |
-| `eval/score.ts` | Deterministic pass/fail on **final spec** + optional process caps |
+| `eval/score.ts` | Deterministic **`passed`** on **final spec** via `assertions[]` |
 | `scripts/log-eval-run.ts` | Score + insert `eval_runs` |
-| `scripts/eval-matrix.ts` | *(new)* Loop model × prompt × case; drive guided chat |
-| `eval_runs` table | Regression ground truth + eval lab results |
+| `scripts/eval-matrix.ts` | *(new, **7.7**)* Loop model × prompt × case; persists to **`eval_trials`** |
+| `eval_runs` table | Path B manual runs — teaser on `/observe/evals`; not primary eval lab store |
+| `eval_trials` table | *(new, **7.4**)* Path A automated trials — primary eval lab store |
 | `eval/manual/{cursor,claude,codex}/` | External agent runners (single-shot) |
 | `agent/prompts/v*.txt` | *(new)* Versioned system prompts for eval lab |
 | Optional headers | **`X-RapidUI-Session-Id` (required)**, **`X-RapidUI-Agent` (recommended)**, `X-RapidUI-Eval-Case` |
@@ -1778,65 +1783,109 @@ Retire `support-dashboard-v0.1.json` — no v0.1-shaped rewrite; UC1 is covered 
 | `lib/operations/golden/UC3-ai-review-queue-v0.2.rui.json` | `ai-review-queue-v0.2` | UC3 — draft inbox + read detail, approve/reject `act` with outcomes |
 | `lib/operations/golden/UC4-hr-ops-seed-v0.2.rui.json` | `spec-update-v0.2` (seed) | UC4 — HR ops: employees, onboarding create, time-off browse + approve/deny |
 
-### Open eval questions (resolve in implementation plan or follow-up doc)
+### Eval open questions (resolved — see implementation doc)
 
-| Topic | Notes |
-|-------|-------|
-| **`POST /api/eval/log`** | HTTP endpoint vs CLI-only — TBD |
-| **v0.1 case retirement** | Retire `support-dashboard-v0.1.json` — v0.2 cases are operations-shaped only |
-| **Use case variants** | At least one variant per UC in eval suite (§7) — TBD which variants ship required |
-| **`conversationScript` trigger semantics** | `after_agent_reply` vs fixed turn index — finalize in eval-matrix script |
-| **RapidUI Agent evals** | Agent runs get `eval_case_id`, `model`, `prompt_version`, `eval_mode` in Observe — TBD exact ingest fields |
-| **Pass bar for ship** | At minimum: one external agent pass on a v0.2 case with headers. Eval lab = stretch O5 (before portfolio freeze if pursued) |
-| **Model price table** | Source for `estimated_cost_usd` — hardcode in script vs config file |
+Most eval design questions are locked in **[rapidui-v0.2-implementation.md](./rapidui-v0.2-implementation.md#eval-system-specification-locked--2026-08-03)** and Phase 7 kickoff decisions.
+
+| Topic | Resolution |
+|-------|------------|
+| **`POST /api/eval/log`** | Defer to stretch **O3** — CLI `eval:log` only in v0.2 |
+| **v0.1 case retirement** | ✅ Done — v0.2 cases only |
+| **Use case variants** | **7.5** required before **7.7** matrix (V4 contradiction + V6 clarification) |
+| **`conversationScript` trigger** | **`after_agent_reply`** — locked |
+| **RapidUI Agent evals ingest fields** | `eval_case_id`, model, prompt on trial record (**7.4**) |
+| **Pass bar / eval lab for ship** | **Required** — v0.2 ships when Phase **7.1–7.7** complete (**S10** below) |
+| **Model price table** | Hardcode in **7.7** matrix script initially |
+
+**Still open (minor):** exact `estimated_cost_usd` price source file format — resolve in **7.7**.
 
 ### Scoring (locked)
 
-**Outcome (primary):** deterministic checklist on the **final saved RUI** — `requiredOperations`, `requiredEmbeddedActions`, `requiredTransitions`, `requiredDataPaths`, `mustValidate`. No LLM judge in v0.2.
+**Outcome (primary):** deterministic **`assertions[]`** on the **final saved RUI**. Grader returns **`passed`** (boolean) + per-assertion results. No LLM judge in v0.2.
 
-**Process (secondary):** optional caps — `maxUserTurns`, `maxRetries`, `maxTokensOut`. Fail if exceeded.
+**Process (secondary):** record `user_turns`, `validate_attempts`, `latency_ms` on the trial; compare to caps in UI — **not** folded into **`passed`**.
 
-- `requiredOperations` — top-level types present in `operations[]` (e.g. `browse`, `create`)
-- `requiredEmbeddedActions` — action types in any `read.presentation.actions[]` (e.g. `act`, `delete`)
-- `requiredTransitions` — triggers used (`row`, `link`, `cta`, `cancel`)
+**Case caps** (on `successCriteria`): `maxUserTurns`, `maxRetries`, `maxLatencyMs`, `mustValidate` (runner check in 7.3).
 
-**Example `successCriteria` (crud-admin-v0.2, guided mode):**
+**Assertion kinds (canonical Zod union — locked for 7.2):**
+
+| `kind` | Purpose |
+|--------|---------|
+| `operationCount` | Min/max count of operations by `type` |
+| `operationRoute` | Operation of `type` has `route` (e.g. UC1 `/incidents`, `/teams`) |
+| `dataMode` | All ops of `type` use `data.mode` |
+| `embeddedAction` | Embedded action `type` on `hostOperationType` (with `minCount`) |
+| `forbiddenEmbeddedAction` | Must NOT exist — **7.5** variants |
+| `transitionTriggers` | All listed transition triggers present |
+| `dataPath` | API `method` + `path` wired |
+
+Full schema: [implementation doc — Eval system specification](./rapidui-v0.2-implementation.md#eval-system-specification-locked--2026-08-03).
+
+**Example `successCriteria` (`crud-admin-v0.2`, guided mode):**
 
 ```json
 {
   "mustValidate": true,
   "maxRetries": 5,
   "maxUserTurns": 4,
-  "requiredOperations": ["browse", "read", "create", "update"],
-  "requiredEmbeddedActions": ["delete"],
-  "requiredTransitions": ["row", "cta", "cancel"],
-  "requiredDataPaths": [
-    "GET /api/users",
-    "POST /api/users",
-    "PATCH /api/users/{userId}",
-    "DELETE /api/users/{userId}"
+  "maxLatencyMs": 120000,
+  "assertions": [
+    { "id": "uc2-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
+    { "id": "uc2-read", "kind": "operationCount", "type": "read", "minCount": 1 },
+    { "id": "uc2-create", "kind": "operationCount", "type": "create", "minCount": 1 },
+    { "id": "uc2-update", "kind": "operationCount", "type": "update", "minCount": 1 },
+    { "id": "uc2-delete-on-read", "kind": "embeddedAction", "type": "delete", "hostOperationType": "read", "minCount": 1 },
+    { "id": "uc2-transitions", "kind": "transitionTriggers", "triggers": ["row", "cta", "cancel"] },
+    { "id": "uc2-path-users-list", "kind": "dataPath", "method": "GET", "path": "/api/users" },
+    { "id": "uc2-path-users-create", "kind": "dataPath", "method": "POST", "path": "/api/users" },
+    { "id": "uc2-path-users-patch", "kind": "dataPath", "method": "PATCH", "path": "/api/users/{userId}" },
+    { "id": "uc2-path-users-delete", "kind": "dataPath", "method": "DELETE", "path": "/api/users/{userId}" }
   ]
 }
 ```
 
-### `eval_runs` extensions (v0.2)
+**Example UC1 assertions (`static-browse-v0.2`):**
 
-Extend v0.1 columns for eval lab joins:
+```json
+{
+  "assertions": [
+    { "id": "uc1-browse-count", "kind": "operationCount", "type": "browse", "minCount": 2 },
+    { "id": "uc1-static-mode", "kind": "dataMode", "type": "browse", "mode": "static" },
+    { "id": "uc1-route-incidents", "kind": "operationRoute", "type": "browse", "route": "/incidents" },
+    { "id": "uc1-route-teams", "kind": "operationRoute", "type": "browse", "route": "/teams" }
+  ]
+}
+```
 
-| Column | Purpose |
-|--------|---------|
-| `eval_mode` | `guided` \| `single-shot` |
-| `model` / `provider` | e.g. `o4-mini` / `openai` |
-| `prompt_version` | e.g. `v2` |
-| `reasoning_effort` | e.g. `medium` (when applicable) |
-| `user_turns` | Scripted + free user messages in session |
-| `validate_attempts` | From joined `api_events` |
-| `tokens_in` / `tokens_out` | From agent run |
-| `estimated_cost_usd` | Derived |
-| `latency_ms` | Wall time to save or fail |
-| `score_details` | Existing — add `missingOperations`, `userTurnsExceeded`, etc. |
+**Example UC3 assertions (`ai-review-queue-v0.2`):**
 
-**Observe for evals:** All manual runs send **`X-RapidUI-Session-Id`** (required) and **`X-RapidUI-Agent`** on every API call; scores logged to `eval_runs` via CLI (and optional `POST /api/eval/log`).
+```json
+{
+  "assertions": [
+    { "id": "uc3-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
+    { "id": "uc3-read", "kind": "operationCount", "type": "read", "minCount": 1 },
+    { "id": "uc3-act-on-detail", "kind": "embeddedAction", "type": "act", "hostOperationType": "read", "minCount": 2 },
+    { "id": "uc3-transition-row", "kind": "transitionTriggers", "triggers": ["row"] },
+    { "id": "uc3-path-inbox", "kind": "dataPath", "method": "GET", "path": "/api/drafts" },
+    { "id": "uc3-path-detail", "kind": "dataPath", "method": "GET", "path": "/api/drafts/{draftId}" },
+    { "id": "uc3-path-approve", "kind": "dataPath", "method": "POST", "path": "/api/drafts/{draftId}/approve" },
+    { "id": "uc3-path-reject", "kind": "dataPath", "method": "POST", "path": "/api/drafts/{draftId}/reject" }
+  ]
+}
+```
+
+### Path B — `eval_runs` (minimal v0.2)
+
+Path B manual runs stay on **`eval_runs`**. Eval lab columns (model, prompt, tokens, etc.) live on **`eval_trials`** only.
+
+| Column | Purpose | Phase |
+|--------|---------|-------|
+| *(existing v0.1 columns)* | `passed`, `validate_count`, `final_spec_id`, … | — |
+| **`session_id`** | Nullable — link row to Observe session when provided to `eval:log` | **7.4** migration **008** |
+| **`score_details`** | **`assertions[]`** per-assertion results (**7.2**+) | **7.2** |
+| **`blocks_found`** | Legacy v0.1 teaser field — operation types summary; **not** used for pass/fail after **7.2** | **7.2** keep writing for teaser compat |
+
+**Observe for evals:** Path B runs send **`X-RapidUI-Session-Id`** on API calls; pass same id to **`eval:log`** (`--session-id` or EVAL_RESULT block) so **`eval_runs.session_id`** enables cross-link in **7.6**.
 
 ---
 
@@ -1849,12 +1898,13 @@ Extend v0.1 columns for eval lab joins:
 | S1 | **Fresh Neon** live; Vercel on `@neondatabase/serverless` (or equivalent) |
 | S2 | **Operations schema 0.2** — `entities[]`, `operations` + `route` + `outcomes`, `transitions` (incl. `cta`), embedded `actions` |
 | S3 | **API telemetry** — `api_events` on validate/save + discovery (3B); **required session id** on guarded routes; documented in llms.txt + `/api/docs` |
-| S4 | **Observe** — `/observe/api` + `/observe/agent` dashboards working (`/observe/evals` = stretch O5) |
+| S4 | **Observe** — `/observe/api` + `/observe/agent` dashboards working |
 | S5 | **RapidUI Agent** — `agent.rapidui.dev` chat → validate → save; default **o4-mini** + optional Logfire |
 | S6 | **Main UI** — **assistant-ui** chat (subtle visible reasoning + tools) + **tabbed output** (Spec inspector + JSON; Preview placeholder); **session bar** + **starter chips** for UC1–3; draft panel on validate |
 | S7 | **Use cases 1–3** demonstrable end-to-end (agent → spec → Observe) |
 | S8 | **Path B** — external agent run with **session id** visible in `/observe/api` (full funnel after 3B) |
 | S9 | **Monorepo** — `agent/` deployed on Render; README demo script |
+| S10 | **Eval lab** — trusted grader (**7.2**), `eval:run` + `eval_trials`, behavioral variants (**7.5**), **`/observe/evals`** UI (**7.6**), model matrix + `docs/model-selection-v0.2.md` (**7.7**) |
 
 **Optional stretch** (not required for ship):
 
@@ -1864,7 +1914,6 @@ Extend v0.1 columns for eval lab joins:
 | O2 | Logfire on Render (Path D demo) |
 | O3 | `POST /api/eval/log` |
 | O4 | All v0.2 eval cases (incl. `static-browse-v0.2`) logged in `eval_runs` |
-| O5 | **Eval lab** — model matrix run, `/observe/evals` dashboard, `docs/model-selection-v0.2.md` with chosen default |
 
 ---
 
@@ -1884,10 +1933,12 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 | Discovery GET telemetry (`llms.txt`, docs, schema) | 3B | ✅ Resolved — `recordDiscoveryEvent()` + funnel (Phase 3 Stage 3B) |
 | Session identity enforcement | 3B | ✅ Resolved — required `X-RapidUI-Session-Id` except `GET /llms.txt` (§3 #37–38) |
 | WorkOS / OAuth agent auth | v0.3+ | Replaces UUID mock identity slot |
-| Which eval variants required for ship | 7 | See §14 open questions |
-| `POST /api/eval/log` vs CLI-only | 1 / 7 | Optional stretch O3 |
-| `conversationScript` driver in eval-matrix | 7 | How scripted user waits for agent reply |
-| Model price config for cost estimates | 7 | See §14 open questions |
+| Which eval variants required for ship | 7 | ✅ **7.5** required before **7.7** — see implementation doc |
+| `POST /api/eval/log` vs CLI-only | 1 / 7 | Optional stretch **O3** |
+| `conversationScript` driver in eval-matrix | 7 | ✅ **`after_agent_reply`** — locked in **7.3** runner |
+| Model price config for cost estimates | 7 | Resolve in **7.7** matrix script |
+| Eval semantics / scoring model | 7 | ✅ [Eval system specification](./rapidui-v0.2-implementation.md#eval-system-specification-locked--2026-08-03) (2026-08-03) |
+| `eval_runs` vs `eval_trials` persistence split | 7 | ✅ Path B → `eval_runs` (+ `session_id` **008**); Path A → `eval_trials` (**007**) — reference §10 |
 
 ---
 
@@ -1922,7 +1973,8 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 | `lib/registry/*` (Page/Block model) | **Replace** with `lib/operations/*` (`operations.ts`, `transitions.ts`, `presentations.ts`) |
 | `lib/validate/*` | **Rewrite** for operation-centric rules O1–O20 |
 | `eval/cases/support-dashboard-v0.1.json` | **Retire** — replace with operations-shaped v0.2 cases only |
-| `eval_runs` + `scripts/log-eval-run.ts` | Extend with operation-aware scoring + eval lab columns (§14) |
+| `eval_runs` + `scripts/log-eval-run.ts` | Path B: assertion scoring + optional `session_id` (**008**); not full eval lab columns |
+| `eval_trials` + `scripts/eval-run.ts` | Path A: automated trials (**7.3–7.4**) |
 | `scripts/eval-matrix.ts` | *(new)* Model × prompt × case matrix runner |
 | `docs/model-selection-v0.2.md` | *(new)* Matrix results + chosen default model + prompt |
 | `app/page.tsx` | Portfolio landing; builder at `app/chat/page.tsx` |

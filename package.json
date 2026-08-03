@@ -22,6 +22,7 @@
     "eval:prompt": "tsx scripts/render-eval-prompt.ts",
     "eval:score": "tsx --env-file=.env.local eval/score.ts",
     "eval:log": "tsx --env-file=.env.local scripts/log-eval-run.ts",
+    "test:eval": "vitest run",
     "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

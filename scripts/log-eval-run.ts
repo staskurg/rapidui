@@ -7,7 +7,7 @@ import {
   parseOptionalInt,
   requireArg,
 } from "../lib/eval/parseCliArgs";
-import { scoreRun } from "../lib/eval/scoreRun";
+import { scoreRun, toScoreDetails } from "../lib/eval/scoreRun";
 import type { AgentKind } from "../eval/types";
 import { AGENT_KINDS, EVAL_BASE_URLS } from "../eval/types";
 
@@ -40,6 +40,7 @@ async function main(): Promise<void> {
   let baseUrl: string;
   let viewUrl: string | null;
   let notes: string | undefined;
+  let userTurns: number | undefined;
 
   if (args.stdin) {
     const pasted = await readStdin();
@@ -69,6 +70,9 @@ async function main(): Promise<void> {
         ? args["base-url"]
         : EVAL_BASE_URLS.prod;
     notes = typeof args.notes === "string" ? args.notes : undefined;
+    userTurns = parseOptionalInt(
+      typeof args["user-turns"] === "string" ? args["user-turns"] : undefined,
+    );
 
     viewUrl =
       typeof args["view-url"] === "string"
@@ -82,7 +86,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const score = await scoreRun({ specId, caseId, validateCount });
+  const score = await scoreRun({ specId, caseId, validateCount, userTurns });
 
   console.log("Score result:");
   console.log(JSON.stringify(score, null, 2));
@@ -97,7 +101,7 @@ async function main(): Promise<void> {
     finalSpecId: specId,
     viewUrl,
     blocksFound: score.operationsFound,
-    scoreDetails: score.scoreDetails,
+    scoreDetails: toScoreDetails(score),
     notes: notes ?? null,
   });
 

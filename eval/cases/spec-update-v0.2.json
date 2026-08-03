@@ -42,12 +42,14 @@
     "mustValidate": true,
     "maxRetries": 8,
     "maxUserTurns": 5,
-    "requiredOperations": ["browse", "read", "create"],
-    "requiredEmbeddedActions": ["act"],
-    "requiredTransitions": ["row", "cta", "cancel"],
-    "requiredDataPaths": [
-      "GET /api/time-off-requests",
-      "POST /api/time-off-requests/{requestId}/approve"
+    "assertions": [
+      { "id": "uc4-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
+      { "id": "uc4-read", "kind": "operationCount", "type": "read", "minCount": 1 },
+      { "id": "uc4-create", "kind": "operationCount", "type": "create", "minCount": 1 },
+      { "id": "uc4-act-on-detail", "kind": "embeddedAction", "type": "act", "hostOperationType": "read", "minCount": 1 },
+      { "id": "uc4-transitions", "kind": "transitionTriggers", "triggers": ["row", "cta", "cancel"] },
+      { "id": "uc4-path-list", "kind": "dataPath", "method": "GET", "path": "/api/time-off-requests" },
+      { "id": "uc4-path-approve", "kind": "dataPath", "method": "POST", "path": "/api/time-off-requests/{requestId}/approve" }
     ]
   }
 }

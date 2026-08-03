@@ -41,14 +41,15 @@
     "mustValidate": true,
     "maxRetries": 5,
     "maxUserTurns": 4,
-    "requiredOperations": ["browse", "read"],
-    "requiredEmbeddedActions": ["act"],
-    "requiredTransitions": ["row"],
-    "requiredDataPaths": [
-      "GET /api/drafts",
-      "GET /api/drafts/{draftId}",
-      "POST /api/drafts/{draftId}/approve",
-      "POST /api/drafts/{draftId}/reject"
+    "assertions": [
+      { "id": "uc3-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
+      { "id": "uc3-read", "kind": "operationCount", "type": "read", "minCount": 1 },
+      { "id": "uc3-act-on-detail", "kind": "embeddedAction", "type": "act", "hostOperationType": "read", "minCount": 2 },
+      { "id": "uc3-transition-row", "kind": "transitionTriggers", "triggers": ["row"] },
+      { "id": "uc3-path-inbox", "kind": "dataPath", "method": "GET", "path": "/api/drafts" },
+      { "id": "uc3-path-detail", "kind": "dataPath", "method": "GET", "path": "/api/drafts/{draftId}" },
+      { "id": "uc3-path-approve", "kind": "dataPath", "method": "POST", "path": "/api/drafts/{draftId}/approve" },
+      { "id": "uc3-path-reject", "kind": "dataPath", "method": "POST", "path": "/api/drafts/{draftId}/reject" }
     ]
   }
 }

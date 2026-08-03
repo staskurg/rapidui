@@ -51,14 +51,17 @@
     "mustValidate": true,
     "maxRetries": 5,
     "maxUserTurns": 4,
-    "requiredOperations": ["browse", "read", "create", "update"],
-    "requiredEmbeddedActions": ["delete"],
-    "requiredTransitions": ["row", "cta", "cancel"],
-    "requiredDataPaths": [
-      "GET /api/users",
-      "POST /api/users",
-      "PATCH /api/users/{userId}",
-      "DELETE /api/users/{userId}"
+    "assertions": [
+      { "id": "uc2-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
+      { "id": "uc2-read", "kind": "operationCount", "type": "read", "minCount": 1 },
+      { "id": "uc2-create", "kind": "operationCount", "type": "create", "minCount": 1 },
+      { "id": "uc2-update", "kind": "operationCount", "type": "update", "minCount": 1 },
+      { "id": "uc2-delete-on-read", "kind": "embeddedAction", "type": "delete", "hostOperationType": "read", "minCount": 1 },
+      { "id": "uc2-transitions", "kind": "transitionTriggers", "triggers": ["row", "cta", "cancel"] },
+      { "id": "uc2-path-users-list", "kind": "dataPath", "method": "GET", "path": "/api/users" },
+      { "id": "uc2-path-users-create", "kind": "dataPath", "method": "POST", "path": "/api/users" },
+      { "id": "uc2-path-users-patch", "kind": "dataPath", "method": "PATCH", "path": "/api/users/{userId}" },
+      { "id": "uc2-path-users-delete", "kind": "dataPath", "method": "DELETE", "path": "/api/users/{userId}" }
     ]
   }
 }

@@ -5,8 +5,24 @@ export type DataPathRef = {
   path: string;
 };
 
+export type OperationRef = {
+  id: string;
+  type: string;
+  route: string | undefined;
+  dataMode: "static" | "api" | undefined;
+};
+
+export type EmbeddedActionRef = {
+  id: string;
+  type: string;
+  hostOperationId: string;
+  hostOperationType: string;
+};
+
 export type CollectedOperations = {
+  operations: OperationRef[];
   operationTypes: string[];
+  embeddedActions: EmbeddedActionRef[];
   embeddedActionTypes: string[];
   transitionTriggers: string[];
   dataPaths: DataPathRef[];
@@ -19,6 +35,13 @@ function addDataPath(paths: DataPathRef[], method: string, path: string): void {
 }
 
 function collectFromOperation(operation: Operation, collected: CollectedOperations): void {
+  collected.operations.push({
+    id: operation.id,
+    type: operation.type,
+    route: "route" in operation ? operation.route : undefined,
+    dataMode: operation.data.mode,
+  });
+
   collected.operationTypes.push(operation.type);
 
   if (operation.data.mode === "api") {
@@ -33,23 +56,41 @@ function collectFromOperation(operation: Operation, collected: CollectedOperatio
     }
   }
 
-  if (operation.type === "read" && operation.presentation.actions) {
-    for (const action of operation.presentation.actions) {
-      collected.embeddedActionTypes.push(action.type);
-      if ("invoke" in action) {
-        addDataPath(collected.dataPaths, action.invoke.method, action.invoke.path);
-      }
-      if ("write" in action) {
-        addDataPath(collected.dataPaths, action.write.method, action.write.path);
-      }
+  collectEmbeddedActions(operation, collected);
+}
+
+function collectEmbeddedActions(
+  operation: Operation,
+  collected: CollectedOperations,
+): void {
+  const presentation = operation.presentation;
+  if (!("actions" in presentation) || !presentation.actions) {
+    return;
+  }
+
+  for (const action of presentation.actions) {
+    collected.embeddedActions.push({
+      id: action.id,
+      type: action.type,
+      hostOperationId: operation.id,
+      hostOperationType: operation.type,
+    });
+    collected.embeddedActionTypes.push(action.type);
+    if ("invoke" in action) {
+      addDataPath(collected.dataPaths, action.invoke.method, action.invoke.path);
+    }
+    if ("write" in action) {
+      addDataPath(collected.dataPaths, action.write.method, action.write.path);
     }
   }
 }
 
-/** Walk an operations RUI — collect types, transitions, and API paths. */
+/** Walk an operations RUI — collect types, routes, embedded actions, transitions, and API paths. */
 export function collectFromRui(rui: Rui): CollectedOperations {
   const collected: CollectedOperations = {
+    operations: [],
     operationTypes: [],
+    embeddedActions: [],
     embeddedActionTypes: [],
     transitionTriggers: [],
     dataPaths: [],
@@ -64,7 +105,9 @@ export function collectFromRui(rui: Rui): CollectedOperations {
   }
 
   return {
+    operations: collected.operations,
     operationTypes: [...new Set(collected.operationTypes)],
+    embeddedActions: collected.embeddedActions,
     embeddedActionTypes: [...new Set(collected.embeddedActionTypes)],
     transitionTriggers: [...new Set(collected.transitionTriggers)],
     dataPaths: collected.dataPaths,
@@ -86,16 +129,24 @@ export function parseDataPathRequirement(requirement: string): DataPathRef {
   };
 }
 
+export function dataPathMatches(
+  paths: DataPathRef[],
+  method: string,
+  path: string,
+): boolean {
+  const requiredPath = path.split("?")[0]!;
+  return paths.some((entry) => {
+    const actualPath = entry.path.split("?")[0]!;
+    return entry.method === method && actualPath === requiredPath;
+  });
+}
+
 export function dataPathRequirementMet(
   paths: DataPathRef[],
   requirement: string,
 ): boolean {
   const required = parseDataPathRequirement(requirement);
-  const requiredPath = required.path.split("?")[0]!;
-  return paths.some((path) => {
-    const actualPath = path.path.split("?")[0]!;
-    return path.method === required.method && actualPath === requiredPath;
-  });
+  return dataPathMatches(paths, required.method, required.path);
 }
 
 export function formatDataPathRef(path: DataPathRef): string {

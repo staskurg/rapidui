@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { EvalCase } from "../../eval/types";
+import { validateCase } from "./validateCase";
 
 const CASES_DIR = path.join(process.cwd(), "eval/cases");
 
@@ -13,15 +14,7 @@ export function loadCase(caseId: string): EvalCase {
   }
 
   const raw = fs.readFileSync(filePath, "utf8");
-  const parsed = JSON.parse(raw) as EvalCase;
-
-  if (parsed.id !== caseId) {
-    throw new Error(
-      `Eval case id mismatch: file is ${caseId}.json but JSON id is "${parsed.id}"`,
-    );
-  }
-
-  return parsed;
+  return validateCase(JSON.parse(raw), caseId);
 }
 
 /** List available eval case ids (basename without .json). */

@@ -40,7 +40,7 @@ Phase 0  Infra
    └─► Phase 7  Polish + eval harness (v0.2 — ship when 7.1–7.7 complete)
           7.1 portfolio polish
           7.2–7.6 core harness (grader → runner → persistence → variants → UI)
-          7.7 model/prompt comparison (O5) — build last; still required for v0.2
+          7.7 model/prompt comparison (S10) — build last; still required for v0.2
 ```
 
 **v0.2 ship gate (locked):** Phases **0–6** + **7.1–7.7** complete. Do not tag or ship v0.2 until every Phase 7 checklist passes — Phase 7 is part of MVP, not optional follow-up work.
@@ -66,9 +66,9 @@ Phase 0  Infra
 | S7 Use cases 1–3 E2E | 4, 5 |
 | S8 Path B external agent in Observe | 1, 3 |
 | S9 Monorepo + Render agent | 0, 4 |
-| O5 Eval lab | **7.7** (part of v0.2; build after **7.2–7.5**) |
+| S10 Eval lab | **7.1–7.7** (build **7.7** matrix after **7.2–7.5**) |
 
-Full definitions: reference **§15**. **v0.2 ships when S1–S9 + O5 (Phase 7 complete) are verified.**
+Full definitions: reference **§15**. **v0.2 ships when S1–S10 are verified** (Phases 0–6 + Phase **7.1–7.7**).
 
 ---
 
@@ -83,25 +83,25 @@ Full definitions: reference **§15**. **v0.2 ships when S1–S9 + O5 (Phase 7 co
 | **4** | RapidUI Agent (FastAPI) | §4, §8, §9 Area 4, §11 |
 | **5** | Main UI (chat + inspector) | §5, §6, §9 Area 5 |
 | **6** | Observe Agent dashboard — **observability** (+ **6 P0** telemetry) | §9 Area 6 |
-| **7** | Polish + eval harness (**7.1–7.7**) | §9 Area 7, §14, §15 O* |
+| **7** | Polish + eval harness (**7.1–7.7**) | §9 Area 7, §14, §15 **S10** |
 
-**Cross-cutting (Phases 4–7):** [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) · [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog) · [Appendix E — Agent latency metrics (Phase 6)](#appendix-e--agent-latency-metrics-phase-6) · [Appendix F — Phase 7 document map](#appendix-f--phase-7-document-map) · [Evals UI spec (7.6)](#phase-76--minimal-eval-ui) · [LLM judge policy](#llm-judge-policy-scaling--layer-3-only)
+**Cross-cutting (Phases 4–7):** [Eval system specification (Phase 7)](#eval-system-specification-locked--2026-08-03) · [Appendix C — Agent strengthening, tracing & eval](#appendix-c--agent-strengthening-tracing--eval-strategy) · [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog) · [Appendix E — Agent latency metrics (Phase 6)](#appendix-e--agent-latency-metrics-phase-6) · [Appendix F — Phase 7 document map](#appendix-f--phase-7-document-map) · [Evals UI spec (7.6)](#phase-76--minimal-eval-ui) · [LLM judge policy](#llm-judge-policy-scaling--layer-3-only)
 
 ---
 
 ## Current project status
 
-**Last verified:** 2026-08-01
+**Last verified:** 2026-08-03
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0–6** | ✅ Complete | Observability (Phase 6 P0 + UI) shipped — see [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
-| **7** | 🔲 In progress | **7.1** portfolio polish ✅ (2026-08-01) · **7.2–7.7** remaining |
+| **7** | 🔲 In progress | **7.1** ✅ (2026-08-01) · **7.2** grader hardening ✅ (2026-08-03) · **7.3–7.7** remaining |
 | **v0.3** | ⏸ After v0.2 | Renderer, auth hardening — [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 
 **One-line gap:** Observe answers *what happened*; Phase **7** (7.1–7.7) answers *was the result correct, was the path reasonable, and which model/prompt should we ship?*
 
-**Phase 7 entry point:** [Appendix F — Phase 7 document map](#appendix-f--phase-7-document-map) · [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31)
+**Phase 7 entry point:** [Eval system specification](#eval-system-specification-locked--2026-08-03) · [Appendix F — Phase 7 document map](#appendix-f--phase-7-document-map) · [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31)
 
 ---
 
@@ -182,7 +182,7 @@ After cutover, v0.1 production data remains in the old database for archive/refe
 |----------|----------|
 | Migration tool / folder | Keep v0.1 pattern: SQL files in `lib/db/migrations/`, applied by `npm run db:migrate` (`scripts/migrate.ts`). Idempotent `CREATE TABLE IF NOT EXISTS`. |
 | Neon driver | `@neondatabase/serverless` — `neon(process.env.DATABASE_URL!)`. Wrap in `lib/db/client.ts` so `sql` tagged templates still return `{ rows }` (matches existing `specs.ts` / `evalRuns.ts`). Update `sql.query()` for raw migration files. |
-| `agent_runs` / `agent_turns` SQL | **Phase 0:** create tables with all columns from reference §4 + Phase 1 sketch (below). **Phase 1:** wire inserts + indexes tuning; **Phase 7:** `eval_runs` column extensions only. |
+| `agent_runs` / `agent_turns` SQL | **Phase 0:** create tables with all columns from reference §4 + Phase 1 sketch (below). **Phase 1:** wire inserts + indexes tuning; **Phase 7.4:** `eval_trials` (**007**) + `eval_runs.session_id` (**008**) only. |
 | CORS on Render | FastAPI `CORSMiddleware`: `allow_origins=["https://rapidui.dev", "http://localhost:3000"]`, `allow_methods=["GET","POST","OPTIONS"]`, `allow_headers=["*"]`, `allow_credentials=False`. Preflight from browser before Phase 4 `/chat` exists — test with `OPTIONS` + dummy `POST` from localhost. |
 | Ingest auth | None (reference §3 #26). Stub route accepts JSON only; no API key. |
 | Monorepo ignore rules | No Turborepo. Vercel deploys repo root; Render sets root directory `agent/`. Optional: add `agent/.python-version` or `runtime.txt` for Render Python pin. |
@@ -377,7 +377,7 @@ Route: `POST /api/observe/ingest/agent` → 200 `{ "ok": true }` | 400 RFC 9457 
 - Operations schema (Phase 2)
 - `POST /chat`, Pydantic AI, tools (Phase 4)
 - Observe UI (Phases 3, 6)
-- `eval_runs` v0.2 column extensions (Phase 7)
+- `eval_trials` table + `eval_runs.session_id` (Phase 7.4)
 
 ### Checklist
 
@@ -453,7 +453,7 @@ Phase 3 (Observe API dashboard), Path B external-agent demo (**S8**), Phase 4 ag
 | **`started_at` / `finished_at` in ingest** | Optional ISO strings in payload; if omitted, DB defaults (`started_at` = first insert time; `finished_at` set only when outcome/finished_at sent). Phase 4 FastAPI may send explicit timestamps later. |
 | **Shared ingest schema location** | **`lib/observe/INGEST.md`** — canonical JSON examples + field table; `agent/README.md` links here. Keeps contract in platform tree (single source of truth per §4). |
 | **`POST /api/eval/log`** | **Defer to Phase 7 (O3).** Phase 1 keeps **`npm run eval:log`** CLI only. Eval runs do not need new columns until eval lab. |
-| **`eval_runs` column extensions** | **Phase 7 only** — no migration in Phase 1. |
+| **`eval_runs` schema changes** | **Phase 7.4 only** — migration **008** adds nullable `session_id`; no migration in Phase 1. Full eval lab columns → **`eval_trials`** (**007**). |
 | **Docs rewrite for operations schema** | **Phase 2.** Phase 1 adds telemetry headers to existing v0.1 `/api/docs` payload only. |
 | **Wrapper v0.2 case ids** | Phase 1: document headers + session id generation. Case id placeholders stay `{{CASE_ID}}` until Phase 2 eval cases land; mention v0.2 case ids in comment only. |
 
@@ -1035,7 +1035,9 @@ Error `path` examples: `operations[op-read-user].presentation.actions[0].outcome
 
 **Optional (UC4 / O1):** `spec-update-v0.2` — references `UC4-hr-ops-seed-v0.2.rui.json`; scoring checks added operations/transitions after edit. No Neon seed in Phase 2.
 
-**Example `successCriteria` (`crud-admin-v0.2`):**
+**Example `successCriteria` (`crud-admin-v0.2`) — Phase 2 shape (legacy flat fields):**
+
+> **7.2 migrates** UC1–UC3 to **`assertions[]`**. See [Eval system specification](#eval-system-specification-locked--2026-08-03) for the target schema.
 
 ```json
 {
@@ -1099,7 +1101,7 @@ Error `path` examples: `operations[op-read-user].presentation.actions[0].outcome
 - `POST /api/eval/log` (Phase 7 — O3)
 - Neon UC4 seed script (optional — only if pursuing O1 before Phase 4)
 - **`smoke:eval` for `spec-update-v0.2`** — deferred to Phase 4 / O1 (see **Eval smoke coverage**); UC4 golden still validated in `smoke:validate`
-- `eval_runs` column extensions (Phase 7)
+- `eval_trials` + `eval_runs.session_id` (Phase 7.4)
 
 ### Known temporary regressions (acceptable until Phase 5)
 
@@ -1314,7 +1316,7 @@ v0.3  Authorization: Bearer <WorkOS agent-scoped token> + optional correlation h
 | **GET routes** | No telemetry; docs/schema cache 1h | **3B:** `recordDiscoveryEvent` after gate; llms.txt logs anonymous (no gate) |
 | **`GET /api/specs/:id`** | Unguarded JSON API (Phase 4 `load_spec`) | **3B:** session gate only — **no** discovery telemetry row |
 | **`api_events`** | Migration `003`; indexes on `occurred_at`, `session_id` | **3A:** query only. **3B:** no DDL — `endpoint` is TEXT |
-| **`eval_runs`** | v0.1 columns; no `session_id` | Hub/evals teaser via `getEvalTeaser()` — full matrix → Phase 7 |
+| **`eval_runs`** | v0.1 columns; **`session_id`** added in **7.4** (**008**) | Hub/evals teaser via `getEvalTeaser()`; primary eval UI → **`eval_trials`** (**7.6**) |
 | **`agent_runs`** | Phase 1 ingest wired | Hub placeholder only — metrics → Phase 6 |
 | **`lib/docs/index.ts`** | Telemetry = “optional headers” | **3B:** required + recommended split; GET routes need session |
 | **`lib/docs/llms.ts` + `instructions.md`** | No session workflow | **3B:** steps 1–3 onboarding block |
@@ -1358,7 +1360,7 @@ v0.3  Authorization: Bearer <WorkOS agent-scoped token> + optional correlation h
 | **Shared gate helper** | **`lib/observe/session-gate.ts`**: `assertSessionId(request)` → `{ ok: true, sessionId, headers }` or `{ ok: false, error: TransportFailure }`. |
 | **No telemetry on gate failure** | Missing session → 400, **no** `api_events` insert. Only successful guarded requests log. |
 | **Homepage API links after 3B** | v0.1 link-hub `GET /api/docs` links break without session — **acceptable** until Phase 5. Optional tiny fix: add “Agents: start at /llms.txt” note — not required for Phase 3 checklist. |
-| **Eval teaser query** | `getEvalTeaser()`: overall pass % from `eval_runs` in window; `/observe/evals` placeholder mini-table = `GROUP BY eval_case_id` (passed/total). No join to `api_events` (no `session_id` on eval_runs yet). |
+| **Eval teaser query** | `getEvalTeaser()`: overall pass % from `eval_runs` in window; `/observe/evals` placeholder mini-table = `GROUP BY eval_case_id` (passed/total). After **7.4**, optional `session_id` on `eval_runs` enables Observe cross-link for Path B; primary trial table reads **`eval_trials`**. |
 | **Relative timestamps** | Use `Intl.RelativeTimeFormat` or simple “N min ago” in RSC — no `date-fns` dependency. |
 | **Session search UX** | `?session=` exact match primary; optional `ILIKE` prefix for partial paste — implement prefix only if trivial. |
 
@@ -1614,7 +1616,7 @@ Uses `BOOL_OR(endpoint = …)` per session — best demo metric for “agents re
 #### `/observe/evals` — Placeholder (Phase 3)
 
 - Title: “Eval lab”
-- Copy: model × prompt × case matrix ships in **Phase 7.7** (O5 — part of v0.2).
+- Copy: model × prompt × case matrix ships in **Phase 7.7** (**S10** — part of v0.2).
 - Bulleted preview: pass rate by case, avg retries/tokens/latency/cost per matrix cell.
 - Optional: if `eval_runs` rows exist, show read-only mini-table (case id, passed/total) — **teaser only**, not full lab UI.
 - CTA: “View API sessions →” `/observe/api`
@@ -3390,6 +3392,8 @@ Phase 6 is **complete** when all of the following are true:
 
 Big-picture snapshot before Phase 7 implementation. **Observe is done; eval regression is not.** Use this when scoping **7.1–7.7** — all are **v0.2 MVP**.
 
+> **Update 2026-08-03:** **7.1** portfolio polish ✅. **7.2–7.7** in progress. Eval semantics locked — [Eval system specification](#eval-system-specification-locked--2026-08-03).
+
 ### Observability inventory (complete — Phase 6)
 
 | Capability | Status | Key paths |
@@ -3403,16 +3407,16 @@ Big-picture snapshot before Phase 7 implementation. **Observe is done; eval regr
 
 **Interview line:** *We can explain any demo session in under five minutes using Observe drill-down.*
 
-### Eval harness inventory (partial — Phase 7 not started)
+### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3–7.7** remaining)
 
 | Capability | Status | Risk if ignored |
 |------------|--------|-----------------|
-| Shallow grader | ⚠️ | False passes on UC1–UC3 (see false-pass table below) |
+| Grader (`assertions[]`) | ✅ | — |
 | `eval:run` / `eval:matrix` | ❌ | No automated regression |
 | `eval_trials` table | ❌ | No config snapshots, no baseline compare |
-| Mutation / negative grader tests | ❌ | CI cannot catch grader regressions |
+| Mutation / negative grader tests | ✅ | Vitest + `eval-grader.yml` CI |
 | Live agent eval baseline | ❌ | Unknown pass rate under guided `conversationScript` |
-| CI workflow | ❌ | No blocking PR gate (`.github/workflows` missing) |
+| CI workflow | ✅ | `.github/workflows/eval-grader.yml` |
 
 ### Agent testing coverage (honest)
 
@@ -3426,9 +3430,9 @@ What was actually verified — **not** equivalent to regression coverage:
 | Automated multi-turn evals | ❌ | `conversationScript` defined in cases but no consumer |
 | External Path B systematic runs | ❌ | Workflow exists (`eval:prompt` → `eval:log`) but not batch-run |
 
-### Known false-pass examples (grader gaps — fix in 7.2)
+### Known false-pass examples (fixed in **7.2** ✅)
 
-| Case | Bad spec that passes today | Fix in 7.2 |
+| Case | Bad spec that **used to** pass | Fix in 7.2 |
 |------|---------------------------|-------------|
 | **UC1** `static-browse-v0.2` | Single `browse` operation | `minCount: 2` for browse; static `data.mode`; incidents + teams evidence |
 | **UC2** `crud-admin-v0.2` | `delete` on browse row | Placement assertion: delete on **read** host |
@@ -3449,8 +3453,8 @@ Code pointers: `lib/eval/scoreRun.ts` (presence-only on `operationTypes`); `eval
 3. TELEMETRY       api_events + agent_runs written during run (same as prod)
         │          On failure without save: POST terminal failed/abandoned
         ▼
-4. SCORE           OUTCOME: 7.2 grader → artifactPassed
-        │          PROCESS: processMetrics.ts → validate attempts, latency, http_status
+4. SCORE           OUTCOME: 7.2 grader → passed (artifact) + assertion results
+        │          PROCESS: validate attempts, turns, latency → trial numbers (7.3/7.4)
         │          CONVERSATION: human sample → model-selection doc (optional LLM rubric v0.3+)
         ▼
 5. PERSIST         eval_trials (automated) or eval_runs (manual Path B)
@@ -3473,7 +3477,7 @@ Path A (RapidUI Agent): **`guided`** mode with `conversationScript`. Path B (ext
 
 ### Goal
 
-Ship **v0.2** when **7.1–7.7** are complete (plus Phases 0–6): portfolio polish, trusted eval harness, eval UI, and evidence-based model selection (**O5** / **7.7**).
+Ship **v0.2** when **7.1–7.7** are complete (plus Phases 0–6): portfolio polish, trusted eval harness, eval UI, and evidence-based model selection (**S10** / **7.7**).
 
 **Principle:** Grader and runner must be trusted **before** the model matrix — that is **build order within Phase 7**, not permission to ship without them.
 
@@ -3489,7 +3493,7 @@ Phase 6 tells you *what happened*; Phase 7 asks *was the result correct, and was
 | **7.4** | Trial persistence (`eval_trials`) | ✅ Required | **7.3** |
 | **7.5** | Behavioral variants | ✅ Required | **7.3** |
 | **7.6** | Minimal eval UI | ✅ Required | **7.4** + Phase 6 UI ✅ |
-| **7.7** | Model/prompt comparison (**O5**) | ✅ Required | **7.2–7.5**; build last |
+| **7.7** | Model/prompt comparison (**S10**) | ✅ Required | **7.2–7.5**; build last |
 
 **Critical path:** `7.2` → `7.3` → `7.4` → `7.5` → `7.6` → `7.7`. **7.1** runs in parallel with **7.2**.
 
@@ -3522,7 +3526,7 @@ flowchart LR
 | **7.4** | `eval_trials` persistence |
 | **7.5** | Behavioral variants (model discrimination) |
 | **7.6** | `/observe/evals` UI |
-| **7.7** | `eval:matrix`, `model-selection-v0.2.md` (**O5**) |
+| **7.7** | `eval:matrix`, `model-selection-v0.2.md` (**S10**) |
 
 **Build order ≠ partial ship:** **7.1** may run parallel with **7.2**; **7.7** runs last — but v0.2 tags only when **all** are done.
 
@@ -3532,36 +3536,211 @@ flowchart LR
 |---------|-------------------|----------------|
 | **Question** | *What happened?* | *Was the result correct? Was the path OK?* |
 | **Outcome layer** | Display `agent_runs.outcome` + inference | Grader on saved spec; no save = artifact fail |
-| **Process layer** | Display metrics (honest sources) | **Score** against case caps — separate from artifact pass |
+| **Process layer** | Display metrics (honest sources) | **Record** numbers on trial; compare to caps in UI — **does not change `passed`** |
 | **Validate attempts** | `countValidateAttempts()` from **`api_events`** | Same helper in **`processMetrics.ts`** |
 | **Platform calls** | `countPlatformApiCalls()` from **`api_events`** | Optional process cap / diagnostics |
 | **Latency** | p50/p95 on saved runs ([Appendix E](#appendix-e--agent-latency-metrics-phase-6)) | Per-trial `latency_ms` for `maxLatencyMs` |
 | **HTTP failures** | `api_events.http_status` (006) | `failure_owner: infra` when transport/storage errors |
 | **Terminal outcomes** | Agent + New chat + inference | Eval runner POSTs `failed`/`abandoned` on timeout |
 | **UI** | Session drill-down timelines | **7.6** links to Phase 6 — never duplicates timelines |
+| **Process display** | Metrics on session/run rows | **7.6** shows counts vs caps — not a second Pass/Fail badge |
+
+### Eval system specification (locked — 2026-08-03)
+
+**Canonical reference for eval semantics.** All Phase 7 sub-phases, code, and UI must align here. Supersedes earlier drafts that used `artifactPassed`, `process_within_target`, or multi-value quality `status` enums.
+
+**Reference doc:** [rapidui-v0.2.md §14](./rapidui-v0.2.md#14-eval-harness) (philosophy); this section is the **implementation contract**.
+
+#### Purpose — the improvement loop
+
+RapidUI evals exist so the builder can **run → measure → improve → regression-check** a living agent + platform system. Operational UI correctness is the **primary guarantee**; agent efficiency is a **separate tuning signal**.
+
+```txt
+Change (API / prompt / model / cases)
+        → run evals
+        → see pass rate + assertion breakdown + process numbers
+        → fix the right lever (Appendix C order)
+        → confirm no regression vs baseline
+        → add edge cases from failures
+        → repeat
+```
+
+#### Two speeds of eval
+
+| Speed | What | Cost | When | Answers |
+|-------|------|------|------|---------|
+| **Deterministic** | Grader + golden RUIs + mutation fixtures | Free (no LLM) | Every PR (**7.2** CI) | Did we break grader, validator, or platform? |
+| **Live agent** | `eval:run` / `eval:matrix` with real LLM | $ + time | After prompt/model changes; pre-release batches | Can agents still produce correct UI specs? |
+| **Manual (Path B)** | `eval:prompt` → agent → `eval:log` | Human time | Exploratory; external agents | Does this workflow work? |
+
+Regression **trust** starts with deterministic speed. Live trials measure **agent quality** once the grader is trusted.
+
+#### Vocabulary — one primary result
+
+| Term | Meaning | User-facing label |
+|------|---------|-------------------|
+| **`passed`** | Saved RUI passes **all** assertions | **Pass** |
+| **`passed: false`** | Saved RUI fails one or more assertions | **Fail** |
+| **No spec saved** | Run did not produce a scoreable artifact | **Incomplete** |
+
+**`passed` has one meaning everywhere:** the operational UI spec is correct. No `overallPassed`, no `artifactPassed` duplicate, no second “passed” for process.
+
+**Process is not pass/fail.** Store raw numbers; compare to caps at **display** time:
+
+```txt
+Result:     Pass          ← passed (artifact)
+Validates:  3 / 5 max     ← red when over cap (agent tuning signal)
+Turns:      2 / 4 max
+Latency:    45s / 120s max
+```
+
+A correct spec with 8/5 validates is still **`passed: true`** — validates shown in red for prompt/model work.
+
+#### Trial run state (not quality score)
+
+Separate from **`passed`** — describes whether scoring happened:
+
+| `run_state` | Meaning |
+|-------------|---------|
+| **`complete`** | Run finished; spec retrieved and scored (pass or fail) |
+| **`incomplete`** | No saved spec to score (timeout, abandoned, script exhausted) |
+| **`error`** | Infra/runner failure before meaningful score |
+
+Do **not** overload `run_state` with assertion pass/fail. **`passed`** is only set when `run_state === complete` and a spec was scored.
+
+#### Three layers (how they map — no duplicate booleans)
+
+| Layer | Question | v0.2 expression | Automate? |
+|-------|----------|-----------------|-----------|
+| **1. Outcome** | Is the final saved RUI correct? | **`passed`** + `assertions[]` results | ✅ Primary gate |
+| **2. Process** | Was the path efficient? | **Numbers vs caps** on trial record | ✅ Recorded; **not** a second Pass/Fail |
+| **3. Conversation** | Was the dialogue helpful? | Human sample; optional LLM rubric v0.3+ | ❌ Sampled |
+
+**Principle:** Score the **artifact**, not the transcript. No save → **Incomplete** (not “failed assertions”).
+
+#### Case schema — `successCriteria.assertions[]`
+
+**Source of truth** for what “correct operational UI” means per case. Migrate UC1–UC3 off legacy flat fields (`requiredOperations`, etc.) in **7.2**.
+
+```json
+{
+  "successCriteria": {
+    "mustValidate": true,
+    "maxRetries": 5,
+    "maxUserTurns": 4,
+    "maxLatencyMs": 120000,
+    "assertions": [
+      { "id": "uc1-browse-count", "kind": "operationCount", "type": "browse", "minCount": 2 },
+      { "id": "uc1-static-mode", "kind": "dataMode", "type": "browse", "mode": "static" },
+      { "id": "uc1-route-incidents", "kind": "operationRoute", "type": "browse", "route": "/incidents" },
+    { "id": "uc1-route-teams", "kind": "operationRoute", "type": "browse", "route": "/teams" },
+    { "id": "uc3-act-on-detail", "kind": "embeddedAction", "type": "act", "hostOperationType": "read", "minCount": 2 },
+    { "id": "uc2-delete-on-read", "kind": "embeddedAction", "type": "delete", "hostOperationType": "read", "minCount": 1 },
+      { "id": "v4-no-row-act", "kind": "forbiddenEmbeddedAction", "type": "act", "hostOperationType": "browse" }
+    ]
+  }
+}
+```
+
+Caps (`maxRetries`, `maxUserTurns`, `maxLatencyMs`) are **limits for display and later analysis** — recorded on the trial in **7.3/7.4**, not folded into `passed` in **7.2**.
+
+`mustValidate` is a **runner process check** (**7.3**) — not an artifact assertion.
+
+#### Canonical assertion kinds (**7.2** — Zod discriminated union)
+
+| `kind` | Fields (minimum) | Used in |
+|--------|------------------|---------|
+| `operationCount` | `type`, `minCount`, optional `maxCount` | UC1–UC3 |
+| `operationRoute` | `type`, `route` | UC1 (`/incidents`, `/teams`) |
+| `dataMode` | `type`, `mode` (`static` \| `api`) | UC1 |
+| `embeddedAction` | `type`, `hostOperationType`, `minCount` | UC2, UC3 |
+| `forbiddenEmbeddedAction` | `type`, `hostOperationType` | **7.5** variants (implement in **7.2**) |
+| `transitionTriggers` | `triggers[]` | UC2, UC3 |
+| `dataPath` | `method`, `path` | UC2, UC3 |
+
+Use **`operationCount`** with `minCount: 1` for required operation types — no separate `operationTypes` kind.
+
+**Collector requirement:** `lib/eval/collectOperations.ts` must index operations by type, route, host for embedded actions, and data paths — not type-presence only.
+
+#### Path B persistence — `eval:log` / `eval_runs`
+
+| Field | v0.2 behavior |
+|-------|----------------|
+| **`score_details.assertions[]`** | All new runs (**7.2**+) — same shape as grader output. No flat `missingOperations` for new runs. |
+| **`session_id`** | Nullable column on **`eval_runs`** (**7.4** migration **008**). Set when `eval:log` receives `--session-id` or EVAL_RESULT block field — enables **7.6** link to Observe for Path B. |
+| **`blocks_found`** | Legacy v0.1 teaser column — keep populating operation-type summary for `/observe/evals` teaser; **not** used for pass/fail after **7.2**. |
+
+**Dropped on `eval_runs`:** model, prompt, token, latency column extensions — those live on **`eval_trials`** only.
+
+Existing DB rows unchanged; legacy `score_details` flat fields may remain on old rows.
+
+#### Grader output — `ScoreResult` (**7.2**)
+
+```typescript
+type ScoreResult = {
+  passed: boolean;                 // artifact: all assertions pass
+  assertions: AssertionResult[]; // id, pass/fail, expected, actual, evidence
+};
+```
+
+No `artifactPassed`, `processWithinTarget`, or quality `status` enum on the grader. **Do not** fold `maxRetries`, `maxUserTurns`, or `mustValidate` into **`passed`** — remove legacy `retryExceeded` / `userTurnsExceeded` from `scoreRun.ts` in **7.2**. Process fields arrive on the **trial envelope** when the runner persists (**7.4**).
+
+#### Trial record — `eval_trials` (**7.4**)
+
+Simplified from earlier drafts:
+
+| Column group | Fields |
+|--------------|--------|
+| Identity | `id`, `experiment_id`, `trial_index`, `session_id` |
+| Config snapshot | `eval_case_id`, `case_hash`, `model`, `prompt_version`, `eval_mode`, … |
+| **Outcome** | **`passed`** (artifact), `assertion_results` JSONB |
+| **Run state** | **`run_state`**: `complete` \| `incomplete` \| `error`; `failure_owner`, `failure_stage`, `failure_code` |
+| **Process (numbers only)** | `user_turns`, `validate_attempts`, `latency_ms`, `tokens_in`, `tokens_out` |
+| Trace | `transcript_jsonb`, `final_spec_id`, timestamps |
+
+**Removed:** `artifact_passed` (use `passed`), `process_within_target` (derive over-cap highlights in UI from numbers + case caps).
+
+#### Eval UI (**7.6**) — columns
+
+| Column | Source |
+|--------|--------|
+| **Result** | Pass / Fail / Incomplete (from `passed` + `run_state`) |
+| **Case** | `eval_case_id` |
+| **Config** | model + prompt version |
+| **Validates** | `validate_attempts` / `maxRetries` — red when over |
+| **Session** | link → Observe agent session |
+
+Detail view: assertion breakdown + process numbers + link out (never duplicate Observe timelines).
+
+#### CI and release gates (deferred)
+
+**7.2** ships **deterministic** grader CI (goldens + mutations + malformed cases) — cheap, every PR.
+
+**Live LLM trial gates** (block release on pass rate, process caps as hard failures) are **deferred** until substantial baseline data exists from **7.3–7.7** runs. Until then, live trials are for measurement and improvement, not blocking gates.
+
+#### Explicitly rejected (do not reintroduce)
+
+- `overallPassed`, `artifactPassed` alongside `passed`
+- `process_within_target` boolean — use numbers + UI comparison
+- Quality `status` enums with overlapping pass/fail semantics (`artifact_passed`, `process_exceeded`, …)
+- Legacy flat `requiredOperations` / `requiredEmbeddedActions` as scoring source of truth after **7.2**
+- Process cap failure flipping **`passed`** to false when assertions pass
+- Blocking live-LLM PR gates before baseline data
 
 ### Eval strategy (summary)
 
-Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strategy). Generic use cases, scaling, LLM judge policy, and failure triage live there — not repeated here.
+Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strategy). Generic use cases, scaling, LLM judge policy, and failure triage live there.
 
-#### Three layers
-
-| Layer | Question | Automate? | Where |
-|-------|----------|-----------|-------|
-| **1. Outcome** | Is the **final saved RUI** correct? | ✅ Primary gate | Grader (`lib/eval/scoreRun.ts` → `eval_trials`) |
-| **2. Process** | Was the path **efficient**? | ✅ Tie-breaker | `processMetrics.ts` + Phase 6 P0 helpers |
-| **3. Conversation** | Was the **dialogue** helpful? | ❌ Sampled (v0.2) | Human rubric; optional LLM rubric v0.3+ ([Appendix C](#appendix-c--agent-strengthening-tracing--eval-strategy)) |
-
-**Principle:** Score the **artifact**, not the transcript. No save = fail.
+**Semantics:** [Eval system specification](#eval-system-specification-locked--2026-08-03) above is authoritative.
 
 #### Core rules (locked)
 
 1. **Grader → runner → matrix** — no model comparison on a shallow grader.
 2. **Scripted user for fairness** — `conversationScript` with `after_agent_reply` trigger.
 3. **Start small** — canonical UC1–UC3 first; behavioral variants in **7.5**; exclude UC4 until `load_spec`.
-4. **Separate artifact from process** — artifact pass + process warning ≠ silent overall fail.
-5. **Infra ≠ model failure** — classify via `http_status` and `failure_owner`.
-6. **CI** — blocking: grader/schema/runner tests (**7.2**); non-blocking: live LLM trials on PRs.
+4. **`passed` = artifact only** — process metrics are numbers vs caps, not a second Pass/Fail.
+5. **Infra ≠ model failure** — classify via `http_status` and `failure_owner`; **Incomplete** / `run_state: error`.
+6. **CI (deterministic only in 7.2)** — blocking grader/schema tests; live LLM gates deferred until baseline data.
 7. **Evidence-based model selection** — behavioral variants discriminate when canonical cases saturate.
 
 #### What we are not building (v0.2)
@@ -3571,7 +3750,7 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 - Treating Phase 5 manual demos as regression coverage
 - Using `smoke:eval` positive-only as grader trust signal
 - LLM-as-judge as primary artifact gate
-- Blocking live-LLM PR gate initially
+- Blocking live-LLM PR gate initially (live trial release gates deferred until baseline data — see [Eval system spec](#eval-system-specification-locked--2026-08-03))
 - Eval UI duplicating Observe timelines
 - Interactive eval playground in browser
 - UC4 in automated suite before `load_spec`
@@ -3604,13 +3783,20 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 
 | Topic | Decision | Lock when |
 |-------|----------|-----------|
+| **Eval semantics** | [Eval system specification](#eval-system-specification-locked--2026-08-03) — `passed` = artifact only; `assertions[]`; process = numbers | **7.2** |
+| **Assertion kinds** | Canonical Zod union — see [Canonical assertion kinds](#canonical-assertion-kinds-7.2--zod-discriminated-union) | **7.2** |
+| **UC1 routes** | `operationRoute` `/incidents` + `/teams` — not count alone | **7.2** cases |
+| **Path B `score_details`** | New runs store `assertions[]` results — no flat `missingOperations` | **7.2** `eval:log` |
+| **Path B `session_id`** | Nullable on `eval_runs` — Observe cross-link for manual runs | **7.4** migration **008** |
+| **Path B / eval_runs ownership** | **`eval_runs`** = Path B minimal (`session_id` **008**, `score_details.assertions[]`); **`eval_trials`** = eval lab | [Eval system spec — Path B persistence](#path-b-persistence--evallog--eval_runs) · **7.4** |
 | **Transcript storage** | `transcript_jsonb JSONB NULL` on `eval_trials` | **7.4** migration |
 | **Legacy `eval_runs`** | `eval:log` → `eval_runs` (Path B); `eval:run` → `eval_trials` (Path A) | **7.4** |
 | **CI test runner** | Vitest for `lib/eval/__tests__/` + smoke scripts | **7.2** |
-| **`maxLatencyMs`** | On `SuccessCriteria` in **7.2**; enforce in **7.3** | **7.2** / **7.3** |
+| **`maxLatencyMs`** | On `SuccessCriteria` in **7.2**; recorded on trial in **7.3/7.4** | **7.2** types / **7.4** persist |
 | **`mustValidate`** | Runner process assertion in **7.3** — not artifact grader | **7.2** contract / **7.3** runner |
+| **Live LLM CI gates** | Deferred until baseline data from **7.3–7.7** | Post-v0.2 tuning |
 
-**CI workflow (7.2):** `.github/workflows/eval-grader.yml` — blocking: schema, golden, mutation, malformed; non-blocking: live LLM trials.
+**CI workflow (7.2):** `.github/workflows/eval-grader.yml` — blocking: deterministic grader (schema, golden, mutation, malformed). Live LLM trials non-blocking; release gates on pass rate deferred.
 
 ---
 
@@ -3693,64 +3879,58 @@ Portfolio UX fixes shipped after Phase 5/6 sign-off; supersedes wireframe rows i
 
 **Gate:** Complete before trusting live automated pass rates or building `eval:run`.
 
-### Repo audit (2026-07-31)
+### Repo audit (2026-07-31 → **7.2 shipped 2026-08-03**)
 
-| Item | Status | Risk / path |
-|------|--------|-------------|
-| `lib/eval/scoreRun.ts` | Presence-only | See [false-pass table](#pre-phase-7-audit-2026-07-31) |
-| `mustValidate` | Inert after save | Process assertion belongs in **7.3** runner |
-| `maxUserTurns` | Implemented | Not passed by `scripts/log-eval-run.ts` CLI |
-| Case schema | No runtime validation | No count/placement/forbidden assertions |
-| `smoke:eval` | Golden positive only | Not a grader trust signal |
-| Forbidden assertions | Missing | Needed for **7.5** contradiction variants |
-| CI workflow | Missing | No `.github/workflows/eval-grader.yml` |
+| Item | Status | Notes |
+|------|--------|-------|
+| `lib/eval/scoreRun.ts` | ✅ | `passed` from `assertions[]` only |
+| `mustValidate` | Deferred | Process assertion in **7.3** runner |
+| `maxUserTurns` | Deferred | Recorded on trial in **7.3/7.4**; `--user-turns` on `eval:log` |
+| Case schema | ✅ | Zod validation on load; UC1–UC3 on `assertions[]` |
+| `smoke:eval` | ✅ | Golden positives + inline mutation checks |
+| Forbidden assertions | ✅ | `forbiddenEmbeddedAction` kind implemented |
+| CI workflow | ✅ | `.github/workflows/eval-grader.yml` |
 
 ### Resolved decisions
 
 | Question | Decision |
 |----------|----------|
-| **Hard artifact gates** | Save produced spec id; runner retrieved spec; validator passes; all assertions pass. |
+| **Hard artifact gates** | Save produced spec id; runner retrieved spec; validator passes; all assertions pass → **`passed: true`**. |
 | **`mustValidate`** | **Process assertion** in **7.3** runner — not artifact grader. |
-| **Process vs artifact** | Report **`artifactPassed`**, **`processWithinTarget`**, **`status`** separately. |
-| **Terminology** | `validateAttempts` = total validate calls; compare `maxRetries` to `max(0, validateAttempts - 1)`. |
+| **Process vs artifact** | See [Eval system specification](#eval-system-specification-locked--2026-08-03): **`passed`** = artifact only; process = numbers on trial, not second Pass/Fail. |
+| **Case schema** | **`successCriteria.assertions[]`** — migrate UC1–UC3 off legacy flat fields. |
+| **Terminology** | `validateAttempts` = total validate calls; compare to `maxRetries` at display time. |
 
-### Scope — assertion vocabulary (minimum)
+### Scope — assertion vocabulary (**7.2** canonical union)
 
-Extend **`eval/types.ts`** + **`lib/eval/scoreRun.ts`** (or **`lib/eval/assertions.ts`**) with runtime-validated cases:
+Implement the **`kind`** values from [Eval system specification — Canonical assertion kinds](#canonical-assertion-kinds-7.2--zod-discriminated-union). Persist **per-assertion results**: stable `id`, pass/fail, expected, actual, evidence (operation id or path).
 
-| Assertion kind | Example |
-|----------------|---------|
-| Operation count / min count | UC1: `minCount: 2` for `browse` |
-| Operation type + entity | UC2: browse entity = users |
-| Data mode | UC1: `static` on browse ops |
-| Embedded action placement | UC2: `delete` on **read** host; UC3: two `act` on detail |
-| Transition relationships | source/target when needed |
-| Required fields, filters, routes, scopes, metrics | Per case |
-| Forbidden ops/actions/paths | **7.5** contradiction variants |
-| Preservation | UC4 update cases (when `load_spec` exists) |
-
-Persist **per-assertion results**: stable id, pass/fail, expected, actual, evidence path or operation id.
+**Deferred to later phases:** transition source/target relationships, preservation assertions (UC4), entity label matching — use `operationRoute` for UC1 instead.
 
 ### UC1–UC3 criteria fixes (initial)
 
+**Example UC3 assertions (`ai-review-queue-v0.2`):** see reference [§14](./rapidui-v0.2.md#14-eval-harness) — `embeddedAction` act `minCount: 2` on read + approve/reject `dataPath`s.
+
 | Case | Minimum tightening |
 |------|-------------------|
-| **static-browse-v0.2** | Two browse operations; static data mode; incidents + teams entities |
-| **crud-admin-v0.2** | Delete on detail/read; company scope; required CRUD paths |
-| **ai-review-queue-v0.2** | Two `act` on detail; approve + reject paths |
+| **static-browse-v0.2** | `operationCount` browse ≥ 2; `dataMode` static; `operationRoute` `/incidents` + `/teams` |
+| **crud-admin-v0.2** | CRUD op counts; `embeddedAction` delete on read; `transitionTriggers`; CRUD `dataPath`s |
+| **ai-review-queue-v0.2** | browse + read; two `embeddedAction` act on read; approve + reject `dataPath`s |
 
-Update **`eval/cases/*.json`** `successCriteria`; ensure goldens still pass.
+Update **`eval/cases/*.json`** `successCriteria.assertions`; retire legacy flat fields for UC1–UC3; ensure goldens still pass.
 
 ### Task list (7.2)
 
-1. **`eval/types.ts`** — assertion types + Zod schema; `maxLatencyMs?: number`; `ScoreResult` with `artifactPassed`, `processWithinTarget`, `status`; per-assertion result type.
+1. **`eval/types.ts`** — canonical assertion Zod discriminated union + `ScoreResult` (`passed`, `assertions[]`) per [Eval system spec](#eval-system-specification-locked--2026-08-03).
 2. **`lib/eval/validateCase.ts`** — runtime validate on load.
-3. **`lib/eval/assertions.ts`** — evaluate assertions against normalized RUI.
-4. **`lib/eval/scoreRun.ts`** — `artifactPassed`, assertion results array, structured `scoreDetails`.
-5. **Fix UC1–UC3 case JSON** — tightened criteria aligned with goldens.
-6. **`lib/eval/__tests__/`** (Vitest) + **`scripts/smoke-eval.ts`** — positive, mutation negatives, malformed, no-spec.
-7. Update **`log-eval-run.ts`** — pass `userTurns` when available.
-8. **`.github/workflows/eval-grader.yml`** — blocking CI on PR.
+3. **`lib/eval/collectOperations.ts`** — extend collector: ops by type/route, embedded actions with host op, data paths (required for placement/forbidden assertions).
+4. **`lib/eval/assertions.ts`** — evaluate assertions against normalized RUI.
+5. **`lib/eval/scoreRun.ts`** — **`passed`** from assertions only; remove process caps and `mustValidate` from `passed` calculation.
+6. **Fix UC1–UC3 case JSON** — `assertions[]` aligned with goldens.
+7. **Vitest** — add devDependency + config (net-new infra); **`lib/eval/__tests__/`** mutation + malformed tests.
+8. **`scripts/smoke-eval.ts`** — golden positives + mutation coverage.
+9. **`log-eval-run.ts`** — persist `assertions[]` in `score_details`; keep `blocks_found` teaser summary; pass `userTurns` when available.
+10. **`.github/workflows/eval-grader.yml`** — blocking deterministic grader CI on PR.
 
 ### Files to create / modify (7.2)
 
@@ -3766,6 +3946,8 @@ lib/eval/collectOperations.ts
 scripts/smoke-eval.ts
 scripts/log-eval-run.ts
 lib/eval/__tests__/
+vitest.config.ts
+package.json                    # vitest devDependency + test script
 .github/workflows/eval-grader.yml
 ```
 
@@ -3781,13 +3963,15 @@ lib/eval/__tests__/
 
 ### Checklist (7.2)
 
-- [ ] Runtime case validation (Zod) on load
-- [ ] UC1–UC3 criteria tightened; goldens pass
-- [ ] Negative + mutation grader tests in CI (Vitest + workflow)
-- [ ] Per-assertion results in score output
-- [ ] `artifactPassed` separated from process caps; `maxLatencyMs` on `SuccessCriteria`
-- [ ] `mustValidate` documented as runner process assertion (**7.3**)
-- [ ] `.github/workflows/eval-grader.yml` blocking on PR
+- [x] Runtime case validation (Zod) on load — canonical assertion union
+- [x] UC1–UC3 migrated to `assertions[]`; goldens pass (incl. UC1 `operationRoute`)
+- [x] `collectOperations.ts` supports placement/forbidden/route assertions
+- [x] Vitest added + `lib/eval/__tests__/` mutation + malformed tests
+- [x] Negative + mutation grader tests in CI (Vitest + workflow)
+- [x] Per-assertion results in score output; **`eval:log`** writes `assertions[]` to `score_details`; `blocks_found` documented as teaser-only
+- [x] **`passed`** = artifact only — no `retryExceeded` / `userTurnsExceeded` in grader
+- [x] `mustValidate` documented as runner process assertion (**7.3**)
+- [x] `.github/workflows/eval-grader.yml` blocking deterministic tests on PR
 
 ---
 
@@ -3829,7 +4013,7 @@ lib/eval/__tests__/
 6. **If stopped without save:** POST terminal `failed` or `abandoned` via ingest.
 7. Retrieve saved spec from Postgres (when saved).
 8. Pull process metrics via **`processMetrics.ts`** — **`api_events`** primary.
-9. Score artifact (**7.2** grader) + process caps separately.
+9. Score artifact (**7.2** grader) → **`passed`** + assertion results; record process numbers on trial (**7.4**).
 10. Persist trial result (**7.4** schema — stub OK until migration).
 11. Batch: continue after individual failure; exit non-zero when required trials fail.
 
@@ -3845,13 +4029,15 @@ lib/eval/__tests__/
 
 ### `processMetrics.ts` contract
 
+Collects process **numbers** for the trial record. Comparison to case caps happens at **display** time (**7.6**) — does **not** change grader **`passed`**. See [Eval system specification](#eval-system-specification-locked--2026-08-03).
+
 | Input | Source | Output / use |
 |-------|--------|--------------|
 | `sessionId` | runner | — |
-| Validate attempts | `countValidateAttempts(sessionId)` | compare to `maxRetries` |
+| Validate attempts | `countValidateAttempts(sessionId)` | `validate_attempts` on trial; UI vs `maxRetries` |
 | Platform calls | `countPlatformApiCalls(sessionId)` | diagnostics |
-| Run latency | `agent_runs.latency_ms` | compare to `maxLatencyMs` |
-| Infra failures | `api_events.http_status` (5xx, gate 400) | `failure_owner: infra` |
+| Run latency | `agent_runs.latency_ms` | `latency_ms` on trial; UI vs `maxLatencyMs` |
+| Infra failures | `api_events.http_status` (5xx, gate 400) | `run_state: error`, `failure_owner: infra` |
 
 Primary authority: **`api_events`** (Phase 6 P0).
 
@@ -3886,40 +4072,52 @@ agent/README.md
 
 **Goal:** Append-only trial snapshots — not mutable interpretation of v0.1 `eval_runs` rows.
 
-### Schema — migration `007_eval_trials.sql` (`006` = Phase 6 P0 `http_status`)
+### Schema — migrations **`007_eval_trials.sql`** + **`008_eval_runs_session.sql`**
 
-**New table `eval_trials`** (legacy `eval_runs` stays for Path B manual):
+(`006` = Phase 6 P0 `http_status`)
+
+**`007` — new table `eval_trials`** (Path A automated):
 
 | Column group | Fields |
 |--------------|--------|
 | Identity | `id`, `experiment_id`, `trial_index`, `session_id` |
 | Config snapshot | `eval_case_id`, `case_hash`, `agent`, `base_url`, `model`, `provider`, `prompt_version`, `prompt_hash`, `eval_mode`, `git_commit`, `git_dirty`, `runner_version`, `validation_version`, `registry_version` |
-| Result semantics | `status`, `artifact_passed`, `process_within_target`, `failure_owner`, `failure_stage`, `failure_code`, `failure_detail` |
-| Artifact | `final_spec_id`, `content_hash`, `assertion_results` JSONB |
-| Process | `user_turns`, `validate_attempts`, `validation_failures`, `tokens_in`, `tokens_out`, `latency_ms` |
+| Result semantics | **`passed`**, **`run_state`** (`complete` \| `incomplete` \| `error`), `failure_owner`, `failure_stage`, `failure_code`, `failure_detail` |
+| Artifact | `final_spec_id`, `content_hash`, **`assertion_results`** JSONB |
+| Process | `user_turns`, `validate_attempts`, `validation_failures`, `tokens_in`, `tokens_out`, `latency_ms` — **numbers only**; caps from case JSON at display time |
 | Trace | `transcript_jsonb JSONB NULL` — eval-only scripted transcript |
 | Conversation (v0.3+) | `conversation_scores JSONB NULL` — advisory only |
 | Baseline | `baseline_experiment_id` nullable |
 | Timestamps | `started_at`, `completed_at` |
+
+**`008` — alter `eval_runs`** (Path B cross-link only):
+
+```sql
+ALTER TABLE eval_runs ADD COLUMN IF NOT EXISTS session_id TEXT NULL;
+CREATE INDEX IF NOT EXISTS eval_runs_session_idx ON eval_runs (session_id) WHERE session_id IS NOT NULL;
+```
+
+**Not in v0.2:** full §14-style column extensions on `eval_runs` (model, prompt, tokens, etc.) — use **`eval_trials`**.
 
 ### Resolved decisions
 
 | Question | Decision |
 |----------|----------|
 | **Transcript storage** | `transcript_jsonb` on `eval_trials` — **7.6** reads this for scripted conversation display |
-| **Legacy `eval_runs`** | `eval:log` → `eval_runs` only; `eval:run` → `eval_trials` only |
+| **Legacy `eval_runs`** | `eval:log` → `eval_runs` only; `eval:run` → `eval_trials` only. **`eval_runs`** gets **`session_id`** only (**008**) — not full eval lab columns |
 | **Baseline comparison** | No regression delta when config dimensions differ — show config diff instead |
 
 ### Task list (7.4)
 
-1. Migration + register in **`scripts/migrate.ts`**.
+1. Migration **`007_eval_trials.sql`** + **`008_eval_runs_session.sql`** — register in **`scripts/migrate.ts`**.
 2. **`lib/db/evalTrials.ts`** — insert (append-only), list, get by id.
 3. Wire **`scripts/eval-run.ts`** to persist full envelope.
-4. **`lib/eval/caseHash.ts`** — hash case JSON for comparison guards.
+4. Wire **`scripts/log-eval-run.ts`** — accept optional `--session-id`; persist to **`eval_runs.session_id`**.
+5. **`lib/eval/caseHash.ts`** — hash case JSON for comparison guards.
 
 ### Checklist (7.4)
 
-- [ ] `eval_trials` table migrated (includes `transcript_jsonb`)
+- [ ] `eval_trials` table migrated (**007**); **`eval_runs.session_id`** migrated (**008**)
 - [ ] Automated runner persists complete trial snapshot
 - [ ] Case hash + config snapshot stored per trial
 - [ ] Baseline incompatibility rules documented in code/comments
@@ -3930,7 +4128,7 @@ agent/README.md
 
 **Prerequisite:** **7.3** runner trusted on canonical UC1–UC3.
 
-> **Why before 7.7:** Canonical cases may **saturate** across models. Behavioral variants are **required for v0.2** before the **7.7** matrix (O5).
+> **Why before 7.7:** Canonical cases may **saturate** across models. Behavioral variants are **required for v0.2** before the **7.7** matrix (**S10**).
 
 ### Scope
 
@@ -3953,7 +4151,7 @@ UC4 until `load_spec` · save-timeout without fault injection · LLM user simula
 
 **Prerequisite:** **7.4** populated by at least one `eval:run` batch. Phase **6 UI** ✅.
 
-**Design principle:** List → detail → link out. Answers *“what failed, under which config, artifact or process?”* — not a second Observe.
+**Design principle:** List → detail → link out. Answers *“Pass or Fail on the UI spec? Which assertions broke? How expensive was the agent path?”* — not a second Observe.
 
 ### Routes
 
@@ -3976,16 +4174,15 @@ Replace **`app/observe/evals/page.tsx`** placeholder.
 |--------|--------|
 | Started | `started_at` |
 | Case | `eval_case_id` |
-| Status | `status` |
-| Artifact | `artifact_passed` — separate badge |
-| Process | `process_within_target` — separate badge |
-| Failure | `failure_owner` / `failure_stage` |
+| **Result** | **Pass** / **Fail** / **Incomplete** — from `passed` + `run_state` ([Eval system spec](#eval-system-specification-locked--2026-08-03)) |
+| Validates | `validate_attempts` vs case `maxRetries` — highlight when over |
+| Turns | `user_turns` vs case `maxUserTurns` |
 | Model / Prompt / Mode | config snapshot |
 | Session | `session_id` — truncated + link |
 | Latency | `latency_ms` |
 | Experiment | `experiment_id` |
 
-**Filters:** failed; artifact fail; process warning; infra error; regressed vs baseline (compatible config only).
+**Filters:** failed; incomplete; infra error; regressed vs baseline (compatible config only); over validate cap (process tuning).
 
 **Empty state:** `npm run eval:run -- --case static-browse-v0.2` instructions.
 
@@ -3993,9 +4190,9 @@ Replace **`app/observe/evals/page.tsx`** placeholder.
 
 | Section | Content |
 |---------|---------|
-| **Summary** | Status, artifact pass, process OK, failure fields |
+| **Summary** | Result (Pass/Fail/Incomplete), `passed`, `run_state`, failure fields when set |
 | **Assertion breakdown** | Per-assertion pass/fail — primary debug surface |
-| **Process metrics** | turns, validate attempts, tokens, latency |
+| **Process metrics** | Validates, turns, latency vs case caps (numbers — not Pass/Fail badges) |
 | **Config snapshot** | case_hash, model, prompt, git_commit, runner_version, … |
 | **Transcript** | `transcript_jsonb` when present |
 | **Links** | → Agent session · → API session · → `/specs/[final_spec_id]` |
@@ -4004,6 +4201,8 @@ Replace **`app/observe/evals/page.tsx`** placeholder.
 #### Non-goals (MVP)
 
 Duplicate Observe timelines · live re-run from browser · cost columns (until **7.7** price table) · LLM judge panel (v0.3+)
+
+> **Placeholder copy (`app/observe/evals/page.tsx`):** update in **7.6** — trial table = **7.6**; grouped matrix = **7.7** only.
 
 ### Also in Checklist (7.6) — recommended
 
@@ -4038,9 +4237,9 @@ app/observe/page.tsx
 ### Checklist (7.6)
 
 - [ ] `/observe/evals` shows trial table from `eval_trials`
-- [ ] Separate **artifact** vs **process** badges
+- [ ] **Result** column: Pass / Fail / Incomplete (not parallel artifact/process Pass/Fail badges)
 - [ ] Trial detail with per-assertion breakdown
-- [ ] Process metrics + config snapshot on detail
+- [ ] Process metrics as numbers vs caps on detail
 - [ ] `failure_owner` / `failure_stage` visible when set
 - [ ] Cross-links to Agent + API Observe + spec
 - [ ] Transcript from `transcript_jsonb` when present
@@ -4050,9 +4249,9 @@ app/observe/page.tsx
 
 ---
 
-## Phase 7.7 — Model/prompt comparison (O5)
+## Phase 7.7 — Model/prompt comparison (S10)
 
-**Part of v0.2 MVP** — satisfies ship criterion **O5**. **Prerequisite:** **7.2–7.5** complete (grader, runner, persistence, behavioral variants).
+**Part of v0.2 MVP** — satisfies ship criterion **S10** (eval lab). **Prerequisite:** **7.2–7.5** complete (grader, runner, persistence, behavioral variants).
 
 ### Do not start until (7.7 build gate)
 
@@ -4141,25 +4340,25 @@ When an agent expands a phase, produce:
 
 > **As of 2026-07-31:** Closed loop is **partial** — Observe + manual `eval:log` only. Automated loop completes when Phase **7.2–7.7** ship (`eval:run` → `eval_trials` → `eval:matrix`). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
 
-**Interview line:** *“We separated outcome, process, and conversation. Outcome and process are automated; conversation is sampled. In production the human guides the agent — in evals, a script plays them so we compare models fairly.”*
+**Interview line:** *“Outcome is Pass or Fail on the saved UI spec — one meaning for `passed`. Process is how expensive the path was: validates, turns, latency — numbers, not a second pass/fail. Conversation we sample by hand. In evals, a script plays the human so we compare models fairly.”*
 
 ---
 
 ### The three layers — what we trace
 
-Every strengthening decision should map to one of these. **Do not optimize chat eloquence alone** — no saved spec = fail.
+Every strengthening decision should map to one of these. **Do not optimize chat eloquence alone** — no saved spec → **Incomplete**, not failed assertions.
 
 | Layer | Question | Role | Automate? | Where it lives |
 |-------|----------|------|-----------|----------------|
-| **1. Outcome** | Is the **final saved RUI** correct? | **Primary gate** — deterministic checklist on the artifact | ✅ | `lib/eval/scoreRun.ts` → `eval_runs` (manual) / `eval_trials` (automated, 7.4); goldens in `lib/operations/golden/` |
-| **2. Process** | Was the path there **efficient**? | Tie-breaker — turns, validate retries, tokens, latency, cost | ✅ | `api_events`, `agent_runs` / `agent_turns`, `eval_runs` process columns; caps in `successCriteria` (`maxRetries`, `maxUserTurns`, …) |
+| **1. Outcome** | Is the **final saved RUI** correct? | **Primary gate** — deterministic assertions on saved spec | ✅ | `passed` + `assertions[]` → `eval_runs` (manual) / `eval_trials` (automated, 7.4); goldens in `lib/operations/golden/` |
+| **2. Process** | Was the path there **efficient**? | **Tuning signal** — turns, validate retries, tokens, latency | ✅ record / ❌ not Pass/Fail | `validate_attempts`, `user_turns`, `latency_ms` on trial; caps in case JSON; compare at display time |
 | **3. Conversation** | Was the **dialogue** helpful? | Sampled quality — clarification, plan clarity, error recovery | ❌ v0.2; optional LLM rubric v0.3+ | Human rubric (2–3 runs per eval-matrix cell); notes in `docs/model-selection-v0.2.md`; see [LLM judge policy](#llm-judge-policy-scaling--layer-3-only) |
 
-**Outcome checklist examples** (from eval cases): `requiredOperations`, `requiredEmbeddedActions`, `requiredTransitions`, `requiredDataPaths`, `mustValidate`.
+**Outcome examples** (from eval cases): `successCriteria.assertions[]` — operation counts, placement, data mode, forbidden ops, data paths.
 
-**Process metrics examples:** `user_turns`, `validate_attempts`, `tokens_in` / `tokens_out`, `latency_ms`, `estimated_cost_usd`.
+**Process examples:** `user_turns`, `validate_attempts`, `tokens_in` / `tokens_out`, `latency_ms` — stored on trial; compared to `maxRetries`, `maxUserTurns`, `maxLatencyMs` in UI.
 
-**Principle:** Score the **artifact**, not the transcript. External agents (Path B) and RapidUI Agent (Path A) use the **same outcome checklist**; process differs by eval mode (`guided` vs `single-shot`).
+**Principle:** Score the **artifact**, not the transcript. No save → **Incomplete** (`run_state: incomplete`), not failed assertions.
 
 ---
 
@@ -4191,7 +4390,7 @@ Trace in Observe (+ Logfire for depth)
 Run evals — manual first (`eval:log`), then **`eval:run`** (7.3), then **`eval:matrix`** (7.7)
         │
         ▼
-Read failures — outcome checklist + process caps + Observe session drill-down
+Read failures — **`passed`** + assertion breakdown + process numbers + Observe session drill-down
         │
         ▼
 Change the right lever (see order below)
@@ -4199,7 +4398,7 @@ Change the right lever (see order below)
         └──► re-run evals → compare on /observe/evals → update model-selection doc
 ```
 
-Eval lab (**7.7** / **O5**) is part of **v0.2** — build after **7.2–7.5** (grader, runner, persistence, behavioral variants). Default **`o4-mini` + `v1`** until matrix confirms or changes default.
+Eval lab (**7.7** / **S10**) is part of **v0.2** — build after **7.2–7.5** (grader, runner, persistence, behavioral variants). Default **`o4-mini` + `v1`** until matrix confirms or changes default.
 
 ---
 
@@ -4294,7 +4493,7 @@ Patterns the harness supports — independent of `static-browse-v0.2` etc.
 
 - Input: `transcript_jsonb` + case intent — **not** full RUI replacement scoring
 - Output: `conversation_scores JSONB` on `eval_trials` — advisory only
-- **Never** override `artifact_passed` or `process_within_target`
+- **Never** override **`passed`** (artifact result)
 
 ---
 
@@ -4451,7 +4650,7 @@ Do **not** block v0.2 on these. Pick up after v0.2 ships or when there is real p
 | **One-click trace → dataset** | Braintrust, Langfuse | UI or CLI to promote Observe session to eval case |
 | **Alerting / drift monitors** | Langfuse monitors, Datadog LLM | Slack when pass rate, latency, or cost spikes |
 | **Trace clustering / Topics** | Braintrust Topics | Auto-group failure modes |
-| **LLM-as-judge (Layer 3 only)** | Common for open-ended chat | **Not v0.2.** Optional conversation rubric on `transcript_jsonb`; `conversation_scores JSONB` on trial; never overrides `artifact_passed`. See [LLM judge policy](#llm-judge-policy-scaling--layer-3-only) |
+| **LLM-as-judge (Layer 3 only)** | Common for open-ended chat | **Not v0.2.** Optional conversation rubric on `transcript_jsonb`; `conversation_scores JSONB` on trial; never overrides **`passed`**. See [LLM judge policy](#llm-judge-policy-scaling--layer-3-only) |
 | **Evals UI — comparison & trends** | Braintrust, Langfuse experiment UI | **7.6** list/detail + **7.7** matrix in v0.2; v0.3+ trends + judge panel |
 | **Full nested trace in Observe** | All platforms | Tool args/results in product UI — or keep Logfire-only |
 | **Cost dashboards** | Mastra, all platforms | After reasoning-token audit + versioned price table |
@@ -4561,7 +4760,7 @@ Aggregate cards filter `outcome = 'saved'`. Failed/abandoned durations aren’t 
 
 ### Phase 7 handoff
 
-Define **`maxLatencyMs`** in `eval/types.ts` `SuccessCriteria` (**7.2**); enforce in **`lib/eval/processMetrics.ts`** (**7.3**). Reads:
+Define **`maxLatencyMs`** in `eval/types.ts` `SuccessCriteria` (**7.2**); **record** on trial and compare in UI via **`lib/eval/processMetrics.ts`** (**7.3**). Reads:
 
 - **`countValidateAttempts`**, **`countPlatformApiCalls`** — Phase 6 P0 helpers on `api_events`
 - **`agent_runs.latency_ms`** — process caps ([Appendix E](#appendix-e--agent-latency-metrics-phase-6))
@@ -4573,7 +4772,7 @@ Separate from artifact grader pass/fail.
 
 ## Appendix F — Phase 7 document map
 
-**Added:** 2026-07-31 · **Updated:** 2026-08-01 (sub-phases renumbered **7.1–7.7**)  
+**Added:** 2026-07-31 · **Updated:** 2026-08-03 (eval semantics locked; sub-phases **7.1–7.7**)  
 **Purpose:** Entry point for Phase 7 — start here before reading sub-phase specs.
 
 ### Sub-phase quick reference
@@ -4586,14 +4785,15 @@ Separate from artifact grader pass/fail.
 | **7.4** | Trial persistence | ✅ Required |
 | **7.5** | Behavioral variants | ✅ Required |
 | **7.6** | Minimal eval UI | ✅ Required |
-| **7.7** | Model/prompt comparison (**O5**) | ✅ Required |
+| **7.7** | Model/prompt comparison (**S10**) | ✅ Required |
 
-**Critical path:** `7.2` → `7.3` → `7.4` → `7.5` → `7.6` → `7.7`. **7.1** parallel with **7.2**. **Ship v0.2 only when all rows complete.**
+**Critical path:** `7.2` → `7.3` → `7.4` → `7.5` → `7.6` → `7.7`. **7.1** parallel with **7.2**. **Ship v0.2 only when all rows complete** (reference **§15 S1–S10**).
 
 ### Where to read
 
 | Question | Read |
 |----------|------|
+| **Eval vocabulary — passed, assertions, process?** | **[Eval system specification](#eval-system-specification-locked--2026-08-03)** — start here |
 | What exists today vs gaps? | [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
 | Phase 7 overview + build order? | [Phase 7 — Polish + eval harness](#phase-7--polish--eval-harness) |
 | What to build first? | **7.2** → **7.3** → **7.4** → **7.5** → **7.6** → **7.7** (7.1 parallel with 7.2) |
@@ -4603,12 +4803,14 @@ Separate from artifact grader pass/fail.
 | Scaling story? | [Appendix C — Scaling](#scaling--what-grows-vs-what-stays-manual) |
 | LLM judge — when? | [Appendix C — LLM judge policy](#llm-judge-policy-scaling--layer-3-only) |
 | Evals UI — what to build? | [Phase 7.6](#phase-76--minimal-eval-ui) |
-| Open decisions? | [Phase 7 kickoff decisions](#phase-7-kickoff-decisions-locked) |
+| **7.2 kickoff (2026-08-03)?** | [Eval system spec](#eval-system-specification-locked--2026-08-03) · [7.2 checklist](#checklist-72) |
+| **`eval_runs` vs `eval_trials`?** | [Path B persistence](#path-b-persistence--evallog--eval_runs) · **7.4** migrations **007** + **008** |
+| Open decisions (Phase 7)? | [Phase 7 kickoff decisions](#phase-7-kickoff-decisions-locked) |
 | v0.2 ship gate? | [Build order](#build-order) · [v0.2 ship criterion](#v0-2-ship-criterion-locked) · **Checklist (7.1–7.7)** in each sub-phase |
-| Observability vs evals? | Phase 6 = *what happened*; Phase 7 = *was it correct* |
+| Observability vs evals? | Phase 6 = *what happened*; Phase 7 = *was the UI spec correct* + *process numbers for tuning* |
 | Industry context? | [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 | Latency / process caps? | [Appendix E](#appendix-e--agent-latency-metrics-phase-6) |
 
 ---
 
-*Scaffold created: 2026-07-18. Phase 0–6 complete (2026-07-31). Phase 7 (**7.1–7.7**) — active workstream; **v0.2 ships when Phase 7 complete**.*
+*Scaffold created: 2026-07-18. Phase 0–6 complete (2026-07-31). Phase 7 (**7.1–7.7**) — active workstream; **v0.2 ships when Phase 7 complete**. Eval system semantics locked 2026-08-03 — [Eval system specification](#eval-system-specification-locked--2026-08-03).*

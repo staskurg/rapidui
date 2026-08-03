@@ -17,8 +17,11 @@
     "mustValidate": true,
     "maxRetries": 5,
     "maxUserTurns": 4,
-    "requiredOperations": ["browse"],
-    "requiredTransitions": [],
-    "requiredDataPaths": []
+    "assertions": [
+      { "id": "uc1-browse-count", "kind": "operationCount", "type": "browse", "minCount": 2 },
+      { "id": "uc1-static-mode", "kind": "dataMode", "type": "browse", "mode": "static" },
+      { "id": "uc1-route-incidents", "kind": "operationRoute", "type": "browse", "route": "/incidents" },
+      { "id": "uc1-route-teams", "kind": "operationRoute", "type": "browse", "route": "/teams" }
+    ]
   }
 }
