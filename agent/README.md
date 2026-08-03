@@ -49,6 +49,30 @@ python scripts/chat_cli.py
 
 Uses `AGENT_URL` (default `http://localhost:8000`). Sends `X-RapidUI-Agent: rapidui-agent-cli`. Session id is printed on start; `/new` starts fresh. Optional env: `RAPIDUI_SESSION_ID`, `RAPIDUI_INTENT`.
 
+### Guided eval driver (Phase 7.3)
+
+Automated Path A runs use `scripts/eval_driver.py` — **not** `chat_cli.py`. The driver preserves full Vercel AI v6 assistant message parts (text, reasoning, `tool-*` with input/output) so multi-turn validate/save loops work.
+
+| Item | Value |
+|------|-------|
+| Script | `python scripts/eval_driver.py --config /path/to/config.json` |
+| Orchestrator | `npm run eval:run` from repo root (spawns driver, scores, posts terminal outcomes) |
+| Agent header | `X-RapidUI-Agent: rapidui-agent-eval` |
+| Eval case header | `X-RapidUI-Eval-Case: <caseId>` |
+| Output | stderr logs + stdout `---EVAL_DRIVER_RESULT---` JSON block |
+
+**Do not use `chat_cli.py` as the eval base** — it drops tool parts and breaks scripted multi-turn runs.
+
+Example (repo root, agent + platform running):
+
+```bash
+npm run eval:run -- --case=static-browse-v0.2
+npm run eval:run -- --all-cases
+npm run eval:run -- --case=static-browse-v0.2 --dry-run   # validate case only
+```
+
+Requires `OPENAI_API_KEY`, local agent (`uvicorn`), and platform (`npm run dev`) with `DATABASE_URL` in `.env.local`.
+
 ## POST /chat
 
 | Item | Value |
