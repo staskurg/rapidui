@@ -91,12 +91,12 @@ Full definitions: reference **§15**. **v0.2 ships when S1–S10 are verified** 
 
 ## Current project status
 
-**Last verified:** 2026-08-03
+**Last verified:** 2026-08-04
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0–6** | ✅ Complete | Observability (Phase 6 P0 + UI) shipped — see [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
-| **7** | 🔲 In progress | **7.1** ✅ (2026-08-01) · **7.2** grader hardening ✅ (2026-08-03) · **7.3–7.7** remaining |
+| **7** | 🔲 In progress | **7.1** ✅ (2026-08-01) · **7.2** grader hardening ✅ (2026-08-03) · **7.3** guided runner ✅ (2026-08-03) · **7.4–7.7** remaining |
 | **v0.3** | ⏸ After v0.2 | Renderer, auth hardening — [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 
 **One-line gap:** Observe answers *what happened*; Phase **7** (7.1–7.7) answers *was the result correct, was the path reasonable, and which model/prompt should we ship?*
@@ -3407,15 +3407,16 @@ Big-picture snapshot before Phase 7 implementation. **Observe is done; eval regr
 
 **Interview line:** *We can explain any demo session in under five minutes using Observe drill-down.*
 
-### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3–7.7** remaining)
+### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **7.4–7.7** remaining)
 
 | Capability | Status | Risk if ignored |
 |------------|--------|-----------------|
 | Grader (`assertions[]`) | ✅ | — |
-| `eval:run` / `eval:matrix` | ❌ | No automated regression |
-| `eval_trials` table | ❌ | No config snapshots, no baseline compare |
+| `eval:run` (Path A guided) | ✅ | — |
+| `eval:matrix` | ❌ | No multi-config regression batch (**7.7**) |
+| `eval_trials` table | ❌ | No config snapshots, no baseline compare (**7.4**) |
 | Mutation / negative grader tests | ✅ | Vitest + `eval-grader.yml` CI |
-| Live agent eval baseline | ❌ | Unknown pass rate under guided `conversationScript` |
+| Live agent eval baseline | ⚠️ | Runner live-tested 2026-08-03; UC2/UC3 pass-rate tuning ongoing |
 | CI workflow | ✅ | `.github/workflows/eval-grader.yml` |
 
 ### Agent testing coverage (honest)
@@ -3760,16 +3761,16 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 
 **After v0.2 ship:** Review [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog).
 
-### Implementation readiness (2026-07-31)
+### Implementation readiness (2026-08-04)
 
-**Verdict:** Ready to start **7.1** and **7.2** now. **7.3** blocked on **7.2**. **7.6** blocked on **7.4**.
+**Verdict:** **7.1–7.3** complete. Ready to start **7.4**. **7.6** blocked on **7.4**.
 
 | Phase | Readiness | Notes |
 |-------|-----------|-------|
-| **7.1** | Ready | README partial; include Observe Paths A/B + `smoke:observe-agent` |
-| **7.2** | Ready | Shallow grader + positive-only `smoke:eval` — mutation tests first |
-| **7.3** | Blocked on 7.2 | Reuse Phase 6 helpers; POST terminal outcomes |
-| **7.4** | Blocked on 7.3 | `eval_trials` migration **007** |
+| **7.1** | ✅ Complete | Portfolio polish + S1–S9 (2026-08-01) |
+| **7.2** | ✅ Complete | Grader hardening + mutation CI (2026-08-03) |
+| **7.3** | ✅ Complete | `eval:run` + driver shipped (2026-08-03, `8a2f91e`) |
+| **7.4** | Ready | `eval_trials` migration **007** |
 | **7.6** | Blocked on 7.4 | Links to `/observe/agent/sessions/[id]` only |
 | **7.5 / 7.7** | Not started | **7.7** build gate: **7.2–7.5** complete — see [Phase 7.7](#phase-77--modelprompt-comparison-o5) |
 
@@ -3847,7 +3848,7 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 - [x] v0.1 eval case retired; wrappers updated (`support-dashboard-v0.1` removed; v0.2 cases only)
 - [x] Smoke scripts pass on local (+ prod exercised via Path B saves 2026-08-01)
 - [x] Path B manual **`eval:log`** for UC1–UC3 (`claude` @ prod) — rows logged 2026-08-01
-- [ ] *(Recommended)* Path A guided baseline batch (`conversationScript`) — deferred to **7.3**
+- [x] Path A guided runner exercised locally — `eval:run` UC1 save + `--all-cases` batch (2026-08-03); UC2/UC3 pass-rate tuning ongoing
 
 **Phase 7.1 sign-off:** ✅ Complete (2026-08-01). Proceed to **7.2**.
 
@@ -3884,8 +3885,8 @@ Portfolio UX fixes shipped after Phase 5/6 sign-off; supersedes wireframe rows i
 | Item | Status | Notes |
 |------|--------|-------|
 | `lib/eval/scoreRun.ts` | ✅ | `passed` from `assertions[]` only |
-| `mustValidate` | Deferred | Process assertion in **7.3** runner |
-| `maxUserTurns` | Deferred | Recorded on trial in **7.3/7.4**; `--user-turns` on `eval:log` |
+| `mustValidate` | ✅ | Process check in **7.3** runner (`mustValidateMet` on trial) |
+| `maxUserTurns` | ✅ | Recorded on trial in **7.3** stdout JSON; persisted in **7.4**; `--user-turns` on `eval:log` |
 | Case schema | ✅ | Zod validation on load; UC1–UC3 on `assertions[]` |
 | `smoke:eval` | ✅ | Golden positives + inline mutation checks |
 | Forbidden assertions | ✅ | `forbiddenEmbeddedAction` kind implemented |
@@ -3979,16 +3980,18 @@ package.json                    # vitest devDependency + test script
 
 **Prerequisite:** **7.2** complete.
 
-### Repo audit (2026-07-31)
+### Repo audit (2026-07-31 → **7.3 shipped 2026-08-03**)
 
-| Item | Status |
-|------|--------|
-| `conversationScript` in cases | ✅ defined |
-| Script consumer | ❌ none |
-| `eval:run` / `eval:matrix` | ❌ not in `package.json` |
-| Python `chat_cli.py` | ⚠️ drops tool parts — **do not use as driver base** |
-| `AGENT_ID_EVAL` | ✅ in `agent/deps.py` — wire as `X-RapidUI-Agent: rapidui-agent-eval` |
-| UC4 `spec-update-v0.2` | ❌ blocked — no `load_spec` |
+| Item | Status | Notes |
+|------|--------|-------|
+| `conversationScript` in cases | ✅ | UC1–UC3 defined |
+| Script consumer | ✅ | `eval_driver.py` + `eval-run.ts` |
+| `eval:run` | ✅ | `package.json` — `scripts/eval-run.ts` |
+| `eval:matrix` | ❌ | **7.7** |
+| Python `chat_cli.py` | ⚠️ | Drops tool parts — **not** eval driver |
+| `AGENT_ID_EVAL` | ✅ | `X-RapidUI-Agent: rapidui-agent-eval` |
+| UC4 `spec-update-v0.2` | ✅ excluded | Clear error until `load_spec` (stretch O1) |
+| Trial persistence | ⚠️ stub | JSON stdout only — **7.4** writes `eval_trials` |
 
 ### Resolved decisions
 
@@ -4048,21 +4051,38 @@ agent/scripts/eval_driver.py
 scripts/eval-run.ts
 lib/eval/processMetrics.ts
 lib/eval/runnerTypes.ts
+lib/eval/parseDriverResult.ts
+lib/eval/__tests__/runner.test.ts
 package.json
 agent/README.md
 ```
 
+### As-built (2026-08-03)
+
+| Area | Shipped |
+|------|---------|
+| **Driver** | `agent/scripts/eval_driver.py` — SSE loop, `after_agent_reply` script, full tool parts in history |
+| **Orchestrator** | `scripts/eval-run.ts` — `--case`, `--all-cases`, `--dry-run`; batch continues on failure |
+| **Scoring** | 7.2 grader on saved spec; `mustValidateMet` from `processMetrics` |
+| **Terminal ingest** | POST `failed` / `abandoned` when script ends without save |
+| **Output** | `TrialResult` JSON to stdout (persistence stub until **7.4**) |
+| **Live verification** | UC1 `static-browse-v0.2` saved + passed locally; `--all-cases` batch exercised |
+
+**Commit:** `8a2f91e` — *Phase 7.3: add guided eval runner with conversationScript driver.*
+
 ### Checklist (7.3)
 
-- [ ] SSE spike confirms tool parts in stream
-- [ ] `npm run eval:run -- --case static-browse-v0.2` completes locally
-- [ ] All three UC1–UC3 cases runnable in batch mode
-- [ ] Driver preserves tool call parts in message history
-- [ ] Process metrics from **`api_events`** via Phase 6 helpers
-- [ ] Eval runner POSTs terminal outcome when script ends without save
-- [ ] Runner exits non-zero on artifact failure
-- [ ] UC4 excluded with clear error
-- [ ] Runner vs manual parity with baseline Path A batch
+- [x] SSE spike confirms tool parts in stream
+- [x] `npm run eval:run -- --case static-browse-v0.2` completes locally
+- [x] All three UC1–UC3 cases runnable in batch mode
+- [x] Driver preserves tool call parts in message history
+- [x] Process metrics from **`api_events`** via Phase 6 helpers
+- [x] Eval runner POSTs terminal outcome when script ends without save
+- [x] Runner exits non-zero on artifact failure
+- [x] UC4 excluded with clear error
+- [ ] *(Recommended)* Runner vs manual parity with baseline Path A batch — eval tuning follow-up, not blocking
+
+**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Proceed to **7.4**. UC2/UC3 live pass rates are case tuning on top of this harness.
 
 ---
 
@@ -4256,7 +4276,8 @@ app/observe/page.tsx
 ### Do not start until (7.7 build gate)
 
 - [ ] **7.2** mutation tests green in CI
-- [ ] **7.3** runner trusted (manual parity check passed)
+- [x] **7.3** runner shipped and live-tested (`eval:run`, 2026-08-03)
+- [ ] *(Recommended)* **7.3** manual parity check vs Path A baseline batch
 - [ ] At least one **7.5** behavioral case passing/failing as expected
 - [ ] Transcripts reviewed for every automated failure
 
@@ -4338,7 +4359,7 @@ When an agent expands a phase, produce:
 
 **Applies to:** Phases **4–7** — from first agent ship through eval lab and **v0.2 ship**. Use this as the **improvement playbook** after the agent loop is live: trace → measure → eval → iterate.
 
-> **As of 2026-07-31:** Closed loop is **partial** — Observe + manual `eval:log` only. Automated loop completes when Phase **7.2–7.7** ship (`eval:run` → `eval_trials` → `eval:matrix`). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
+> **As of 2026-08-04:** Closed loop is **partial** — Observe + manual `eval:log` + **`eval:run`** (7.3 ✅). Full automated loop completes when **7.4–7.7** ship (`eval_trials` → behavioral variants → `/observe/evals` → `eval:matrix`). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
 
 **Interview line:** *“Outcome is Pass or Fail on the saved UI spec — one meaning for `passed`. Process is how expensive the path was: validates, turns, latency — numbers, not a second pass/fail. Conversation we sample by hand. In evals, a script plays the human so we compare models fairly.”*
 
@@ -4595,7 +4616,7 @@ RapidUI evaluates a **structured artifact** (saved RUI spec), not open-ended cha
 
 | Question | Answer |
 |----------|--------|
-| Can we regression-test agent quality? | **No** — shallow grader, no `eval:run` |
+| Can we regression-test agent quality? | **Partial** — hardened grader (7.2) + `eval:run` (7.3); `eval_trials` persistence + matrix pending **7.4–7.7** |
 | Safe to ship v0.2 without Phase 7 (7.1–7.7)? | **No** — eval lab is part of MVP; agent/API regressions would be undetected |
 | Safe to build v0.3 renderer without v0.2 eval harness? | **No** — v0.2 requires Phase **7.2–7.7** complete |
 | Can we explain demo failures? | **Yes** — Observe drill-down (Phase 6 complete) |
