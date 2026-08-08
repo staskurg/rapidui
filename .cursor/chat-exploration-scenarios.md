@@ -12,14 +12,18 @@
 ## How to run
 
 1. Start the agent service and the Next.js app (README, Path A), then open `/chat`. After the first message, the URL updates to `/chat/{sessionId}` ([chat-session-persistence-plan.md](chat-session-persistence-plan.md)).
-2. **Fresh chat session per scenario** — use **New chat** (new URL/session id). Never reuse a session; it contaminates the next run.
-3. Paste user turns verbatim, including the code blocks. Wait for the agent to finish each reply before the next turn.
-4. Where the evidence lives afterward:
+2. **Fresh chat session per scenario run** — use **New chat** (new URL/session id). Never reuse a session; it contaminates the next run.
+3. **Repeat each scenario 3 times** before moving on (`UC1-S1.1`, `.2`, `.3`, then UC1-S2, …). An `error` run (infra failure) does not count — rerun until you have 3 countable results. See [findings doc — run protocol](chat-exploration-findings.md#instructions-for-the-assisting-agent).
+4. Paste user turns verbatim, including the code blocks. Wait for the agent to finish each reply before the next turn.
+5. Where the evidence lives afterward:
    - **Full conversation (restore):** `/chat/{sessionId}` — same UI as the live run
    - **Transcript API:** `GET /api/chat/sessions/{sessionId}/transcript`
-   - **Validate attempts, tool calls, errors:** `/observe/agent/sessions/{sessionId}`
-   - **The saved artifact:** the `viewUrl` the agent returns (`/specs/{id}`)
-5. Log the run in `.cursor/chat-exploration-findings.md` before starting the next scenario. Include the chat URL in each run entry.
+   - **Validate attempts, tool calls, errors:** `/observe/agent/sessions/{sessionId}` (human UI) or `npm run fetch:exploration-evidence -- {sessionId} {runId}` (assisting agent)
+   - **The saved artifact:** the `viewUrl` the agent returns (`/specs/{id}`), or `GET /api/specs/{id}` with `X-RapidUI-Session-Id: {sessionId}` for JSON
+6. **Log each run** in `.cursor/chat-exploration-findings.md` before starting the next run. Include the chat URL in each run entry.
+7. **S+1 (post-save iteration):** run as an extra turn in the **same session** after a successful save. Log the parent scenario run **first**, then send the S+1 turn and log S+1 separately. Do not extract parent metrics after S+1 — they will include the follow-up turn.
+
+**Workload:** 19 scenarios × 3 runs ≈ **57 base runs**, plus S+1 at least once per use case (3+), plus optional UC1-S2 riders. Budget accordingly.
 
 ## Scenario index
 
@@ -84,7 +88,7 @@ The interesting variable is **form and timing**: everything up front vs. drip-fe
 
 ## Logging
 
-All run logging lives in the companion doc: **`.cursor/chat-exploration-findings.md`** — agent instructions, run-entry template, dashboard, per-use-case findings, and the final "changes to make" section. Log every run there before starting the next scenario.
+All run logging lives in the companion doc: **`.cursor/chat-exploration-findings.md`** — agent instructions, [transcript extraction checklist](chat-exploration-findings.md#transcript-extraction-checklist), run-entry template, dashboard, per-use-case findings, and the final "changes to make" section. Log **every run** (3× per scenario) there before starting the next run. Assisting agent: `npm run fetch:exploration-evidence -- {sessionId} {runId}`.
 
 ---
 

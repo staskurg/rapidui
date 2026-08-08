@@ -18,6 +18,7 @@
     "smoke:observe-discovery": "tsx --env-file=.env.local scripts/smoke-observe-discovery.ts",
     "smoke:observe-agent": "tsx --env-file=.env.local scripts/smoke-observe-agent.ts",
     "smoke:chat-transcript": "tsx --env-file=.env.local scripts/smoke-chat-transcript.ts",
+    "fetch:exploration-evidence": "tsx --env-file=.env.local scripts/fetch-exploration-evidence.ts",
     "smoke:agent": "cd agent && .venv/bin/python scripts/smoke_chat.py",
     "chat:agent": "cd agent && .venv/bin/python scripts/chat_cli.py",
     "eval:prompt": "tsx scripts/render-eval-prompt.ts",
