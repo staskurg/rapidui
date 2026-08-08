@@ -7,6 +7,8 @@ FastAPI on Render posts agent run/turn summaries to the platform ingest API. The
 **Auth:** none in v0.2  
 **Content-Type:** `application/json`
 
+> **Chat transcripts:** full conversation text is **not** stored via this ingest endpoint. Live `/chat` sessions use a separate application API: `GET/PUT /api/chat/sessions/{sessionId}/transcript` → `agent_runs.transcript_jsonb`. See `.cursor/chat-session-persistence-plan.md`.
+
 ## Success response
 
 ```json

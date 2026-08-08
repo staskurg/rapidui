@@ -666,6 +666,13 @@ export type AgentRunDetail = {
   timeline: ApiEventRow[];
   tokenParityMismatch: boolean;
   validateCountMismatch: boolean;
+  transcript: AgentRunTranscriptMeta;
+};
+
+export type AgentRunTranscriptMeta = {
+  hasTranscript: boolean;
+  turnCount: number | null;
+  updatedAt: Date | null;
 };
 
 function agentFilterValues(filters: AgentObserveFilters) {
@@ -682,6 +689,7 @@ function agentFilterValues(filters: AgentObserveFilters) {
 export function resolveAgentRunOutcome(
   dbOutcome: string | null,
   lastActivityAt: Date,
+  hasTranscript = false,
 ): AgentRunOutcome {
   if (dbOutcome === "saved") {
     return "saved";
@@ -691,6 +699,10 @@ export function resolveAgentRunOutcome(
   }
   if (dbOutcome === "abandoned") {
     return "abandoned";
+  }
+
+  if (hasTranscript) {
+    return "in_progress";
   }
 
   const stale = Date.now() - lastActivityAt.getTime() > AGENT_STALE_SESSION_MS;
@@ -725,12 +737,13 @@ function mapAgentRunRow(
 ): AgentRunListRow {
   const lastActivityAt = toDate(row.last_activity_at);
   const dbOutcome = row.outcome ? String(row.outcome) : null;
+  const hasTranscript = Boolean(row.has_transcript);
 
   return {
     sessionId: String(row.session_id),
     startedAt: toDate(row.started_at),
     finishedAt: toNullableDate(row.finished_at),
-    outcome: resolveAgentRunOutcome(dbOutcome, lastActivityAt),
+    outcome: resolveAgentRunOutcome(dbOutcome, lastActivityAt, hasTranscript),
     model: row.model ? String(row.model) : null,
     promptVersion: row.prompt_version ? String(row.prompt_version) : null,
     evalCaseId: row.eval_case_id ? String(row.eval_case_id) : null,
@@ -814,7 +827,8 @@ export async function getAgentObserveSummary(
         (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
         ar.finished_at,
         ar.started_at
-      ) AS last_activity_at
+      ) AS last_activity_at,
+      (ar.transcript_jsonb IS NOT NULL) AS has_transcript
     FROM agent_runs ar
     WHERE ar.started_at >= ${ws}
       AND (${model}::text IS NULL OR ar.model = ${model})
@@ -835,6 +849,7 @@ export async function getAgentObserveSummary(
     const outcome = resolveAgentRunOutcome(
       row.outcome ? String(row.outcome) : null,
       lastActivityAt,
+      Boolean(row.has_transcript),
     );
 
     switch (outcome) {
@@ -967,7 +982,8 @@ export async function listAgentRuns(
         (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
         ar.finished_at,
         ar.started_at
-      ) AS last_activity_at
+      ) AS last_activity_at,
+      (ar.transcript_jsonb IS NOT NULL) AS has_transcript
     FROM agent_runs ar
     WHERE ar.started_at >= ${ws}
       AND (${model}::text IS NULL OR ar.model = ${model})
@@ -1019,7 +1035,10 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
         (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
         ar.finished_at,
         ar.started_at
-      ) AS last_activity_at
+      ) AS last_activity_at,
+      (ar.transcript_jsonb IS NOT NULL) AS has_transcript,
+      ar.transcript_turn_count,
+      ar.transcript_updated_at
     FROM agent_runs ar
     WHERE ar.session_id = ${sessionId}
   `;
@@ -1077,5 +1096,13 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
     timeline,
     tokenParityMismatch,
     validateCountMismatch,
+    transcript: {
+      hasTranscript: Boolean(row.has_transcript),
+      turnCount:
+        row.transcript_turn_count === null || row.transcript_turn_count === undefined
+          ? null
+          : toNumber(row.transcript_turn_count),
+      updatedAt: toNullableDate(row.transcript_updated_at),
+    },
   };
 }

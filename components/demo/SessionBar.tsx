@@ -2,7 +2,7 @@ import { ObserveNavIcon } from "@/components/observe/ObserveNavIcons";
 import { NewTabLink } from "@/components/demo/NewTabLink";
 
 type SessionBarProps = {
-  sessionId: string;
+  sessionId: string | null;
   observeEnabled?: boolean;
 };
 
@@ -10,6 +10,15 @@ const observeIconClass =
   "inline-flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors";
 
 export function SessionBar({ sessionId, observeEnabled = false }: SessionBarProps) {
+  if (!sessionId) {
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-ui">
+        <span className="shrink-0 text-zinc-500">Session</span>
+        <span className="text-zinc-700 dark:text-zinc-300">New conversation</span>
+      </div>
+    );
+  }
+
   const observeHref = `/observe/agent/sessions/${encodeURIComponent(sessionId)}`;
   const enabledLabel = "Open session telemetry in Observe (new tab)";
   const disabledLabel = "Send a message to open session telemetry in Observe";

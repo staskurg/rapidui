@@ -1,4 +1,5 @@
 const SESSION_STORAGE_KEY = "rapidui-session-id";
+const PENDING_SESSION_KEY = "rapidui-session-pending";
 const PENDING_EVAL_CASE_KEY = "rapidui-pending-eval-case";
 const SESSION_CHANGE_EVENT = "rapidui-session-change";
 
@@ -8,7 +9,7 @@ function notifySessionChange(): void {
   }
 }
 
-/** Subscribe to session id changes (New chat / starter chip rotation). */
+/** Subscribe to session id changes (mint, clear, restore sync). */
 export function subscribeSessionId(onStoreChange: () => void): () => void {
   if (typeof window === "undefined") {
     return () => {};
@@ -17,19 +18,77 @@ export function subscribeSessionId(onStoreChange: () => void): () => void {
   return () => window.removeEventListener(SESSION_CHANGE_EVENT, onStoreChange);
 }
 
-/** Read or mint the active demo session id (Observe + API headers). */
-export function getOrCreateSessionId(): string {
+/** Read the current session id without minting. */
+export function getSessionId(): string | null {
   if (typeof window === "undefined") {
-    return "";
+    return null;
   }
-  const existing = sessionStorage.getItem(SESSION_STORAGE_KEY);
+  return sessionStorage.getItem(SESSION_STORAGE_KEY);
+}
+
+/** Persist session id to sessionStorage (URL restore or first-send mint). */
+export function setSessionId(sessionId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+  notifySessionChange();
+}
+
+/** Clear session id — New chat / fresh `/chat` visit. */
+export function clearSessionId(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  notifySessionChange();
+}
+
+/** Mark a freshly minted id before the first transcript row exists (404 guard). */
+export function setPendingSessionId(sessionId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.setItem(PENDING_SESSION_KEY, sessionId);
+}
+
+export function getPendingSessionId(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return sessionStorage.getItem(PENDING_SESSION_KEY);
+}
+
+export function isPendingSessionId(sessionId: string): boolean {
+  return getPendingSessionId() === sessionId;
+}
+
+export function clearPendingSessionId(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.removeItem(PENDING_SESSION_KEY);
+}
+
+/**
+ * Mint session id on first send when none exists.
+ * Calls `onMint` so the caller can update the URL before POST /chat.
+ */
+export function ensureSessionIdForSend(onMint?: (sessionId: string) => void): string {
+  const existing = getSessionId();
   if (existing) {
     return existing;
   }
   const id = crypto.randomUUID();
-  sessionStorage.setItem(SESSION_STORAGE_KEY, id);
-  notifySessionChange();
+  setSessionId(id);
+  setPendingSessionId(id);
+  onMint?.(id);
   return id;
+}
+
+/** @deprecated Use getSessionId / ensureSessionIdForSend — no auto-mint on read. */
+export function getOrCreateSessionId(): string {
+  return getSessionId() ?? ensureSessionIdForSend();
 }
 
 /** Set eval case header for the next chat transport request only. */
@@ -50,23 +109,4 @@ export function consumePendingEvalCase(): string | null {
     sessionStorage.removeItem(PENDING_EVAL_CASE_KEY);
   }
   return evalCaseId;
-}
-
-/** Read the current session id without minting a new one. */
-export function getSessionId(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return sessionStorage.getItem(SESSION_STORAGE_KEY);
-}
-
-/** Mint a new session id — New chat and post-confirm starter chips. */
-export function rotateSessionId(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  const id = crypto.randomUUID();
-  sessionStorage.setItem(SESSION_STORAGE_KEY, id);
-  notifySessionChange();
-  return id;
 }

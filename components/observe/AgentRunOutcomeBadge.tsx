@@ -10,7 +10,7 @@ const styles: Record<AgentRunOutcome, string> = {
   abandoned_inferred:
     "bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-700",
   in_progress:
-    "bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900",
+    "bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900",
 };
 
 const labels: Record<AgentRunOutcome, string> = {

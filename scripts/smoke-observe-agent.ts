@@ -77,6 +77,10 @@ async function runSmokeObserveAgent(): Promise<void> {
     "Stale null outcome should infer abandoned",
   );
   assert(
+    resolveAgentRunOutcome(null, staleAt, true) === "in_progress",
+    "Stale null outcome with transcript should stay in progress",
+  );
+  assert(
     resolveAgentRunOutcome(null, new Date()) === "in_progress",
     "Recent null outcome should be in progress",
   );

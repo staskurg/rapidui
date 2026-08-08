@@ -61,6 +61,12 @@ export function useSpecPanelListener({
   }, [messages]);
 
   useEffect(() => {
+    // Only seed on New chat / workspace reset — not on initial mount (restored transcripts
+    // must replay validate_rui / save_rui tool results into the output panel).
+    if (resetKey === 0) {
+      return;
+    }
+
     for (const message of messagesRef.current) {
       if (message.role !== "assistant") {
         continue;

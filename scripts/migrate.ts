@@ -10,6 +10,7 @@ const MIGRATIONS = [
   "lib/db/migrations/004_agent_runs.sql",
   "lib/db/migrations/005_agent_turns.sql",
   "lib/db/migrations/006_api_events_http_status.sql",
+  "lib/db/migrations/009_agent_runs_transcript.sql",
 ] as const;
 
 async function migrate(): Promise<void> {

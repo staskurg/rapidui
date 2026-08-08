@@ -96,7 +96,7 @@ Full definitions: reference **§15**. **v0.2 ships when S1–S10 are verified** 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0–6** | ✅ Complete | Observability (Phase 6 P0 + UI) shipped — see [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
-| **7** | 🔲 In progress | **7.1** ✅ (2026-08-01) · **7.2** grader hardening ✅ (2026-08-03) · **7.3** guided runner ✅ (2026-08-03) · **7.4–7.7** remaining |
+| **7** | 🔲 In progress | **7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **chat session persistence** 🔲 (pre-impl review ✅ — [plan](chat-session-persistence-plan.md)) · **7.4–7.7** remaining |
 | **v0.3** | ⏸ After v0.2 | Renderer, auth hardening — [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 
 **One-line gap:** Observe answers *what happened*; Phase **7** (7.1–7.7) answers *was the result correct, was the path reasonable, and which model/prompt should we ship?*
@@ -182,7 +182,7 @@ After cutover, v0.1 production data remains in the old database for archive/refe
 |----------|----------|
 | Migration tool / folder | Keep v0.1 pattern: SQL files in `lib/db/migrations/`, applied by `npm run db:migrate` (`scripts/migrate.ts`). Idempotent `CREATE TABLE IF NOT EXISTS`. |
 | Neon driver | `@neondatabase/serverless` — `neon(process.env.DATABASE_URL!)`. Wrap in `lib/db/client.ts` so `sql` tagged templates still return `{ rows }` (matches existing `specs.ts` / `evalRuns.ts`). Update `sql.query()` for raw migration files. |
-| `agent_runs` / `agent_turns` SQL | **Phase 0:** create tables with all columns from reference §4 + Phase 1 sketch (below). **Phase 1:** wire inserts + indexes tuning; **Phase 7.4:** `eval_trials` (**007**) + `eval_runs.session_id` (**008**) only. |
+| `agent_runs` / `agent_turns` SQL | **Phase 0:** create tables with all columns from reference §4 + Phase 1 sketch (below). **Phase 1:** wire inserts + indexes tuning; **Chat session persistence:** `transcript_jsonb` on `agent_runs` (**009** — [plan](chat-session-persistence-plan.md)); **Phase 7.4:** `eval_trials` (**007**) + `eval_runs.session_id` (**008**). |
 | CORS on Render | FastAPI `CORSMiddleware`: `allow_origins=["https://rapidui.dev", "http://localhost:3000"]`, `allow_methods=["GET","POST","OPTIONS"]`, `allow_headers=["*"]`, `allow_credentials=False`. Preflight from browser before Phase 4 `/chat` exists — test with `OPTIONS` + dummy `POST` from localhost. |
 | Ingest auth | None (reference §3 #26). Stub route accepts JSON only; no API key. |
 | Monorepo ignore rules | No Turborepo. Vercel deploys repo root; Render sets root directory `agent/`. Optional: add `agent/.python-version` or `runtime.txt` for Render Python pin. |
@@ -2043,7 +2043,7 @@ Phase 5 (main UI chat transport), Phase 6 (`agent_runs` / `agent_turns` data), m
 | **When run completes vs per-turn ingest** | **Two POST cadences**, both from FastAPI handler — never from `@agent.tool`: (1) **After each assistant turn completes** (`on_complete` / post-stream handler): POST **`turns[]`** with `turn_index`, `latency_ms`, token counts from `result.usage`, `had_validate_call`, `had_save` flags for that turn. (2) **When outcome is known**: POST **`run`** fields — `outcome: 'saved'` + `spec_id` after successful `save_rui`; `error_summary` (and optionally `outcome: 'failed'`) when session ends without save; include `validate_attempts`, `total_tokens`, `latency_ms` (session wall time), `model`, `provider`, `prompt_version`, optional `eval_case_id` / `intent` from chat headers. **Same `session_id`** on every POST. **Non-blocking:** ingest failures log + continue — chat response must not fail. |
 | **`validate_attempts` source** | Increment **`SessionState.validate_attempts`** in the **`validate_rui` tool** (before/after HTTP call). Send cumulative count on every ingest `run` update and final outcome POST. Joins with `api_events` by `session_id` for Observe. |
 | **UC4 `load_spec`** | **Defer to stretch O1 (Phase 4 optional tail).** Required ship path is UC1–3. When added: tool wraps `GET /api/specs/:id` with session headers; same Deps. |
-| **Session id on `POST /chat`** | **Required header `X-RapidUI-Session-Id`** on chat requests (same name as API). Phase 5 browser generates UUID once (e.g. `sessionStorage`) and sends on every chat POST. **Local smoke:** script generates UUID and passes header. Agent **does not** mint a session id for production browser flow — missing header → **400** with clear JSON error (mirror platform `MISSING_SESSION_ID` spirit). |
+| **Session id on `POST /chat`** | **Required header `X-RapidUI-Session-Id`** on chat requests (same name as API). Browser sends UUID from URL-canonical session at `/chat/{sessionId}`; `sessionStorage` mirrors for transport ([plan](chat-session-persistence-plan.md)). Agent **does not** mint a session id — missing header → **400**. |
 | **Forwarding eval headers** | Read `X-RapidUI-Eval-Case`, `X-RapidUI-Intent` from **`POST /chat`** request; store on `Deps`; forward to all RapidUI API calls and ingest `run` payload. |
 | **`fetch_docs` vs `llms.txt`** | **Two tools not required.** `fetch_docs` → `GET /api/docs`; `fetch_schema` → `GET /api/schema`. Both require session headers (Phase 3B). Agent workflow in system prompt: call tools before authoring JSON — do not curl `llms.txt` from tool unless we add a fifth tool later. |
 | **Tool return shapes** | **`validate_rui`:** return `{ valid, errors?, normalizedRui? }` — cap error list in tool message if huge. **`save_rui`:** return `{ specId, viewUrl, url }` from 201 response — agent should share `viewUrl` in chat. Use Pydantic models for tool outputs. |
@@ -2589,15 +2589,15 @@ After confirm (New chat or chip): reset output panel to **empty**, rotate sessio
 
 | Question | Decision |
 |----------|----------|
-| **Past chat sessions (ChatGPT sidebar)** | **No** — single thread + New chat. See UX spec. Observe + `/specs/:id` are the persistence surfaces. |
-| **Session id in UI** | **Yes** — **bottom session bar** on `/chat`: truncated id, copy, link to `/observe/api/sessions/{id}`. New chat mints new id. |
+| **Past chat sessions (ChatGPT sidebar)** | **No sidebar** — still single active thread in UI. **Amended 2026-08-07:** URL-driven replay at `/chat/{sessionId}` + DB transcript on `agent_runs` for exploration/demo ([chat-session-persistence-plan.md](chat-session-persistence-plan.md)). Observe + `/specs/:id` remain artifact/metrics surfaces. |
+| **Session id in UI** | **Yes** — session bar on `/chat`. **Amended 2026-08-07:** URL is canonical (`/chat/{sessionId}`); `sessionStorage` mirrors URL for transport headers. New chat → new UUID + new URL. |
 | **How right panel learns `specId` after save** | **Primary:** `save_rui` tool-result → `{ specId, viewUrl }`. **Fallback:** markdown link parse. **No polling.** |
 | **Draft vs save-only panel** | **Draft on `validate_rui` success** (`normalizedRui` from tool result) + **Saved** after `save_rui`. See state machine in UX spec. |
 | **How saved spec loads** | After save: **`GET /api/specs/:id`** with session header (or trust tool result then fetch for full `SavedSpec` meta). |
 | **Output tabs / renderer future** | **`Preview \| Spec \| JSON`** tab bar. v0.2 default **Spec**; Preview disabled placeholder. v0.3 enables Preview as default. |
 | **Inspector UX for large specs (UC4)** | Entity-first grouping; scrollable transitions; embedded actions nested under `read`. JSON on separate tab. |
 | **Agent chat URL** | `NEXT_PUBLIC_RAPIDUI_AGENT_URL` — prod `https://agent.rapidui.dev/chat`; local `http://localhost:8000/chat`. |
-| **Session id lifecycle** | `sessionStorage` `rapidui-session-id`; reused for chat + spec GET. **New chat** → new UUID. |
+| **Session id lifecycle** | **Amended 2026-08-07:** URL-canonical `sessionId` at `/chat/{sessionId}`; `sessionStorage` `rapidui-session-id` synced for headers + spec GET. **New chat** → new UUID + navigate. Full transcript persisted to `agent_runs.transcript_jsonb` after each turn ([plan](chat-session-persistence-plan.md)). |
 | **Starter chips** | Eval case **`prompt`** only; **`X-RapidUI-Eval-Case`** = eval case `id` on next send. **Confirm + clear** if thread has messages. |
 | **Starter chip source** | `lib/demo/starter-prompts.ts` from eval case JSON. |
 | **Paste JSON / CSV data** | **In scope** — plain text in composer (F7). Not file attachments. Prompt note in `v1.txt`. |
@@ -3051,9 +3051,9 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | **Terminal outcomes — required** | Emit **`saved`**, **`failed`**, **`abandoned`** from Agent ingest; **`in_progress`** when `outcome IS NULL` and session is recent. Phase 4 deferral reversed — not optional. |
 | **When `saved` fires** | Turn completes AND `SessionState.turn_had_save` AND `last_spec_id` set → `outcome: 'saved'`, `spec_id`, `total_tokens`, `latency_ms` (session wall clock), `finished_at`. *(Already implemented.)* |
 | **When `failed` fires** | Turn completes AND no save AND **unrecoverable failure** — see [outcome triggers](#outcome-triggers-locked-for-p0) below. **Not** on every failed validate (retries are normal). |
-| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** 30m stale inference. Eval runner (**7.3**) POSTs explicitly on timeout. |
-| **New chat abandon (Q1/Q2)** | On session rotate, **before** minting new id: fire-and-forget `POST /api/observe/ingest/agent` with `{ session_id: priorId, run: { outcome: "abandoned" } }`. Skip if thread empty or panel already saved. **No** new FastAPI route. |
-| **Stale-session inference (Q1)** | **`AGENT_STALE_SESSION_MS = 30 minutes`** — for tab-close / unknown exit when DB `outcome` still null. Badge: “Abandoned (inferred)”. |
+| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** 30m stale inference **only when no transcript** (amended 2026-08-07 — sessions with `transcript_jsonb` stay `in_progress`). Eval runner (**7.3**) POSTs explicitly on timeout. |
+| **New chat abandon (Q1/Q2)** | On session rotate, **before** minting new id: fire-and-forget `POST /api/observe/ingest/agent` with `{ session_id: priorId, run: { outcome: "abandoned" } }`. Skip if thread empty or panel already saved. **Also:** PUT final transcript snapshot for prior session before abandon ([plan](chat-session-persistence-plan.md)). **No** new FastAPI route. |
+| **Stale-session inference (Q1)** | **`AGENT_STALE_SESSION_MS = 30 minutes`** — for tab-close / unknown exit when DB `outcome` still null **and `transcript_jsonb` IS NULL**. Badge: “Abandoned (inferred)”. Sessions **with** transcript never flip to inferred abandon on idle time — stay **`in_progress`** until explicit terminal outcome. |
 | **`http_status` on `api_events` (Q3)** | **Ship in P0** — migration `006_api_events_http_status.sql`; wire `recordApiEvent` / `recordDiscoveryEvent`. |
 | **FastAPI disconnect (Q4)** | **Skip v0.2** — document as v0.3+ backlog; rely on New chat abandon + 30m inference. |
 | **Latency sample minimums (Q5)** | **p50:** show “—” if &lt; **3** saved runs; **p95:** show “—” if &lt; **10** saved runs. UI subtitle documents minimums. |
@@ -3069,8 +3069,8 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | **`saved`** | Turn with successful `save_rui` | — |
 | **`failed`** | (1) Uncaught exception in `/chat` handler or tool that aborts the turn with no save; OR (2) pydantic-ai run ends in **error** state with `error_summary` set and no save; OR (3) explicit eval-runner timeout POST (**7.3**) | Failed validate alone (normal retry loop); user still chatting |
 | **`abandoned`** | (1) **New chat:** Main UI POSTs to existing `/api/observe/ingest/agent` for **prior** `session_id` when user rotates session; OR (2) eval runner script ends without save (**7.3**) | Thread empty (no messages); session already **`saved`**; during normal agent turns |
-| **`in_progress` (inferred)** | No DB write — UI/query only | `outcome IS NULL` and last activity within **30 minutes** |
-| **`abandoned` (inferred)** | No DB write — UI/query only | `outcome IS NULL` and last activity **> 30 minutes** ago; badge: “Abandoned (inferred)” |
+| **`in_progress` (inferred)** | No DB write — UI/query only | `outcome IS NULL` and (last activity within **30 minutes** OR **`transcript_jsonb` IS NOT NULL**) |
+| **`abandoned` (inferred)** | No DB write — UI/query only | `outcome IS NULL`, **`transcript_jsonb` IS NULL**, and last activity **> 30 minutes** ago; badge: “Abandoned (inferred)” |
 
 **Ingest rule exception (locked):** Only FastAPI posts turn/run metrics during `/chat`. **Exception:** Main UI may POST terminal **`abandoned`** for the **previous** session id on explicit New chat only — not from LLM/tools.
 
@@ -4082,7 +4082,60 @@ agent/README.md
 - [x] UC4 excluded with clear error
 - [ ] *(Recommended)* Runner vs manual parity with baseline Path A batch — eval tuning follow-up, not blocking
 
-**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Proceed to **7.4**. UC2/UC3 live pass rates are case tuning on top of this harness.
+**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Proceed to **chat session persistence** (exploration enabler), then **7.4** in parallel. UC2/UC3 live pass rates are case tuning on top of this harness.
+
+---
+
+## Chat session persistence (Phase 7.3½ — exploration enabler)
+
+**Status:** ✅ shipped (2026-08-08) — Phases A–E complete.  
+**Plan:** [`.cursor/chat-session-persistence-plan.md`](chat-session-persistence-plan.md)  
+**Prerequisite:** Phase 7.3 ✅, Phase 5 `/chat` UI ✅, Phase 6 Observe ✅.  
+**Blocks 7.4–7.7?** No — runs in parallel; unblocks manual UC1–UC3 exploration.
+
+### Goal
+
+Persist full Vercel AI v6 `messages[]` per live `/chat` session on `agent_runs.transcript_jsonb`; restore at `/chat/{sessionId}`; link Observe agent session → chat replay. Separate **`GET/PUT /api/chat/sessions/{id}/transcript`** — not ingest.
+
+### Schema — migration **`009_agent_runs_transcript.sql`**
+
+(`007`/`008` = Phase 7.4 eval lab — independent)
+
+| Column | Purpose |
+|--------|---------|
+| `transcript_jsonb` | Full wire-format `messages[]` (same shape as `eval_driver.py`) |
+| `transcript_updated_at` | Last PUT timestamp |
+| `transcript_turn_count` | User message count (display) |
+
+### Does not change
+
+- FastAPI `/chat` handler or trust model (client still sends `messages[]` each turn)
+- `POST /api/observe/ingest/agent` contract
+- `eval:run` / Phase 7.4 `eval_trials` (separate table, shared Zod schema)
+
+### Amends Phase 5 UX (2026-08-07)
+
+- **No** multi-session sidebar
+- **Yes** URL-driven replay `/chat/{sessionId}`
+- URL-canonical session id ( `sessionStorage` synced for headers)
+
+### Amends Phase 6 Observe (2026-08-07)
+
+- **`abandoned_inferred`:** only when `outcome IS NULL`, **no** `transcript_jsonb`, idle **> 30m**
+- Sessions with transcript stay **`in_progress`** until explicit terminal outcome
+
+### Task list
+
+See [persistence plan — Implementation phases](chat-session-persistence-plan.md#implementation-phases) and [Implement-time watch-outs](chat-session-persistence-plan.md#implement-time-watch-outs).
+
+### Checklist
+
+- [x] Migration **009** + `GET/PUT` transcript API
+- [x] `onFinish` persist + New chat final snapshot
+- [x] `/chat` → `/chat/{sessionId}` routing + hydrate via `useChatRuntime({ messages })`
+- [x] Observe “Open in chat” + stale inference fix
+- [x] Consent banner; exploration docs aligned
+- [x] Manual UC1-S1 restore smoke (refresh + continue + panel)
 
 ---
 

@@ -205,7 +205,13 @@ On each completed turn the handler POSTs `turns[]` plus partial `run` fields. Te
 
 Failed validate retries alone do **not** emit `failed` — the agent is expected to fix and retry.
 
-Sessions with no DB outcome and last activity **> 30 minutes** ago are shown as **Abandoned (inferred)** in Observe (tab close / unknown exit). FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + stale inference.
+Sessions with no DB outcome and last activity **> 30 minutes** ago are shown as **Abandoned (inferred)** in Observe (tab close / unknown exit) — **only when no chat transcript is stored**. Sessions with `transcript_jsonb` on `agent_runs` stay **In progress** until an explicit terminal outcome (`saved` / `failed` / `abandoned`). See [chat-session-persistence-plan.md](../.cursor/chat-session-persistence-plan.md).
+
+FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + stale inference (non-transcript sessions only).
+
+### Chat transcript API (Next.js)
+
+Full conversation replay for live `/chat` sessions is stored separately from agent ingest — **`GET/PUT /api/chat/sessions/{sessionId}/transcript`** on the Next.js app. See [lib/chat/TRANSCRIPT.md](../lib/chat/TRANSCRIPT.md) for the contract, message shape, and client persistence rules.
 
 ### o4-mini token accounting
 

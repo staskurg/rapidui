@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { NewTabLink } from "@/components/demo/NewTabLink";
 import { AgentRunOutcomeBadge } from "@/components/observe/AgentRunOutcomeBadge";
 import { SpecLink } from "@/components/site/SpecLink";
 import {
@@ -49,7 +50,8 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
     redirect(buildMissingSessionAgentObserveHref(sessionId));
   }
 
-  const { run, turns, timeline, tokenParityMismatch, validateCountMismatch } = detail;
+  const { run, turns, timeline, tokenParityMismatch, validateCountMismatch, transcript } =
+    detail;
 
   return (
     <div className="space-y-8">
@@ -154,6 +156,39 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
               Last activity
             </dt>
             <dd className="mt-1 text-ui">{formatRelativeTime(run.lastActivityAt)}</dd>
+          </div>
+          <div>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+              Transcript turns
+            </dt>
+            <dd className="mt-1 text-ui">
+              {transcript.hasTranscript ? (transcript.turnCount ?? "—") : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+              Transcript updated
+            </dt>
+            <dd className="mt-1 text-ui">
+              {transcript.updatedAt ? formatRelativeTime(transcript.updatedAt) : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+              Conversation
+            </dt>
+            <dd className="mt-1 text-ui">
+              {transcript.hasTranscript ? (
+                <NewTabLink
+                  href={`/chat/${encodeURIComponent(sessionId)}`}
+                  className="font-medium text-violet-700 hover:underline dark:text-violet-400"
+                >
+                  Open in chat
+                </NewTabLink>
+              ) : (
+                <span className="text-zinc-500">No transcript</span>
+              )}
+            </dd>
           </div>
         </dl>
         {run.errorSummary ? (

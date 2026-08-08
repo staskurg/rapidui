@@ -8,6 +8,10 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["lib/eval/__tests__/**/*.test.ts"],
+    include: [
+      "lib/eval/__tests__/**/*.test.ts",
+      "lib/chat/__tests__/**/*.test.ts",
+      "lib/observe/__tests__/**/*.test.ts",
+    ],
   },
 });

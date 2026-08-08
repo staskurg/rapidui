@@ -166,13 +166,17 @@ function AssistantMessage() {
 }
 
 type ChatSessionHeaderProps = {
-  sessionId: string;
+  sessionId: string | null;
   onNewChat: () => void;
 };
 
 export function ChatSessionHeader({ sessionId, onNewChat }: ChatSessionHeaderProps) {
   const messageCount = useAuiState((state) => state.thread.messages.length);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const newChatMessage = sessionId
+    ? "Current chat and draft spec will be cleared. Your prior conversation remains saved at its chat link."
+    : "Current chat and draft spec will be cleared.";
 
   function handleNewChatClick() {
     if (messageCount === 0) {
@@ -198,7 +202,7 @@ export function ChatSessionHeader({ sessionId, onNewChat }: ChatSessionHeaderPro
       <ConfirmNewChatDialog
         open={confirmOpen}
         title="Start a new conversation?"
-        message="Current chat and draft spec will be cleared."
+        message={newChatMessage}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => {
           onNewChat();

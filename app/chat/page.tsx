@@ -1,10 +1,4 @@
-import { MainDemo } from "@/components/demo/MainDemo";
-import { SiteShell } from "@/components/site/SiteShell";
-
+/** Route segment for `/chat` — UI lives in `app/chat/layout.tsx` (`ChatShell`). */
 export default function ChatPage() {
-  return (
-    <SiteShell className="h-dvh overflow-hidden">
-      <MainDemo />
-    </SiteShell>
-  );
+  return null;
 }
