@@ -12,6 +12,8 @@ export default defineConfig({
       "lib/eval/__tests__/**/*.test.ts",
       "lib/chat/__tests__/**/*.test.ts",
       "lib/observe/__tests__/**/*.test.ts",
+      "lib/operations/__tests__/**/*.test.ts",
+      "lib/validate/__tests__/**/*.test.ts",
     ],
   },
 });

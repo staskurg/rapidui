@@ -15,6 +15,16 @@ const schema = getSchemaPayload();
 assert(schema.version === "0.2", "Schema version should be 0.2");
 assert(Array.isArray(schema.transitionTriggers), "Schema should include transitionTriggers");
 assert(schema.operationTypes.browse, "Schema should include browse operation type");
+assert(schema.shapes?.formPresentation, "Schema should include form presentation shapes");
+assert(schema.examples?.crudApiScoped, "Schema should include neutral CRUD illustration");
+
+for (const [name, example] of Object.entries(schema.examples)) {
+  if (typeof example !== "object" || example === null || !("version" in example)) {
+    continue;
+  }
+  const result = validateSpec(example);
+  assert(result.valid, `Schema example ${name} should validate`);
+}
 
 const docs = getDocsPayload();
 assert(docs.docsVersion === "0.2", "Docs version should be 0.2");

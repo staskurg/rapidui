@@ -48,6 +48,8 @@ export const OperationDataSchema = z.discriminatedUnion("mode", [
   ApiDataSchema,
 ]);
 
+export const HTTP_METHODS = HttpMethodSchema.options;
+
 export type ReadBinding = z.infer<typeof ReadBindingSchema>;
 export type WriteBinding = z.infer<typeof WriteBindingSchema>;
 export type InvokeBinding = z.infer<typeof InvokeBindingSchema>;

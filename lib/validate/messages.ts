@@ -118,6 +118,10 @@ export const ERROR_CATALOG: Record<RuleCode, { message: string; hint: string }> 
     message: 'Operation "{operationId}" must reference scope placeholder {param}.',
     hint: "Use {scope.<selectorId>} in API paths when the entity declares scope.selectors.",
   },
+  SCOPE_SELECTOR_MISSING: {
+    message: 'Entity "{entityId}" uses scope placeholder {param} but has no matching scope.selectors entry.',
+    hint: "Declare scope.selectors[] on the entity with id matching the placeholder (e.g. companyId for {scope.companyId}).",
+  },
   INVALID_COLUMNS: {
     message: 'Browse operation "{operationId}" must have at least one column with unique keys.',
     hint: "Define presentation.columns[] with unique key per column.",

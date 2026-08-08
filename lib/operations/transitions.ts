@@ -13,5 +13,7 @@ export const TransitionSchema = z
   })
   .strict();
 
+export const TRANSITION_TRIGGERS = TransitionTriggerSchema.options;
+
 export type Transition = z.infer<typeof TransitionSchema>;
 export type TransitionTrigger = z.infer<typeof TransitionTriggerSchema>;

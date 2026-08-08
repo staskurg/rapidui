@@ -37,7 +37,7 @@ User-turn counts include the opener (the guided runner counts the first prompt a
 | UC1-S4 | messy JSON | column judgment, clarifying questions | 2–3 |
 | UC1-S5 | inline JSON | restraint ("don't build yet"), scope expansion | 3 |
 | UC1-S6 | API-shaped JSON envelope | static-vs-API discrimination at the boundary | 2 |
-| UC2-S1 | prose endpoint list (on request) | interview for the API contract | 3 |
+| UC2-S1 | prose endpoint list + fields (on request) | interview for the API contract | 3 |
 | UC2-S2 | everything in one prompt | skipping redundant questions | 2 |
 | UC2-S3 | OpenAPI YAML | schema extraction, read vs write shapes | 2–3 |
 | UC2-S4 | sample 200 responses | envelope/`valuePath` inference | 2 |
@@ -234,11 +234,13 @@ Premise for all of these: the UI must bind to a real API, so the user has to han
 
 Matches the current eval case. This is the baseline — run it manually so we have a felt sense of what "passing" sounds like before comparing the variants.
 
+UC2 needs **endpoints and field shape** (see [basic information](#what-the-agent-actually-needs-the-basic-information)). Turn 1 is intent-only; turn 2 delivers the contract when the agent asks — endpoints, CRUD rules, scope, **and** a prose field list (same shape as the golden spec and UC2-S2). Turn 3 confirms build and, if the agent asks, picks the scope UX (dropdown on the users list, not a separate Companies entity).
+
 **Turn 1 (user):**
 
 > I need an admin UI for our Users API.
 
-**Expected agent behavior:** asks for endpoints / CRUD scope. It cannot proceed without them.
+**Expected agent behavior:** asks for endpoints, CRUD scope, and User field shape. It cannot proceed without them.
 
 **Turn 2 (user):**
 
@@ -251,10 +253,18 @@ Matches the current eval case. This is the baseline — run it manually so we ha
 > - GET /api/companies (for a company picker)
 >
 > full CRUD. delete should live on the detail screen. list is scoped by company — use {scope.companyId} in the paths.
+>
+> users have id, email, role (admin or member), notes, and active (boolean).
 
-**Turn 3 (user):** "yes, build it."
+**Turn 3 (user):** if the agent asks how to model company scope (dropdown vs separate Companies screen), answer:
 
-**Watch for:** all four op types; delete embedded on `read`; `cta` transition browse→create; scope selector bound to `/api/companies`. This is exactly what the grader asserts, so any drift here is a prompt problem, not a case problem.
+> dropdown company picker on the users list, bound to GET /api/companies. paths use {scope.companyId}. yes, build it.
+
+If it does **not** ask the scope fork and moves to validate/save after turn 2, turn 3 is simply: "yes, build it."
+
+**Watch for:** all five op types (browse, read, create, update, delete-on-read); delete embedded on `read`; `cta` transition browse→create; scope selector bound to `/api/companies`; create/update forms use `email`, `role`, `notes`, `active` with sensible types (email, select, textarea, checkbox). This aligns with what the grader asserts on structure; field names should match the turn 2 list unless the agent re-confirms a change.
+
+**Note:** `crud-admin-v0.2` eval script omits the field list — a known gap. Use this scenario's turn 2 wording when promoting to eval.
 
 ---
 

@@ -223,3 +223,9 @@ export type Operation = z.infer<typeof OperationSchema>;
 export type BrowseOperation = z.infer<typeof BrowseOperationSchema>;
 export type ReadOperation = z.infer<typeof ReadOperationSchema>;
 export type EmbeddedAction = z.infer<typeof EmbeddedActionSchema>;
+
+/** Allowed values for GET /api/schema shapes — sourced from Zod enums (no duplicate strings). */
+export const COLUMN_FORMATS = ColumnFormatSchema.options;
+export const DETAIL_FIELD_FORMATS = FieldFormatSchema.options;
+export const FORM_FIELD_TYPES = FormFieldTypeSchema.options;
+export const ACTION_VARIANTS = ActionVariantSchema.options;

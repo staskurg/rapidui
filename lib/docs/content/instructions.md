@@ -1,6 +1,6 @@
 - **Emit a RUI** (`.rui.json`) — never React, JSX, or component code
 - **Set** `version: "0.2"` — v0.1 page/block documents are rejected
-- **Read** `GET /api/schema` before authoring; use only v0.2 operation types, presentations, transitions, and data modes
+- **Read** `GET /api/schema` before authoring; use only v0.2 operation types, presentations, transitions, and data modes. Property-level JSON shapes are in `shapes` and neutral-domain examples in `examples` — copy structure from there; derive entities, fields, and API paths from the user's request
 - **Plan operations first** — entities, flows, outcomes, then map to JSON
 - **Validate** with `POST /api/validate`; fix every item in `errors[]` using `code`, `message`, and `hint`
 - **Retry** until `valid: true`; use `normalizedRui` as the canonical validated artifact

@@ -1,5 +1,6 @@
 import { ID_MAX_LENGTH, ID_MIN_LENGTH, ID_PATTERN } from "./ids";
 import { RULES } from "./rules";
+import { getSchemaExamples, getSchemaShapes } from "./schema-payload";
 import { RuiSchema } from "./rui";
 import { RUI_FILE_EXTENSION, SCHEMA_VERSION } from "./version";
 
@@ -17,7 +18,20 @@ export type { RuleCode, Rule } from "./rules";
 export type { Rui, App } from "./rui";
 export type { Entity, ScopeSelector } from "./entities";
 export type { Operation, EmbeddedAction } from "./operations";
+export {
+  ACTION_VARIANTS,
+  COLUMN_FORMATS,
+  DETAIL_FIELD_FORMATS,
+  FORM_FIELD_TYPES,
+} from "./operations";
 export type { Transition, TransitionTrigger } from "./transitions";
+export {
+  CRUD_ILLUSTRATION_SPEC,
+  HITL_ILLUSTRATION_SPEC,
+  STATIC_BROWSE_ILLUSTRATION_SPEC,
+  getSchemaExamples,
+  getSchemaShapes,
+} from "./schema-payload";
 
 /** Alias for API responses — same value as SCHEMA_VERSION. */
 export const REGISTRY_VERSION = SCHEMA_VERSION;
@@ -53,6 +67,7 @@ export function getSchemaPayload() {
       hitlReview: "browse → read + embedded act actions with outcomes",
       staticDashboard: "browse static + optional header.metrics",
     },
+    shapes: getSchemaShapes(),
     rules: RULES,
     ids: {
       pattern: ID_PATTERN.source,
@@ -61,37 +76,6 @@ export function getSchemaPayload() {
       entityPrefix: "ent-",
       operationPrefix: "op-",
     },
-    examples: {
-      minimal: {
-        version: SCHEMA_VERSION,
-        app: { title: "Example" },
-        entities: [
-          {
-            id: "ent-items",
-            label: "Items",
-            entrypoints: ["op-browse-items"],
-            operationIds: ["op-browse-items"],
-          },
-        ],
-        operations: [
-          {
-            id: "op-browse-items",
-            entityId: "ent-items",
-            type: "browse",
-            title: "Items",
-            route: "/items",
-            presentation: {
-              layout: "table",
-              columns: [{ key: "id", label: "ID" }],
-            },
-            data: {
-              mode: "static",
-              records: [{ id: "1" }],
-            },
-          },
-        ],
-        transitions: [],
-      },
-    },
+    examples: getSchemaExamples(),
   };
 }
