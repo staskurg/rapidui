@@ -53,13 +53,13 @@ Update after every run. `Stable` = 2+ of 3 runs with the same result and artifac
 | UC2-S4 | 3 | saved-clean | no | 2/3 clean; .2 off-target (`{scope.params.userId}`) |
 | UC2-S5 | 3 | saved-clean | yes | 3/3 dual-save expand→CRUD; final artifact clean |
 | UC2-S6 | 3 | saved-clean | yes | 3/3 IDs normalized; 1–2 turn save |
-| UC3-S1 | 0 | — | — | |
-| UC3-S2 | 0 | — | — | |
-| UC3-S3 | 0 | — | — | |
-| UC3-S4 | 0 | — | — | |
-| UC3-S5 | 0 | — | — | |
-| UC3-S6 | 0 | — | — | |
-| S+1 | 1 | saved-clean | n/a | after UC2-S1.postfix.3; rename-only after 2 clarifications |
+| UC3-S1 | 3 | saved-off-target | yes | 2/3 clean on 2-turn script; .3 one-shot skipped turn 2 → no filter |
+| UC3-S2 | 3 | saved-clean | yes | 3/3 one-shot; valuePath ✓ |
+| UC3-S3 | 3 | saved-negotiated | yes | 3/3 pushback before validate |
+| UC3-S4 | 3 | saved-clean | no | 2/3 clean; .1 premature save + update op |
+| UC3-S5 | 3 | saved-clean | yes | 3/3 one-shot turn 1; turn 2 optional |
+| UC3-S6 | 3 | saved-off-target | yes | 3/3 one-shot; turn 2 unreachable (agent saves turn 1) |
+| S+1 | 2 | saved-clean | n/a | .1 after UC2-S1; .2 after UC3-S6.3 — both clean |
 
 ---
 
@@ -209,7 +209,7 @@ Extra items to scan when the scenario ID matches:
 | UC2-S5 | After scope expansion: `cta`, delete on detail, outcomes present |
 | UC3-S3 | Pushback **before** first validate (prompt) vs error-driven retry (validator only) |
 | UC3-S4 | Did not start building before action endpoints arrived (turn 3+) |
-| UC3-S5 | No support-domain residue; destructive act has `confirm` |
+| UC3-S5 | No support-domain residue; Remove Listing **`variant: danger`**; **`valuePath: "items"`** when envelope in turn 1 |
 | S+1 | Second save: full spec carried forward, re-validated, new URL explained — see [S+1 workflow](#s1-workflow) below |
 
 ### S+1 workflow
@@ -738,24 +738,268 @@ S+1 is a follow-up turn in the **same session** as the parent save. Evidence mer
 
 #### UC3-S1
 
+#### UC3-S1.1 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 9bef8ec0-b50b-4a4b-9cc2-b1a826500e19 / fffdf215-526a-4bfc-9f9b-c9cef4a494b2 · **Chat:** `/chat/9bef8ec0-b50b-4a4b-9cc2-b1a826500e19` · **View:** `/specs/fffdf215-526a-4bfc-9f9b-c9cef4a494b2`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 asked API response shapes — list envelope vs array, sample record fields, detail content field name **high-value** (user did not answer). Turn 2 user gave scripted clarify (detail buttons, status filter, build) → agent validated and saved without schema paste.
+- **Inventions:** `content` as draft body field key (agent asked for detail field name; user skipped). Filter options pending/approved/rejected inferred from context. No invented endpoints.
+- **Artifact vs target:** matches — browse + read only; **2 embedded `act` actions on `read`** (Approve primary, Reject danger) with POST approve/reject bindings; success outcomes navigate to `op-browse-drafts`; **`row` transition** inbox→detail; **`presentation.filter`** on browse for status. Columns id/confidence/model/ticketId/status per turn 1. API mode, no static records, no example-domain leakage (`submissions`/`ent-submissions` absent). Minor deltas: browse `read` omits `valuePath` (no envelope given); detail uses `content` not `draftText`.
+- **Feed-forward:** Endpoints in turn 1 + turn 2 clarify sufficient for clean HITL save post-fix — mirrors UC2-S1 2-turn gate. Eval `ai-review-queue-v0.2` should carry endpoints in prompt/script (harness `mockApi` gap). Agent saved without response-shape answers — acceptable when endpoints + HITL UX specified; note if `valuePath` misses on API with `{items}` envelope.
+
+#### UC3-S1.2 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 3016b140-02e9-4622-8fb4-c6fe529188e2 / ed3823f8-48cc-4b04-b4f3-796ae9553fe5 · **Chat:** `/chat/3016b140-02e9-4622-8fb4-c6fe529188e2` · **View:** `/specs/ed3823f8-48cc-4b04-b4f3-796ae9553fe5`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 returned full HITL ops plan (browse/read + embedded approve/reject) then asked detail field names (`draftText`?, ticket context) **high-value** — user did not answer. Turn 2 scripted clarify → validate → save without schema paste.
+- **Inventions:** `sourceTicket` column/field key (from user “source ticket” wording); `draftText` for body (agent suggested, user skipped confirm). Filter options inferred. No invented endpoints.
+- **Artifact vs target:** matches — 2 embedded acts on `read` with POST approve/reject + success→inbox outcomes; `row` transition; `presentation.filter` for status; browse columns id/model/confidence/sourceTicket/status; API mode; no leakage. Minor deltas vs .1: `draftText` vs `content`, `sourceTicket` vs `ticketId`; distinct contentHash (presentation variance only).
+- **Feed-forward:** Repeat of .1 — 2-turn / 1-validate HITL path stable. Turn 1 ops plan before shape ask is a slight flow variant; both runs save without envelope/field answers.
+
+#### UC3-S1.3 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-off-target
+- **Session / spec:** 60c27026-376c-4d14-9367-66b0c6a464bd / 74d9a476-756d-44ce-8007-7c1a5c831ecb · **Chat:** `/chat/60c27026-376c-4d14-9367-66b0c6a464bd` · **View:** `/specs/74d9a476-756d-44ce-8007-7c1a5c831ecb`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — **one-shot** on turn 1; agent validated and saved immediately with no clarify turn. **Scenario turn 2 never sent** (detail-buttons + status filter + build).
+- **Inventions:** `content` for draft body; no status filter options. No invented endpoints.
+- **Artifact vs target:** **partial** — 2 embedded acts on `read` with POST approve/reject + success→inbox ✓; `row` transition ✓; browse columns id/confidence/model/ticketId ✓; API mode, no leakage ✓. **`presentation.filter` for status missing** ✗ (load-bearing turn 2 requirement); browse table omits status column; no detail-vs-row confirm in conversation.
+- **Feed-forward:** One-shot after turn 1 alone drops status filter — eval/script must keep turn 2 clarify. When user sends full 2-turn script, HITL structure is reliable (.1/.2); do not treat .3 as model regression (incomplete scenario execution).
+
+#### UC3-S1 findings (3/3 — confirm before UC3-S2)
+
+- **Reliable paths to save:** 3/3 reached `save_rui` — **2/3 on scripted 2-turn path** (.1/.2), **1/3 one-shot** (.3 turn 2 omitted). Validates: 1 each, 0 errors all runs.
+- **HITL structure:** **Acts embedded on `read` 3/3** — no top-level act ops, no row buttons. Success outcomes navigate to inbox 3/3. `row` transition 3/3.
+- **Status filter:** present 2/3 (.1/.2 when turn 2 sent); **missing .3** when agent one-shotted after turn 1 only.
+- **Interview quality:** Turn 1 shape/field questions **high-value** (.1/.2); agent saves without answers when user sends turn 2 build line. .3 skipped interview entirely (opener complete enough for structure, not for filter).
+- **Known failure modes:** none on validate — primary gap is **turn 2 clarify load-bearing** for filter. Browse `valuePath` omitted 3/3 (no envelope in script). Field naming varies (`ticketId`/`sourceTicket`/`content`/`draftText`).
+- **Script implications:** Promote as **2-turn eval script** — turn 1 story + endpoints; turn 2 detail-buttons + status filter + build (current eval has this but **omits endpoints in turn 1**). Do not rely on one-shot for full watch-fors.
+- **Stability:** `stable: yes` — 2/3 `saved-clean` on full 2-turn script, same artifact family; .3 off-target from procedural skip (turn 2 not sent), not structural drift on complete script.
+
 #### UC3-S2
+
+#### UC3-S2.1 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 33c92bb4-6a62-4ac5-a668-dc6f65afceda / 0bfb321b-23e9-48e5-9435-83af889e6d2c · **Chat:** `/chat/33c92bb4-6a62-4ac5-a668-dc6f65afceda` · **View:** `/specs/0bfb321b-23e9-48e5-9435-83af889e6d2c`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — complete opener included envelope shape, endpoints, detail-button placement, status filter, and “validate and save”; agent one-shotted **ideal S2 behavior**. Turn 2 “go.” **not sent** (unnecessary).
+- **Inventions:** none — columns/fields from user `{items:[{id, ticketId, confidence, model, status, draftText}]}` hint; filter options from user pending/approved/rejected.
+- **Artifact vs target:** matches — 2 embedded acts on `read` with POST approve/reject + success→inbox; `row` transition; **`presentation.filter`** for status; **`valuePath: "items"`** on browse ✓ (S1 gap fixed when envelope hinted); detail `draftText` section; browse columns id/ticketId/confidence/model/status. API mode, no leakage.
+- **Feed-forward:** Strong **1-turn eval variant** when opener carries full contract + `{items:[...]}` envelope — mirrors UC2-S2 one-shot. Contrast S1: envelope hint is load-bearing for `valuePath`.
+
+#### UC3-S2.2 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 0e287710-e9ec-47c3-b5b3-5a266acf720a / be2f0bfa-4a62-4c55-88b6-759d4c908edc · **Chat:** `/chat/0e287710-e9ec-47c3-b5b3-5a266acf720a` · **View:** `/specs/be2f0bfa-4a62-4c55-88b6-759d4c908edc`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — same one-shot as .1; no clarifying questions; turn 2 “go.” not sent.
+- **Inventions:** none — fields/filter from user opener.
+- **Artifact vs target:** matches — 2 embedded acts on `read` + success→inbox; `row` transition; `presentation.filter`; **`valuePath: "items"`**; browse columns id/ticketId/confidence/model/status; detail includes `draftText`. Minor delta vs .1: `draftText` in single “Draft details” section (not separate content section); status column `badge` on browse. Distinct contentHash, same artifact family.
+- **Feed-forward:** Confirms .1 one-shot pattern — 2/2 runs identical flow (1 turn / 1 validate). One more run for stability.
+
+#### UC3-S2.3 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 0cfbce3b-c20a-4e36-814b-74e04db6328f / 745319e3-8036-48bd-ad5e-6107d2cdeaa1 · **Chat:** `/chat/0cfbce3b-c20a-4e36-814b-74e04db6328f` · **View:** `/specs/745319e3-8036-48bd-ad5e-6107d2cdeaa1`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — third consecutive one-shot; turn 2 “go.” not sent.
+- **Inventions:** none.
+- **Artifact vs target:** matches — 2 embedded acts on `read` + success→inbox; `row` transition; `presentation.filter`; **`valuePath: "items"`**; browse columns id/ticketId/confidence/model/status; separate “Draft text” section with `draftText`. Minor delta: detail “Details” section omits `id` field. Distinct contentHash, same artifact family as .1/.2.
+- **Feed-forward:** UC3-S2 complete — see findings block below.
+
+#### UC3-S2 findings (3/3 — confirm before UC3-S3)
+
+- **Reliable paths to save:** 3/3 **one-shot on turn 1** — 1 validate, 0 errors each; turn 2 “go.” never needed (opener includes “validate and save”).
+- **HITL structure:** Acts embedded on `read` 3/3; success→inbox outcomes 3/3; `row` transition 3/3; no row buttons or top-level acts.
+- **Envelope inference:** **`valuePath: "items"` 3/3** when opener includes `{items:[...]}` — fixes S1 gap where envelope was absent.
+- **Interview quality:** 3/3 skipped interview when opener complete — **ideal S2 behavior**, no redundant questions.
+- **Known failure modes:** none observed.
+- **Recurring deviations:** three distinct `contentHash`es (detail section layout varies: single vs split section; `id` on detail sometimes omitted); presentation-only variance.
+- **Script implications:** **Promote as 1-turn eval variant** — opener must include endpoints, field shape/envelope, detail-button placement, status filter, and build instruction. Strongest UC3 script candidate so far.
+- **Stability:** `stable: yes` — 3/3 `saved-clean`, same 1-turn / 1-validate flow, same artifact family.
 
 #### UC3-S3
 
+#### UC3-S3.1 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-negotiated
+- **Session / spec:** 2c056199-42b9-47ed-a2d7-14b08bb75f65 / de53bc26-0e77-459a-b917-330ab94ffa6c · **Chat:** `/chat/2c056199-42b9-47ed-a2d7-14b08bb75f65` · **View:** `/specs/de53bc26-0e77-459a-b917-330ab94ffa6c`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 **pushback before first validate** — agent stated row-level approve/reject unsupported, offered browse → row → detail → embedded acts: *“RapidUI v0.2 doesn’t yet support ‘Approve’/‘Reject’ buttons embedded directly in each table row…”* **high-value**; asked if detail-screen flow works. Turn 2 user accepted → validate → save. No validator-driven retry for row actions.
+- **Inventions:** `snippet` browse column; `content` detail field — minimal columns for “fast” workflow; no invented endpoints.
+- **Artifact vs target:** matches valid alternative — 2 embedded acts on `read` with POST approve/reject + success→inbox; `row` transition; no row buttons, no top-level acts. Minimal browse (id/snippet) tuned to speed ask. No status filter (not in S3 script). No leakage.
+- **Feed-forward:** **Prompt-level negotiation works** — caught invalid row-action ask before compose/validate; 1 validate to save. Quote-worthy pushback for product copy. Runs 2–3: confirm repeatability.
+
+#### UC3-S3.2 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-negotiated
+- **Session / spec:** 82c843d1-6b88-498d-a87b-c4c337498b8c / 665ec16c-96ca-4e52-b4da-33da6c3b206d · **Chat:** `/chat/82c843d1-6b88-498d-a87b-c4c337498b8c` · **View:** `/specs/665ec16c-96ca-4e52-b4da-33da6c3b206d`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 **pushback before first validate** — *“RapidUI v0.2 doesn’t support inline approve/reject buttons directly in each table row”*; offered browse→detail→embedded acts; briefly noted link-column workaround (not built). Turn 2 user accepted → validate → save. No row-action validate retries.
+- **Inventions:** `content` column/field for minimal fast-review table; no invented endpoints.
+- **Artifact vs target:** matches valid alternative — 2 embedded acts on `read` + success→inbox; `row` transition; no row buttons. Minimal browse (id/content). Same artifact family as .1 (distinct contentHash: `content` vs `snippet`). No leakage.
+- **Feed-forward:** Repeat of .1 negotiation pattern — 2/2 prompt-level catch before validate. One more run for stability.
+
+#### UC3-S3.3 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-negotiated
+- **Session / spec:** c3df735b-c1d5-4e41-959f-79fefe7d79dc / 2d630d48-2ff4-4998-805a-dd8574ee20a4 · **Chat:** `/chat/c3df735b-c1d5-4e41-959f-79fefe7d79dc` · **View:** `/specs/2d630d48-2ff4-4998-805a-dd8574ee20a4`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 **pushback before first validate** — *“RUI v0.2 doesn’t support inline row-level action buttons—actions must live on a detail screen”*; outlined browse→detail→embedded acts plan and asked to proceed. Turn 2 user accepted → validate → save. No row-action validate retries.
+- **Inventions:** `title`/`content` fields for minimal fast-review UI; no invented endpoints.
+- **Artifact vs target:** matches valid alternative — 2 embedded acts on `read` + success→inbox; `row` transition; no row buttons. Minimal browse (id/title). Same artifact family as .1/.2. No leakage.
+- **Feed-forward:** UC3-S3 complete — see findings block below.
+
+#### UC3-S3 findings (3/3 — confirm before UC3-S4)
+
+- **Reliable paths to save:** 3/3 **saved-negotiated** — 2 turns, 1 validate, 0 errors each after user accepts detail-screen alternative.
+- **Pushback quality:** **3/3 caught row-action ask in prose before first validate** — prompt v1.1 negotiate rule working; **0/3** tried invalid row buttons and burned validate attempts.
+- **HITL structure after negotiation:** Acts embedded on `read` 3/3; success→inbox 3/3; `row` transition 3/3; no top-level acts.
+- **Negotiation wording:** varies (.1 “doesn’t yet support”, .2 “inline…directly in each table row” + link workaround mention, .3 “actions must live on a detail screen” + ops plan) — all effective.
+- **Known failure modes:** none — no silent row-action builds, no validator-only catch.
+- **Recurring deviations:** minimal browse columns tuned to “fast” ask (snippet/content/title); three distinct `contentHash`es; field naming varies.
+- **Script implications:** Eval should include turn 1 row-button ask + turn 2 acceptance — tests prompt negotiation, not validator. No schema vocabulary paste needed.
+- **Stability:** `stable: yes` — 3/3 `saved-negotiated`, same 2-turn / 1-validate flow, same valid HITL artifact family.
+
 #### UC3-S4
+
+#### UC3-S4.1 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-off-target
+- **Session / spec:** 62adda70-1490-4e10-8727-f1add84601bf / 688ec1de-7249-4fda-babf-b9cea4f72983 (latest; interim 6a845627-61e3-4b12-8a7d-e90bbe1c832d on turn 2) · **Chat:** `/chat/62adda70-1490-4e10-8727-f1add84601bf` · **View:** `/specs/688ec1de-7249-4fda-babf-b9cea4f72983`
+- **Turns / validates / errors:** 3 / 2 / none
+- **Interview:** Turn 1 proposed HITL plan but wrong actions (Update + embedded **Send**, not approve/reject); asked API vs static + endpoint list **high-value**. Turn 2 user gave browse/read endpoints + fields → agent **validated and saved immediately** (1 act on read in interim spec) **before action endpoints** — S4 watch-for fail. Turn 3 user gave approve/reject POSTs → second validate/save. **Turn 4 “save it” not sent.**
+- **Inventions:** **`op-update-draft`** with PATCH `/api/drafts/{draftId}` + edit link — user never requested edit/update; carried from turn 1 Send/edit plan. Turn 1 interview suggested POST `/send` endpoint not in user script.
+- **Artifact vs target (latest spec):** **partial** — 2 embedded acts on `read` with POST approve/reject + success→inbox ✓; `row` transition ✓; browse/read fields match turn 2 ✓. **`op-update-draft` + PATCH binding spurious** ✗; no status filter (not in S4 script). Dual-save: interim spec on turn 2 lacked approve/reject acts.
+- **Feed-forward:** S4 discovery weak — agent saves on turn 2 without action endpoints (dead-end risk if user stops). Eval script must include turn 3 action endpoints; prompt may need “do not save HITL until approve/reject endpoints known.” Runs 2–3: watch for repeat premature save.
+
+#### UC3-S4.2 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** b27098fa-48a7-4c9f-b9c3-8b1215cca04f / 43c9b31e-f8aa-48dc-82ef-8eaa0001eb47 · **Chat:** `/chat/b27098fa-48a7-4c9f-b9c3-8b1215cca04f` · **View:** `/specs/43c9b31e-f8aa-48dc-82ef-8eaa0001eb47`
+- **Turns / validates / errors:** 3 / 1 / none
+- **Interview:** Turn 1 asked data binding (API vs static), draft fields, review actions (approve/reject/edit/delete), post-action navigation **high-value**. Turn 2 user gave fields + browse/read endpoints → agent **did not save**; asked for approve/send action endpoint **high-value** (framed as POST `/send` but blocked until action known). Turn 3 user gave approve/reject POSTs → validate → save. **First validate on turn 3** ✓. Turn 4 not sent.
+- **Inventions:** none — browse/read + approve/reject only; no spurious update op (contrast .1).
+- **Artifact vs target:** matches — 2 embedded acts on `read` + success→inbox; `row` transition; browse columns id/ticketId/confidence; detail ticketId/confidence/draftText; API mode, no leakage. Single save, no dual-save.
+- **Feed-forward:** **Better S4 path** — agent held until action endpoints on turn 3. Turn 2 “Send” framing persists but user’s approve/reject answer redirected cleanly. One more run for stability vs .1 premature save.
+
+#### UC3-S4.3 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 9c3defdf-4fb0-46ab-a5a9-324c9db6f18f / 1131bc33-4a04-46f6-99e6-89990242937a · **Chat:** `/chat/9c3defdf-4fb0-46ab-a5a9-324c9db6f18f` · **View:** `/specs/1131bc33-4a04-46f6-89990242937a`
+- **Turns / validates / errors:** 3 / 2 / INVALID_TRANSITION_MAP (turn 3 attempt 1; passed attempt 2)
+- **Interview:** Turn 1 asked draft fields, API endpoints (list/detail/approve/update/reject), static vs API **high-value**. Turn 2 user gave fields + browse/read → agent **did not save**; asked approve endpoint/method (offered POST approve vs PATCH status) **high-value**. Turn 3 approve/reject + back-to-list → validate (fail→pass) → save. **First validate on turn 3** ✓. Turn 4 not sent.
+- **Inventions:** none — browse/read + embedded approve/reject only.
+- **Artifact vs target:** matches — 2 embedded acts on `read` + success→inbox; `row` transition; fields ticketId/confidence/text; single save. Same artifact family as .2. No leakage.
+- **Feed-forward:** UC3-S4 complete — see findings block below.
+
+#### UC3-S4 findings (3/3 — confirm before UC3-S5)
+
+- **Reliable paths to save:** 3/3 reached save — **2/3 held until turn 3** (.2/.3), **1/3 premature save on turn 2** (.1 dual-save). Turn 4 confirm **never sent** 3/3; agent saves once action endpoints arrive.
+- **Discovery interview:** Turn 1 field/endpoint questions **high-value** 3/3. **2/3 blocked save after turn 2** until action endpoint known (.2/.3); .1 saved with wrong Send/update plan instead.
+- **HITL structure (latest spec):** Acts on `read` 3/3 (after .1 turn 3 fix); success→inbox 3/3; `row` transition 3/3. **.1 spurious `op-update-draft`** + PATCH binding ✗.
+- **Known failure modes:** Premature save before action endpoints (.1); turn 1/2 “Send”/PATCH framing persists but usually corrected when user gives approve/reject (.2/.3). `.3` needed 2 validates (`INVALID_TRANSITION_MAP` self-corrected).
+- **Script implications:** **4-turn script load-bearing** — turn 3 action endpoints required; eval must not stop at turn 2. Prompt nudge: do not save HITL queue until approve/reject paths known; avoid defaulting to update/send ops.
+- **Stability:** `stable: no` — 2/3 `saved-clean`, 1/3 `saved-off-target`; interview hold 2/3; three distinct flows (dual-save vs single-save).
 
 #### UC3-S5
 
+(Base — revised turn 1 includes `{items:[...]}` + field keys; see scenarios doc. Endpoints-only turn 1 causes schema interview stall.)
+
+#### UC3-S5.1 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 47fbf880-1c54-45cc-a610-ed462df71f61 / 75b30bf6-cb02-4322-a1c3-caa20755b621 · **Chat:** `/chat/47fbf880-1c54-45cc-a610-ed462df71f61` · **View:** `/specs/75b30bf6-cb02-4322-a1c3-caa20755b621`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — revised turn 1 (envelope + field keys + endpoints) sufficient; agent one-shotted. **Turn 2 (danger variant + build) not sent** — agent inferred `variant: danger` on Remove Listing from turn 1 wording.
+- **Inventions:** none — columns/fields/endpoints from user turn 1.
+- **Artifact vs target:** matches — flags domain (not drafts); 2 embedded acts on `read`; Remove Listing POST **`variant: danger`** ✓; Dismiss Flag POST **`variant: secondary`** (minor vs primary); success→browse ✓; `row` transition ✓; **`valuePath: "items"`** ✓; browse/detail fields match script. No leakage.
+- **Feed-forward:** Revised turn 1 fixes schema stall — no JSON-sample interview. Turn 2 optional when opener complete (like UC3-S2). Runs 2–3: send turn 2 anyway to test explicit danger ask vs inference.
+
+#### UC3-S5.2 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** e51df231-0bf7-4171-9235-f1261c501834 / a5339622-807f-4008-a313-067607d01c35 · **Chat:** `/chat/e51df231-0bf7-4171-9235-f1261c501834` · **View:** `/specs/a5339622-807f-4008-a313-067607d01c35`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — same one-shot as .1; turn 2 not sent.
+- **Inventions:** none.
+- **Artifact vs target:** matches — flags domain; 2 embedded acts (Remove Listing danger POST, Dismiss Flag secondary POST); success→browse; `row` transition; **`valuePath: "items"`**; field keys from script. Same artifact family as .1 (Dismiss `secondary` again).
+- **Feed-forward:** Confirms .1 — revised turn 1 alone is stable 2/2. One more run for stability; turn 2 may remain optional.
+
+#### UC3-S5.3 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** 592c7bb2-f5cd-456c-b8c0-7a500122591d / 177e8068-463c-4e08-a1f3-177413ba7639 · **Chat:** `/chat/592c7bb2-f5cd-456c-b8c0-7a500122591d` · **View:** `/specs/177e8068-463c-4e08-a1f3-177413ba7639`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — third consecutive one-shot; turn 2 not sent.
+- **Inventions:** none.
+- **Artifact vs target:** matches — flags domain; Remove Listing danger POST, Dismiss Flag **primary** POST; success→browse; `row` transition; **`valuePath: "items"`**. Minor delta vs .1/.2: detail omits id/listingId (listing + reason/score only); Dismiss `primary` not `secondary`.
+- **Feed-forward:** UC3-S5 complete — see findings block below.
+
+#### UC3-S5 findings (3/3 — confirm before UC3-S6)
+
+- **Reliable paths to save:** 3/3 **one-shot on revised turn 1** — 1 validate, 0 errors each; **turn 2 never sent** 3/3 (optional when opener includes envelope + field keys + endpoints).
+- **Domain generalization:** **3/3** flags/remove-listing/dismiss — no support drafts/approve/reject residue; HITL structure (browse→detail→embedded acts) holds across domain swap.
+- **HITL structure:** Acts on `read` 3/3; Remove Listing **`variant: danger`** 3/3 (inferred without turn 2); success→browse 3/3; `row` transition 3/3; **`valuePath: "items"`** 3/3.
+- **Script revision impact:** Endpoints-only turn 1 caused schema interview stall; **enriched turn 1** ( `{items:[...]}` + field keys) fixes it — same pattern as UC3-S2.
+- **Turn 2 role:** Does not change validity or use-case satisfaction when turn 1 complete — explicit danger/build lines redundant; promote **1-turn eval variant** for S5.
+- **Known failure modes:** none on final artifacts. Dismiss variant varies (`secondary` .1/.2, `primary` .3); detail column breadth varies.
+- **Script implications:** Turn 1 must include field keys + `{items:[...]}` envelope (endpoints alone stall). Eval opener = revised turn 1; turn 2 often skipped when turn 1 complete.
+- **Stability:** `stable: yes` — 3/3 `saved-clean`, same 1-turn / 1-validate flow, same artifact family.
+
 #### UC3-S6
 
-### UC3 findings (fill after runs)
+#### UC3-S6.1 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-off-target
+- **Session / spec:** c1af390d-30a0-4a48-805b-725021d08328 / cc3e1e66-7bd1-4e62-ab93-863709719379 · **Chat:** `/chat/c1af390d-30a0-4a48-805b-725021d08328` · **View:** `/specs/cc3e1e66-7bd1-4e62-ab93-863709719379`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** **skipped** — agent one-shotted on turn 1 with no questions about what drafts are, detail fields beyond sample, approve/reject placement, or post-action navigation. **Turn 2 (story + detail fields + save) not sent.**
+- **Inventions:** none on endpoints — columns/fields from sample response only; did not add body/ticketSubject/customerMessage (turn 2 fields).
+- **Artifact vs target:** **partial** — HITL structure ✓ (2 embedded acts on `read`, POST approve/reject, success→browse, `row` transition, **`valuePath: "items"`**, no CRUD writes). **S6 interview watch-for ✗** — built generic draft reviewer from endpoint names + sample without confirming human meaning. Detail fields = sample keys only (preview/ticketId/model/confidence/status), not turn 2 extras.
+- **Feed-forward:** S6 tests contract-without-story discovery — agent inferred HITL correctly but skipped meaning interview. Runs 2–3: send both turns; note if interview appears when sample is less HITL-shaped.
 
-- **Reliable paths to save:** which scenarios saved clean?
-- **HITL structure:** acts embedded on `read` with outcomes every time? Any top-level act/row-action attempts, and did the prompt or only the validator catch them?
-- **Pushback quality (S3):** did it negotiate before building, or burn validate attempts first?
-- **Discovery halves (S4 vs S6):** which is weaker — extracting the contract from a story, or the meaning from a contract?
-- **Generalization (S5):** any support-domain residue or structural drift in the moderation variant?
-- **Script implications:** what must the fixed `ai-review-queue-v0.2` prompt/script contain?
+#### UC3-S6.2 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-off-target
+- **Session / spec:** f7557758-07a5-4ca4-9533-3daed01c1a73 / 42c05b5d-57f7-452d-b204-5133e2feb70f · **Chat:** `/chat/f7557758-07a5-4ca4-9533-3daed01c1a73` · **View:** `/specs/42c05b5d-57f7-452d-b204-5133e2feb70f`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** **skipped** — repeat of .1; one-shot save on turn 1, no meaning/field/placement questions. **Turn 2 not sent.**
+- **Inventions:** none — fields from sample only.
+- **Artifact vs target:** **partial** — HITL structure ✓ (embedded approve/reject acts, success→browse, `row`, `valuePath: "items"`, no CRUD). **S6 interview ✗**; no body/ticketSubject/customerMessage. Same artifact family as .1.
+- **Feed-forward:** Confirms .1 — endpoint block + sample is enough for agent to one-shot HITL without turn 2. Run .3 must send turn 2 after agent reply to test discovery path.
+
+#### UC3-S6.3 — 2026-08-09
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-off-target
+- **Session / spec:** eedd96cc-7e70-4db6-aff1-83b847cce7e6 / 6750b983-4cad-4639-8cad-1aa64e6c50e7 · **Chat:** `/chat/eedd96cc-7e70-4db6-aff1-83b847cce7e6` · **View:** `/specs/6750b983-4cad-4639-8cad-1aa64e6c50e7`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** **skipped** — third consecutive one-shot; agent saved in same reply as turn 1, **no pause for turn 2**. User cannot send scripted turn 2 pre-save — agent never asks.
+- **Inventions:** none — detail fields from sample only (preview/ticketId/model/confidence/status); no body/ticketSubject/customerMessage.
+- **Artifact vs target:** **partial** — HITL structure ✓ (2 embedded acts, success→browse, `row`, `valuePath: "items"`, no CRUD). **S6 meaning-interview watch-for ✗** (3/3). Same artifact family as .1/.2.
+- **Feed-forward:** UC3-S6 complete — see findings block below.
+
+#### UC3-S6 findings (3/3 — UC3 exploration complete)
+
+- **Reliable paths to save:** 3/3 reached `save_rui` on **turn 1 only** — 1 validate, 0 errors each. **Scripted turn 2 never reachable** — agent validate→save in same reply; no interview pause.
+- **Meaning discovery (S6 intent):** **0/3** — agent never asked what drafts are, detail field needs, approve/reject placement, or post-action navigation before first save. Contract (approve/reject paths + `{items:[...]}` sample) is **self-explanatory for HITL** post-fix.
+- **HITL structure:** **3/3** correct despite skipped interview — embedded approve/reject on `read`, success→browse, `row` transition, `valuePath: "items"`, no top-level ops or CRUD mis-wiring.
+- **vs UC3-S4 (story, no contract):** S4 **holds until action endpoints** 2/3 (.2/.3); S6 **never holds** when contract is HITL-shaped. Discovery gap is **contract-without-story**, not story-without-contract.
+- **Known failure modes:** Not agent failure to build — **scenario design mismatch**: turn 2 cannot be exercised when turn 1 includes HITL-obvious endpoints + sample. Detail fields stay at sample keys; turn 2 extras (body/ticketSubject/customerMessage) never land.
+- **Script implications:** S6 2-turn script **not viable as written** for post-fix agent — either accept 1-turn HITL inference as the finding, or thin turn 1 (endpoints only, no sample / no approve in path) if meaning interview must be tested. Eval `ai-review-queue-v0.2` should carry endpoints in prompt; S2/S5 prove envelope+fields pattern.
+- **Stability:** `stable: yes` — 3/3 `saved-off-target` (same interview miss), same 1-turn / 1-validate flow, same HITL artifact family.
+
+### UC3 findings (3/3 scenarios complete — confirm with human)
+
+- **Reliable paths to save:** **17/18 runs saved** (S4.1 off-target still saved). Strongest: **S2, S3, S5** (3/3 clean or negotiated). **S1** 2/3 clean (filter needs turn 2). **S4** 2/3 clean on full script. **S6** 3/3 save but off-target on interview.
+- **HITL structure:** **Acts embedded on `read` ~18/18** when saved — no row-button builds observed; S3 pushback 3/3 before validate. Success→inbox outcomes reliable. **`valuePath: "items"`** when envelope hinted (S2/S5/S6 ✓; S1 often omitted).
+- **Pushback quality (S3):** **3/3 prompt-level** — row-action ask caught before first validate; 1 validate each after user accepts detail flow.
+- **Discovery halves (S4 vs S6):** **S4 weaker inconsistently** (.1 premature save + spurious update op); **S6 meaning interview never triggers** when contract is HITL-obvious — turn 2 unreachable. Story-only path (S4) needs action endpoints in turn 3; contract-only path (S6) one-shots.
+- **Generalization (S5):** **3/3 clean** — flags/remove/dismiss generalizes; no support-domain residue; danger variant inferred.
+- **Script implications for `ai-review-queue-v0.2`:** (1) Carry **endpoints + field keys + `{items:[...]}`** in prompt/script (harness `mockApi` gap). (2) **S2 1-turn variant** strongest eval candidate. (3) **S1** 2-turn with turn 2 filter clarify. (4) **S4** 4-turn script load-bearing. (5) **S6 script needs rethink** or document as 1-turn inference-only. (6) Fold S3 negotiation turn in eval for row-button trap.
 
 ---
 
@@ -775,12 +1019,23 @@ S+1 is a follow-up turn in the **same session** as the parent save. Evidence mer
 - **Artifact vs target:** matches S+1 watch-fors — full spec carried forward (4 ops, 5 transitions, embedded delete, scope selector, browse columns unchanged); re-validated before second save; new spec URL explained. Only requested change on final turn applied.
 - **Feed-forward:** Verbatim UC1 S+1 script on UC2 parent cost 2 extra clarification turns — adapt domain on future S+1 runs. Rename-only iteration works cleanly once intent is unambiguous.
 
-### S+1 findings (fill after runs)
+#### S+1.2 — 2026-08-09 (after UC3-S6.3)
+- **Platform:** post-fix (prompt v1.1 + binding placeholder validator)
+- **Result:** saved-clean
+- **Session / spec:** eedd96cc-7e70-4db6-aff1-83b847cce7e6 / cfc771fc-5c4f-4daa-b19c-d959a0e6e27e (S+1; parent 6750b983-4cad-4639-8cad-1aa64e6c50e7) · **Chat:** `/chat/eedd96cc-7e70-4db6-aff1-83b847cce7e6` · **View:** `/specs/cfc771fc-5c4f-4daa-b19c-d959a0e6e27e`
+- **Turns / validates / errors:** 2 total (1 S+1 user turn) / 2 total (1 S+1 validate) / none
+- **Interview:** none — one-shot on S+1 turn; validate → save, no clarifications.
+- **Inventions:** none — filter uses given `status` field; no extra columns or ops.
+- **Artifact vs target:** matches S+1 watch-fors — title `Support Review Queue`; browse `presentation.filter` pending-only on `status`; full HITL carried forward (2 ops, embedded approve/reject with success→browse outcomes, `row` transition, `valuePath: "items"`, same columns/sections). Re-validated before second save; new viewUrl returned. Minor wording: agent said "updated" rather than explicitly "new spec ID" — link is correct.
+- **Feed-forward:** Domain-adapted S+1 script (rename + pending filter) worked in 1 turn on UC3 HITL parent — no UC2-style clarification detour. Filter addition did not drop embedded act outcomes.
 
-- Did it carry the full spec forward, or drop outcomes/transitions on the rebuild?
-- Did it re-validate before the second save?
-- Did it explain the new spec ID/URL?
-- What does this imply for UC4 / `load_spec`?
+### S+1 findings (2 runs — confirm with human)
+
+- **Carry-forward:** **2/2** preserved full spec structure — UC2 CRUD (ops, transitions, embedded delete, scope) and UC3 HITL (embedded acts + outcomes) intact after iteration. No dropped transitions or outcomes observed.
+- **Re-validate:** **2/2** — second save preceded by `validate_rui` on the S+1 turn.
+- **New URL:** **2/2** returned a viewUrl; neither run explicitly explained "new spec ID / not update-in-place" (UC2 used "updated" wording; UC3 same). Links are correct new specs.
+- **Scope discipline:** UC2 needed 2 clarification turns when script referenced wrong domain entities; UC3 domain-adapted script applied exactly rename + filter in 1 turn.
+- **UC4 / `load_spec` implication:** Agent can iterate on saved HITL specs in-session without structural regression when changes are small; explicit load_spec may still help for cross-session iteration and to avoid "updated" framing confusion.
 
 ---
 

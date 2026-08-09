@@ -536,11 +536,11 @@ Swap support replies for AI-flagged marketplace listings. The RUI shape should b
 
 > internal moderation queue: our classifier flags marketplace listings and a human decides. list of flagged listings with the flag reason and a score, click into one to see the listing, then either "remove listing" or "dismiss flag."
 >
-> API: GET /api/flags, GET /api/flags/{flagId}, POST /api/flags/{flagId}/remove-listing, POST /api/flags/{flagId}/dismiss.
+> GET /api/flags returns `{items:[{id, listingId, reason, score}]}`. GET /api/flags/{flagId} adds listing fields (listingTitle, listingDescription, listingPrice, listingSeller). POST /api/flags/{flagId}/remove-listing, POST /api/flags/{flagId}/dismiss.
 
-**Turn 2 (user):** "both actions on the detail view. removing needs a confirm since it's destructive. build and save."
+**Turn 2 (user):** "both actions on the detail view. remove listing is the destructive one — make it danger variant. build and save."
 
-**Watch for:** the two acts generalized correctly (labels/variants — "remove listing" should read as the dangerous one, with a `confirm`); no support-domain residue. Justification: if UC3 only works when the words "draft" and "approve" appear, our agent has memorized the eval case rather than learned the pattern. This scenario is the honesty check, and it directly seeds a future eval variant with different `dataPath` assertions.
+**Watch for:** the two acts generalized correctly (labels/variants — "remove listing" should read as the dangerous one); success outcomes navigate back to browse; `row` transition; **`valuePath: "items"`** when envelope hinted; no support-domain residue. Justification: if UC3 only works when the words "draft" and "approve" appear, our agent has memorized the eval case rather than learned the pattern.
 
 ---
 
