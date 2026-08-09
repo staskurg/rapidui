@@ -1,6 +1,7 @@
 import type { Rui } from "@/lib/operations";
 
 import type { ValidationError } from "../types";
+import { checkBindingPathPlaceholders } from "./bindingPaths";
 import { checkDataBindings } from "./data";
 import { checkEntities } from "./entities";
 import { checkIds, checkRoutes } from "./ids";
@@ -16,6 +17,7 @@ export function runSemanticChecks(rui: Rui): ValidationError[] {
     ...checkIds(rui),
     ...checkEntities(rui),
     ...checkScope(rui),
+    ...checkBindingPathPlaceholders(rui),
     ...checkRoutes(rui),
     ...checkPresentations(rui),
     ...checkDataBindings(rui),

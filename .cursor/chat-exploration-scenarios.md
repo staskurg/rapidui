@@ -274,7 +274,7 @@ Some users front-load everything. Tests whether the agent can skip the interview
 
 **Turn 1 (user):**
 
-> Build a users admin. Full CRUD. API: GET/POST /api/users, GET/PATCH/DELETE /api/users/{userId}, GET /api/companies for a required company scope selector — list and item calls take ?companyId={scope.companyId}. Users have email, role (admin|member), notes, active. Delete goes on the detail screen with a confirm. Validate and save when it passes.
+> Build a users admin. Full CRUD. API: GET/POST /api/users, GET/PATCH/DELETE /api/users/{userId}, GET /api/companies for a required company scope selector — list and item calls take ?companyId={scope.companyId}. Users have id, email, role (admin|member), notes, and active (boolean). List and companies responses wrap arrays in `{items: [...]}`; company options use `id` + `name`. Delete goes on the detail screen with a confirm. Validate and save when it passes.
 
 **Turn 2 (user):** at most one confirmation: "yep, go."
 
@@ -298,13 +298,27 @@ The "backend already has a spec" path — arguably the most realistic for teams 
 >     get:
 >       parameters:
 >         - { name: companyId, in: query, required: true, schema: { type: string } }
+>       responses:
+>         '200':
+>           content:
+>             application/json:
+>               schema:
+>                 type: object
+>                 properties:
+>                   items: { type: array, items: { $ref: "#/components/schemas/User" } }
+>                   total: { type: integer }
 >     post:
 >       requestBody:
 >         content:
 >           application/json:
 >             schema: { $ref: "#/components/schemas/UserWrite" }
 >   /api/users/{userId}:
->     get: {}
+>     get:
+>       responses:
+>         '200':
+>           content:
+>             application/json:
+>               schema: { $ref: "#/components/schemas/User" }
 >     patch:
 >       requestBody:
 >         content:
@@ -312,7 +326,21 @@ The "backend already has a spec" path — arguably the most realistic for teams 
 >             schema: { $ref: "#/components/schemas/UserWrite" }
 >     delete: {}
 >   /api/companies:
->     get: {}
+>     get:
+>       responses:
+>         '200':
+>           content:
+>             application/json:
+>               schema:
+>                 type: object
+>                 properties:
+>                   items:
+>                     type: array
+>                     items:
+>                       type: object
+>                       properties:
+>                         id: { type: string }
+>                         name: { type: string }
 > components:
 >   schemas:
 >     User:
@@ -334,7 +362,9 @@ The "backend already has a spec" path — arguably the most realistic for teams 
 >         active: { type: boolean, default: true }
 > ```
 
-**Turn 2 (user):** answer its questions (delete on detail, yes company scope), then "build it."
+**Turn 2 (user):**
+
+> full CRUD. delete on the detail screen with confirm. dropdown company picker on the users list, bound to GET /api/companies — list and item calls use ?companyId={scope.companyId}. build it.
 
 **Watch for:** does it build forms from `UserWrite` — the write shape — rather than `User` (i.e. no `id` field on create/update forms)? Email as email input, role as select with the enum, active as checkbox? Does it carry the required `companyId` query param into every binding? Justification: if YAML-paste works, it's the lowest-effort onboarding story we have; if it doesn't, we know to say "paste an endpoint list" in the product copy instead. The read/write schema split is deliberate — building forms from the read shape is a silent, plausible-looking failure.
 
@@ -374,11 +404,11 @@ Scope grows inside one conversation. Also the natural home for testing that the 
 
 **Turn 1 (user):**
 
-> to start I just want a read-only view of users: a list and a detail page. GET /api/users (returns {items: [...]}) and GET /api/users/{userId}. fields: email, role, active, notes.
+> to start I just want a read-only view of users: a list and a detail page. GET /api/users (returns `{items: [...]}`) and GET /api/users/{userId}. fields: id, email, role (admin or member), active (boolean), notes.
 
 **Turn 2 (user, after it proposes browse + read):**
 
-> you know what, let's just do the whole thing while we're here. POST /api/users to create, PATCH /api/users/{userId} to edit, DELETE /api/users/{userId} — delete from the detail screen with a confirm. no company scope, single tenant.
+> you know what, let's just do the whole thing while we're here. POST /api/users to create, PATCH /api/users/{userId} to edit, DELETE /api/users/{userId} — delete from the detail screen with a confirm. create and edit forms use email, role, notes, active (same fields as read). no company scope, single tenant.
 
 **Turn 3 (user):** "save it."
 
@@ -407,10 +437,10 @@ The API contract arrives as copied shell commands with *concrete* IDs baked in �
 > curl "/api/users/usr_101?companyId=co_01"
 >
 > # create
-> curl -X POST "/api/users?companyId=co_01" -d '{"email":"new@example.com","role":"member","active":true}'
+> curl -X POST "/api/users?companyId=co_01" -d '{"email":"new@example.com","role":"member","active":true,"notes":""}'
 >
 > # update
-> curl -X PATCH "/api/users/usr_101?companyId=co_01" -d '{"email":"maya@example.com","role":"admin","active":true}'
+> curl -X PATCH "/api/users/usr_101?companyId=co_01" -d '{"email":"maya@example.com","role":"admin","active":true,"notes":"Owner"}'
 >
 > # delete
 > curl -X DELETE "/api/users/usr_101?companyId=co_01"

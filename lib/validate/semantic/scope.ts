@@ -2,7 +2,7 @@ import type { Rui } from "@/lib/operations";
 
 import { formatError } from "../messages";
 import type { ValidationError } from "../types";
-import { collectBindingPaths } from "./data";
+import { collectOperationBindingPaths } from "./data";
 
 const SCOPE_PLACEHOLDER_PATTERN = /\{scope\.([a-zA-Z0-9_-]+)\}/g;
 
@@ -31,18 +31,7 @@ function collectEntityBindingPaths(rui: Rui, entityId: string): string[] {
       continue;
     }
 
-    paths.push(...collectBindingPaths(operation.data));
-
-    if (operation.type === "read" && operation.presentation.actions) {
-      for (const action of operation.presentation.actions) {
-        if ("invoke" in action) {
-          paths.push(action.invoke.path);
-        }
-        if ("write" in action) {
-          paths.push(action.write.path);
-        }
-      }
-    }
+    paths.push(...collectOperationBindingPaths(operation));
   }
 
   return paths;
@@ -80,19 +69,7 @@ export function checkScope(rui: Rui): ValidationError[] {
       continue;
     }
 
-    const bindingPaths = collectBindingPaths(operation.data);
-    if (operation.type === "read" && operation.presentation.actions) {
-      for (const action of operation.presentation.actions) {
-        if ("invoke" in action) {
-          bindingPaths.push(action.invoke.path);
-        }
-        if ("write" in action) {
-          bindingPaths.push(action.write.path);
-        }
-      }
-    }
-
-    const combined = bindingPaths.join(" ");
+    const combined = collectOperationBindingPaths(operation).join(" ");
     for (const selector of entity.scope.selectors) {
       const placeholder = `{scope.${selector.id}}`;
       if (!combined.includes(placeholder)) {

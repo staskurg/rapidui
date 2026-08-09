@@ -23,6 +23,8 @@ You are helping a human who is running the scenarios from `chat-exploration-scen
 
 **Post-fix runs (platform cutover 2026-08-08):** After enriching `GET /api/schema` (`shapes` + neutral-domain `examples`) and shipping prompt **v1.1**, UC2-S1 is rerun as a **fresh acceptance gate**. Pre-fix entries (prompt v1, sparse schema) stay as baseline evidence — do not merge into post-fix stability counts. Log post-fix runs with **`Platform: post-fix (prompt v1.1)`** in the run entry (Observe `prompt_version` should read `v1.1`). **Restart the agent** after changing the prompt — uvicorn `--reload` does not watch `prompts/*.txt`.
 
+**Platform cutover 2026-08-08 (validator):** `INVALID_BINDING_PLACEHOLDER` rejects malformed or undeclared `{...}` tokens in API binding paths (e.g. `{scope.params.userId}` from UC2-S4.2). Only adds error detection — post-change runs stay comparable; catching errors loudly is strictly better than silent bad saves. Log UC3 runs after this cutover with **`Platform: post-fix (prompt v1.1 + binding placeholder validator)`** when the deployed validator includes the rule.
+
 **Result vocabulary** (one per run):
 
 - `saved-clean` — saved, artifact matches the scenario's watch-fors
@@ -45,19 +47,19 @@ Update after every run. `Stable` = 2+ of 3 runs with the same result and artifac
 | UC1-S4 | 3 | saved-off-target | yes | 3/3 off-target; .3 best artifact (assigneeName flattened, tags asked) |
 | UC1-S5 | 3 | saved-clean | yes | 2-turn expand-and-save all 3; turn 1 restraint ✓ |
 | UC1-S6 | 3 | saved-clean | yes | 3/3 clean; 1-turn one-shot 2/3 runs |
-| UC2-S1 | 3 | saved-off-target | no | **pre-fix** 3/3; post-fix rerun pending (v1.1) |
-| UC2-S2 | 0 | — | — | |
-| UC2-S3 | 0 | — | — | |
-| UC2-S4 | 0 | — | — | |
-| UC2-S5 | 0 | — | — | |
-| UC2-S6 | 0 | — | — | |
+| UC2-S1 | 3 (post-fix) | saved-clean | yes | post-fix 3/3 saved-clean; 2-turn save, 1 validate each |
+| UC2-S2 | 3 | saved-clean | yes | 3/3 one-shot, 1 turn / 1 validate each |
+| UC2-S3 | 3 | saved-clean | yes | 3/3 YAML path, UserWrite forms, 2-turn save |
+| UC2-S4 | 3 | saved-clean | no | 2/3 clean; .2 off-target (`{scope.params.userId}`) |
+| UC2-S5 | 3 | saved-clean | yes | 3/3 dual-save expand→CRUD; final artifact clean |
+| UC2-S6 | 3 | saved-clean | yes | 3/3 IDs normalized; 1–2 turn save |
 | UC3-S1 | 0 | — | — | |
 | UC3-S2 | 0 | — | — | |
 | UC3-S3 | 0 | — | — | |
 | UC3-S4 | 0 | — | — | |
 | UC3-S5 | 0 | — | — | |
 | UC3-S6 | 0 | — | — | |
-| S+1 | 0 | — | n/a | per-parent; note which scenario it followed |
+| S+1 | 1 | saved-clean | n/a | after UC2-S1.postfix.3; rename-only after 2 clarifications |
 
 ---
 
@@ -201,6 +203,7 @@ Extra items to scan when the scenario ID matches:
 | UC1-S5 | Turn 1: no compose/save when user said "don't build yet" |
 | UC1-S6 | `data.mode: static` despite API-shaped paste; records unwrapped from `items` |
 | UC2-S1 | **Example-domain leakage (post-fix):** saved spec must not contain illustration-only terms (`/api/projects`, `/api/departments`, `departmentId`, `/api/submissions`, `ent-projects`, `op-browse-events`, accept/decline submission paths) unless the user asked for that domain. `{scope.companyId}`, `/api/companies`, `/api/users` from user turn 2 are **not** leakage. **No vocabulary-hint turns** on post-fix acceptance runs. |
+| UC3-S1 | **Example-domain leakage (post-fix):** saved spec must not contain HITL illustration terms (`submissions`, accept/decline submission paths, `ent-submissions`) unless the user asked for that domain. User-provided **`drafts` / `approve` / `reject`** (S1–S4, S6) and S5's **`flags` / `remove-listing` / `dismiss`** are **not** leakage — they come from the scenario script. |
 | UC2-S3 | Forms from write schema (`UserWrite`), not read schema |
 | UC2-S4, S6 | `valuePath: "items"` inferred; no hardcoded sample IDs in paths |
 | UC2-S5 | After scope expansion: `cta`, delete on detail, outcomes present |
@@ -471,21 +474,261 @@ S+1 is a follow-up turn in the **same session** as the parent save. Evidence mer
 
 #### UC2-S1 post-fix run entries
 
-<!-- UC2-S1.postfix.1 — date -->
+#### UC2-S1.postfix.1 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 58f93622-8ff8-4ea2-8026-dd86bec01099 / d1623dac-af76-4385-8b43-28c4e5040d95 · **Chat:** `/chat/58f93622-8ff8-4ea2-8026-dd86bec01099` · **View:** `/specs/d1623dac-af76-4385-8b43-28c4e5040d95`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 asked field shape, API vs static, endpoints, filters/scopes **high-value**. Turn 2 user pasted full contract (endpoints + CRUD + scope + fields); agent validated and saved **without** turn 3 confirm or scope UX re-ask — user turn 2 already specified `{scope.companyId}`, companies picker endpoint, embedded delete.
+- **Inventions:** none on endpoints/paths/scope. Minor golden deltas: browse `read` omits `valuePath: "items"`; browse table omits `notes` column; detail GET omits `?companyId=` query (write/delete include it).
+- **Artifact vs target:** matches watch-fors — browse/read/create/update ops; delete embedded on `read` (`presentation.actions[]`, confirm, DELETE binding); `cta` browse→create with label/placement; `scope.selectors[0]` → `GET /api/companies` with `labelKey`/`valueKey`; paths use `{scope.companyId}`; forms email/select/textarea/checkbox for email/role/notes/active. No example-domain leakage.
+- **Feed-forward:** **Post-fix gate passed on run 1** — 2-turn save with zero vocabulary paste (vs pre-fix 4–5 turns). Confirm `prompt_version: v1.1` on Observe; runs 2–3 for stability.
+
+#### UC2-S1.postfix.2 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 2324e685-da11-46ce-b088-c1848b369106 / 33175db4-b021-4ff5-a7f6-dabe5bf55647 · **Chat:** `/chat/2324e685-da11-46ce-b088-c1848b369106` · **View:** `/specs/33175db4-b021-4ff5-a7f6-dabe5bf55647`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 asked fields, endpoints, needed operations **high-value** (slightly narrower than .1 — no explicit API-vs-static or scope ask). Turn 2 full contract → validate → save; no turn 3, no scope UX re-ask.
+- **Inventions:** none. Minor golden deltas: browse `read` omits `valuePath: "items"`; browse table omits `notes`; scope selector binding omits `labelKey`/`valueKey` (`.1` had both). **Improvement vs .1:** read/update GET paths include `?companyId={scope.companyId}`.
+- **Artifact vs target:** matches watch-fors — browse/read/create/update; delete embedded on `read`; `cta` browse→create; `scope.selectors[0]` → `GET /api/companies`; paths use `{scope.companyId}`; forms email/select/textarea/checkbox. No example-domain leakage.
+- **Feed-forward:** Repeat of .1 pattern — 2-turn gate pass, 1 validate. Artifact shape closely matches .1 (minor selector-key delta). One more run for post-fix stability count.
+
+#### UC2-S1.postfix.3 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 9dee3391-7204-4938-9442-d64ef9c4ebe0 / b08ba631-c760-42c0-abdf-f5fb340ff946 · **Chat:** `/chat/9dee3391-7204-4938-9442-d64ef9c4ebe0` · **View:** `/specs/b08ba631-c760-42c0-abdf-f5fb340ff946`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 asked ops, API vs static, endpoints, fields, filters/pagination **high-value** (most thorough opener of the three). Turn 2 user pasted contract **plus scenario turn 3 scope/build line in the same message** (combined turns 2+3); agent validated and saved — no separate turn 3.
+- **Inventions:** none. Minor golden delta: browse list `read` still omits `valuePath: "items"`. **Best artifact of post-fix set:** scope selector has `labelKey`/`valueKey`/`valuePath: "items"`; browse table includes `notes`; read/update GET include `?companyId=`.
+- **Artifact vs target:** matches watch-fors — full CRUD structure, embedded delete, `cta`, scope selector → `/api/companies`, `{scope.companyId}` in paths, correct form types. No example-domain leakage.
+- **Feed-forward:** Third consecutive gate pass. Post-fix acceptance complete — confirm findings block below before UC2-S2.
+
+#### UC2-S1 post-fix findings (3/3 — confirm before UC2-S2)
+
+- **Gate:** **passed 3/3** — every run saved without vocabulary paste. Actual path **2 user turns** (agent saves after contract turn; turn 3 confirm often unnecessary when turn 2 is complete). `.3` merged scenario turns 2+3 into one message — still valid.
+- **Reliable paths to save:** 3/3 → `save_rui` on turn 2; **1 validate, 0 errors** each run (vs pre-fix 4–5 turns, 3–12 validates, vocabulary paste required).
+- **Contract extraction:** Endpoints, CRUD, embedded delete, `{scope.companyId}`, scope selector, forms — **3/3**. **`valuePath: "items"` on browse list** still omitted 3/3; scope selector `valuePath` appeared on `.3` only. **`scope.selectors` never dropped** (pre-fix S1.3 failure mode gone).
+- **Known failure modes (post-fix):** none observed — no vocabulary stalls, no top-level delete, no example-domain leakage, no premature validate loops.
+- **Interview quality:** Turn 1 solid 3/3 (breadth varies). Turn 2 contract → save 3/3; scope UX fork never needed when turn 2 specifies companies picker + `{scope.companyId}`.
+- **Script implications:** Eval `crud-admin-v0.2` should include turn 2 field list (unchanged). **`maxUserTurns: 3` viable post-fix**; optional turn 3 confirm may be skipped by agent when contract is complete. Pre-fix **`maxUserTurns ≥ 5`** guidance superseded for v1.1.
+- **Stability:** `stable: yes` — 3/3 `saved-clean`; same 2-turn / 1-validate flow; three distinct `contentHash`es (minor presentation deltas: notes column, selector keys, `?companyId=` on GET).
 
 #### UC2-S2
 
+#### UC2-S2.1 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 30656c97-5e42-4b17-8781-1939dd3a4570 / b4f9d024-9d00-4a36-9009-2f7d52f5609d · **Chat:** `/chat/30656c97-5e42-4b17-8781-1939dd3a4570` · **View:** `/specs/b4f9d024-9d00-4a36-9009-2f7d52f5609d`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — complete opener sufficient; agent validated and saved on turn 1 without clarifying questions **ideal for S2**.
+- **Inventions:** none. Minor golden deltas: browse table omits `notes` column (field present on detail/forms); delete action id `delete-user` vs golden `op-delete-user`.
+- **Artifact vs target:** matches S2 watch-fors (minimal turns, no redundant interview) and UC2 structure — browse/read/create/update; delete embedded on `read`; `cta` browse→create; `scope.selectors[0]` → `GET /api/companies` with `valuePath: "items"`, `labelKey`/`valueKey`; browse list `valuePath: "items"` ✓ (envelope hint landed); paths use `{scope.companyId}`; forms email/select/textarea/checkbox. No leakage.
+- **Feed-forward:** Strong one-shot variant — promote as 1-turn eval script when opener includes full contract + envelope hint; turn 2 confirm unnecessary.
+
+#### UC2-S2.2 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 2849c5ea-0f7a-4e99-9c22-31b8486b1086 / 638f47d0-cc1a-4e85-b42e-ab4bbb26b244 · **Chat:** `/chat/2849c5ea-0f7a-4e99-9c22-31b8486b1086` · **View:** `/specs/638f47d0-cc1a-4e85-b42e-ab4bbb26b244`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — same one-shot as .1; no clarifying questions.
+- **Inventions:** none. Minor golden deltas vs .1: `cta` omits `placement: "toolbar"`; browse columns omit `format`; browse table omits `notes`; delete action id `delete-user`.
+- **Artifact vs target:** matches — same structural shape as .1 (distinct contentHash): full CRUD, embedded delete, `cta`, scope selector with `valuePath`/`labelKey`/`valueKey`, browse `valuePath: "items"`, `{scope.companyId}` paths, correct form types. No leakage.
+- **Feed-forward:** Confirms .1 one-shot pattern — 2/2 runs identical flow (1 turn / 1 validate). One more run for stability.
+
+#### UC2-S2.3 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** a6d6f317-ae18-445a-9d2d-9828371beb8a / b0dff596-9882-4087-90ce-e8e97636501f · **Chat:** `/chat/a6d6f317-ae18-445a-9d2d-9828371beb8a` · **View:** `/specs/b0dff596-9882-4087-90ce-e8e97636501f`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — third consecutive one-shot; no clarifying questions.
+- **Inventions:** none. Minor golden deltas: browse table omits `notes`; delete action id `delete-user`.
+- **Artifact vs target:** matches — full CRUD, embedded delete, `cta` with `placement: "toolbar"`, scope selector complete, browse `valuePath: "items"`, correct forms. No leakage.
+- **Feed-forward:** UC2-S2 complete — see findings block below.
+
+#### UC2-S2 findings (3/3 — confirm before UC2-S3)
+
+- **Reliable paths to save:** 3/3 one-shot on turn 1 — **1 validate, 0 errors** each; turn 2 confirm never needed.
+- **Interview quality:** 3/3 skipped interview entirely when opener is complete — **ideal S2 behavior**, no redundant questions.
+- **Contract extraction:** Full CRUD, scope selector, embedded delete, `{scope.companyId}`, form fields, **`valuePath: "items"` on browse + companies** — 3/3 (envelope hint in opener is load-bearing vs UC2-S1).
+- **Known failure modes:** none — no vocabulary stalls, no leakage, no top-level delete.
+- **Recurring deviations:** browse table omits `notes` column 3/3 (present on detail/forms); three distinct `contentHash`es (minor presentation variance); `cta` `placement` varies run-to-run.
+- **Script implications:** **Promote as 1-turn eval variant** — opener must include endpoints, fields, scope, delete placement, **and** envelope hint. Current `crud-admin-v0.2` 2-turn script is conservative; S2 proves 1-turn viable for power-user prompt.
+- **Stability:** `stable: yes` — 3/3 `saved-clean`, same 1-turn / 1-validate flow, same artifact family.
+
 #### UC2-S3
+
+#### UC2-S3.1 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** b8cc1d6f-9013-4bc1-afc9-26fbeb75fac0 / c7f6afad-c0fe-4b42-bceb-cfe89fb60951 · **Chat:** `/chat/b8cc1d6f-9013-4bc1-afc9-26fbeb75fac0` · **View:** `/specs/c7f6afad-c0fe-4b42-bceb-cfe89fb60951`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 agent parsed OpenAPI (paths, User/UserWrite schemas, `companyId` param, response envelopes) and returned detailed ops plan — asked confirm **high-value** (delete on detail + scope implied from YAML). Turn 2 user pasted scripted scope/delete/build line → validate → save.
+- **Inventions:** none. Minor golden deltas: browse table omits `notes`; role select labels lowercase `admin`/`member` vs title case.
+- **Artifact vs target:** matches S3 watch-fors — **forms from `UserWrite`** (email/role/notes/active, **no `id` on create/update**); email/select/textarea/checkbox types; `companyId` on all scoped bindings; browse + companies `valuePath: "items"` from response schemas; full CRUD, embedded delete, `cta`, scope selector with `labelKey`/`valueKey`. No leakage.
+- **Feed-forward:** OpenAPI YAML path works post-fix — 2-turn plan→build; read/write schema split respected. Runs 2–3 for stability.
+
+#### UC2-S3.2 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 8e802d8c-ed1a-458d-96fd-6ac8ab087149 / d9a60020-ba5c-4b29-a995-e2c784274999 · **Chat:** `/chat/8e802d8c-ed1a-458d-96fd-6ac8ab087149` · **View:** `/specs/d9a60020-ba5c-4b29-a995-e2c784274999`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 agent parsed YAML, proposed company scope selector, asked scope UX confirm **high-value** (shorter plan than .1 — no full ops enumeration). Turn 2 scripted build line → validate → save.
+- **Inventions:** none. Minor golden deltas: browse table omits `notes`; distinct contentHash from .1.
+- **Artifact vs target:** matches S3 watch-fors — forms from `UserWrite` (no `id` on create/update); email/select/textarea/checkbox; `companyId` on bindings; browse + companies `valuePath: "items"`; full CRUD, embedded delete, `cta`, scope selector. No leakage.
+- **Feed-forward:** Same 2-turn pattern as .1; turn 1 interview briefer but scope question still landed. One more run for stability.
+
+#### UC2-S3.3 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 1cd04b0d-85a8-40a4-9867-55b29acd0d03 / 8dde7520-63ee-4851-8efa-a64598d64b67 · **Chat:** `/chat/1cd04b0d-85a8-40a4-9867-55b29acd0d03` · **View:** `/specs/8dde7520-63ee-4851-8efa-a64598d64b67`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 agent asked scope UX only (company selector for `companyId` param) **high-value** — same narrow fork as .2, no full ops plan. Turn 2 scripted build → validate → save.
+- **Inventions:** none. Minor golden deltas: browse table omits `notes`; third distinct contentHash.
+- **Artifact vs target:** matches S3 watch-fors — `UserWrite` forms (no `id`); correct field types; `companyId` bindings; `valuePath: "items"`; full CRUD, embedded delete, `cta`, scope selector. No leakage.
+- **Feed-forward:** UC2-S3 complete — see findings block below.
+
+#### UC2-S3 findings (3/3 — confirm before UC2-S4)
+
+- **Reliable paths to save:** 3/3 saved on turn 2 — **2 user turns, 1 validate, 0 errors** each; turn 2 scripted scope/delete/build line load-bearing when turn 1 ends with confirm ask.
+- **OpenAPI extraction:** Paths, `User`/`UserWrite` schemas, response envelopes, `companyId` param, `/api/companies` — extracted 3/3. **`UserWrite` on forms 3/3** — no `id` on create/update (read/write split never failed).
+- **Interview quality:** Turn 1 always asks before build — .1 full ops plan + confirm; .2/.3 narrow scope-selector question only. None re-asked endpoints or field list already in YAML.
+- **Known failure modes:** none — no forms-from-read-schema failure, no vocabulary stalls, no leakage.
+- **Recurring deviations:** browse `notes` column omitted 3/3; three distinct `contentHash`es; turn 1 plan depth varies (.1 verbose, .2/.3 scope-only).
+- **Script implications:** Promote as **2-turn eval variant** — turn 1 YAML paste + turn 2 scope/delete/build confirm (scenario wording). Response schemas in YAML are load-bearing for `valuePath`/`labelKey`/`valueKey`.
+- **Stability:** `stable: yes` — 3/3 `saved-clean`, same 2-turn / 1-validate flow, same artifact family.
 
 #### UC2-S4
 
+#### UC2-S4.1 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** f931741f-2810-4032-9af2-060a5f2d8748 / 1f65db7a-6796-417e-b583-0414e6118b57 · **Chat:** `/chat/f931741f-2810-4032-9af2-060a5f2d8748` · **View:** `/specs/1f65db7a-6796-417e-b583-0414e6118b57`
+- **Turns / validates / errors:** 1 / 3 / INVALID_PROP_TYPE, SCOPE_PLACEHOLDER_MISSING (turn 1 only; passed on attempt 3)
+- **Interview:** none — agent one-shotted on turn 1; **turn 2 never sent** (delete-on-detail inferred from DELETE endpoint, not explicit user line).
+- **Inventions:** none on paths — `c_11`/`u_04` normalized to `{scope.companyId}`/`{userId}`. Minor deltas: `role` field `type: "text"` not `select` (sample showed `"member"` only); browse table omits `notes`.
+- **Artifact vs target:** matches S4 watch-fors — **`valuePath: "items"`** on browse + companies ✓; **`labelKey`/`valueKey`** (`name`/`id`) ✓; **`bodyMap`** on create/update ✓; no hardcoded sample IDs in paths ✓; full CRUD, embedded delete, `cta`, scope selector. No leakage.
+- **Feed-forward:** Sample-response inference works but needed **3 validates** (scope placeholder + prop type fixes). One-shot skipped scripted turn 2 — acceptable when opener is complete. Watch `role` type inference on runs 2–3.
+
+#### UC2-S4.2 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-off-target
+- **Session / spec:** c2c4bd1b-345a-4f10-ada6-e1bdb9e366dd / f58752f6-67f8-4d5b-8b39-3e40a6b3a3d4 · **Chat:** `/chat/c2c4bd1b-345a-4f10-ada6-e1bdb9e366dd` · **View:** `/specs/f58752f6-67f8-4d5b-8b39-3e40a6b3a3d4`
+- **Turns / validates / errors:** 1 / 2 / SCOPE_PLACEHOLDER_MISSING (turn 1; passed attempt 2)
+- **Interview:** none — one-shot like .1; turn 2 never sent.
+- **Inventions:** **update `write.path` uses `{scope.params.userId}`** instead of `{userId}` — invalid route param binding (read/delete paths correct). `role` as `text` not `select` (same as .1).
+- **Artifact vs target:** **partial** — S4 inference watch-fors mostly pass (`valuePath: "items"`, `labelKey`/`valueKey`, `bodyMap`, no `c_11`/`u_04` in paths) but **update PATCH path wrong** ✗; full CRUD + embedded delete + `cta` + scope otherwise ✓.
+- **Feed-forward:** Sample-response path can pass validate with a broken update binding — check whether validator should reject `{scope.params.*}` in route paths. Run 3 for stability.
+
+#### UC2-S4.3 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** cedc2985-be94-4eb6-a2f0-6b757816379d / 0c55e442-2888-4494-a1c4-15a359fcc101 · **Chat:** `/chat/cedc2985-be94-4eb6-a2f0-6b757816379d` · **View:** `/specs/0c55e442-2888-4494-a1c4-15a359fcc101`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 detailed ops plan from samples (valuePath, scope, CRUD) — asked **role options** before build **high-value**; turn 2 user scripted delete/build line (did not answer role enum) → validate → save.
+- **Inventions:** none. **Best S4 artifact:** browse includes `notes` column; `role` as `select` (admin/member inferred); all paths use `{userId}` correctly (fixes .2 failure mode).
+- **Artifact vs target:** matches S4 watch-fors — `valuePath: "items"`, `labelKey`/`valueKey`, `bodyMap`, no hardcoded sample IDs; full CRUD, embedded delete, `cta`, scope selector. No leakage.
+- **Feed-forward:** UC2-S4 complete — 2-turn scripted path (.3) produced cleanest artifact vs one-shot .1/.2.
+
+#### UC2-S4 findings (3/3 — confirm before UC2-S5)
+
+- **Reliable paths to save:** 3/3 reached save — flow split: **2/3 one-shot** (.1/.2 turn 1 only), **1/3 scripted 2-turn** (.3). Validates: 3, 2, 1 respectively.
+- **Sample inference:** **`valuePath: "items"` 3/3**; **`labelKey`/`valueKey` 3/3**; **`bodyMap` 3/3**; sample ID normalization 3/3 (no `c_11`/`u_04` in saved paths). **`.2` update PATCH used `{scope.params.userId}`** — silent off-target pass.
+- **Known failure modes:** One-shot can save with wrong update path (.2); `role` as `text` when one-shot (.1/.2). Turn 1 plan + turn 2 confirm (.3) avoids bad path and gets `select` for role.
+- **Interview quality:** .1/.2 no interview (immediate save). .3 asked role options — user skipped answer, agent still inferred admin/member select.
+- **Script implications:** Prefer **2-turn script** for S4 eval (samples turn 1 + delete/build turn 2) — evidence .3 cleanest. Consider validator rule for `{scope.params.*}` in route paths (.2).
+- **Stability:** `stable: no` — 2/3 `saved-clean`, 1/3 `saved-off-target`; turn count 1–2; validate count 1–3.
+
 #### UC2-S5
+
+#### UC2-S5.1 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 2e684609-53e9-4ddc-b1c8-88fd99b64fae / da37ba7c-510f-4912-9d10-1688b0645cd7 (latest; read-only interim save b209a111-a68a-4345-bbd6-0fc2cccf3943) · **Chat:** `/chat/2e684609-53e9-4ddc-b1c8-88fd99b64fae` · **View:** `/specs/da37ba7c-510f-4912-9d10-1688b0645cd7`
+- **Turns / validates / errors:** 2 / 3 / INVALID_PROP_TYPE
+- **Interview:** Turn 1 user asked read-only; agent **saved read-only spec immediately** (dual-save pattern) without propose-only hold. Turn 2 scope expansion → full CRUD rebuild + second save; turn 3 "save it" **not sent**.
+- **Inventions:** none. Single-tenant paths omit `companyId` ✓; no scope block ✓.
+- **Artifact vs target (latest spec):** matches S5 watch-fors — **`cta` browse→create** after expansion ✓; **delete embedded on read** with confirm ✓; **create/update outcomes** (success/error/cancel) all present ✓; titles CRUD-appropriate (not read-only framing); `valuePath: "items"` on browse; forms email/select/checkbox/textarea. No leakage.
+- **Feed-forward:** Dual-save on turn 1 (read-only) then expand on turn 2 — judge final artifact; eval script may need turn 2 expansion only if turn 1 save is acceptable. Runs 2–3 for stability.
+
+#### UC2-S5.2 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 3721a4c7-0093-4a47-8859-ad485e8376de / ed568624-a1aa-4baf-8b0e-7d63b9e26220 (latest; read-only interim 99759412-1d26-43df-aaef-ce1d5ff317f4) · **Chat:** `/chat/3721a4c7-0093-4a47-8859-ad485e8376de` · **View:** `/specs/ed568624-a1aa-4baf-8b0e-7d63b9e26220`
+- **Turns / validates / errors:** 2 / 2 / none
+- **Interview:** Same dual-save as .1 — turn 1 read-only request → immediate save; turn 2 expansion → full CRUD second save; turn 3 not sent.
+- **Inventions:** none. Single-tenant, no scope ✓.
+- **Artifact vs target:** matches S5 watch-fors — `cta` with placement, embedded delete with confirm, create/update outcomes complete, CRUD titles, `valuePath: "items"`, correct form types. No leakage.
+- **Feed-forward:** Confirms .1 dual-save + expand pattern with cleaner validates (2 vs 3). One more run for stability.
+
+#### UC2-S5.3 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 202f641f-6737-4adc-90fe-7b9ea9c47da7 / 3a5674aa-df6a-4ae7-aba1-2125dac26bd2 (latest; read-only interim 7c73b233-6fc6-4323-be4e-906e12484005) · **Chat:** `/chat/202f641f-6737-4adc-90fe-7b9ea9c47da7` · **View:** `/specs/3a5674aa-df6a-4ae7-aba1-2125dac26bd2`
+- **Turns / validates / errors:** 2 / 2 / none
+- **Interview:** Third dual-save repeat — turn 1 read-only → save; turn 2 expansion → full CRUD save; turn 3 not sent.
+- **Inventions:** none. Single-tenant ✓.
+- **Artifact vs target:** matches S5 watch-fors — `cta`, embedded delete + confirm, create/update outcomes, no read-only titles on CRUD ops, `valuePath: "items"`. No leakage.
+- **Feed-forward:** UC2-S5 complete — see findings block below.
+
+#### UC2-S5 findings (3/3 — confirm before UC2-S6)
+
+- **Reliable paths to save:** 3/3 reached save on **latest spec** after turn 2 expansion — **dual-save every run** (read-only interim save on turn 1, full CRUD on turn 2). Turn 3 "save it" **never sent** 3/3.
+- **Scope expansion quality:** **`cta` 3/3**, **embedded delete 3/3**, **create/update outcomes 3/3** — late-added ops did not drop outcomes or misplace delete. Agent re-planned cleanly; no top-level delete.
+- **Known failure modes:** none on final artifacts. Turn 1 premature read-only save is consistent (not a watch-for fail — user did ask for read-only first).
+- **Interview quality:** No propose-only hold on turn 1 — agent saves read-only immediately 3/3, then rebuilds on turn 2.
+- **Script implications:** Eval as **2-turn minimum** (read-only → expand); turn 3 confirm optional. Expect **two spec IDs per session** — grader must target latest save. `.1` had 3 validates (INVALID_PROP_TYPE); `.2`/`.3` had 2 validates, 0 errors.
+- **Stability:** `stable: yes` — 3/3 `saved-clean` on final artifact; same dual-save + 2-turn flow; three distinct `contentHash`es (minor presentation variance).
 
 #### UC2-S6
 
-### UC2 findings (fill after runs)
+#### UC2-S6.1 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** e75c161d-3b8c-474b-8365-fe48365b44de / 55e4d907-14be-4cb4-babd-1556b0915727 · **Chat:** `/chat/e75c161d-3b8c-474b-8365-fe48365b44de` · **View:** `/specs/55e4d907-14be-4cb4-babd-1556b0915727`
+- **Turns / validates / errors:** 2 / 1 / none
+- **Interview:** Turn 1 parsed cURL block; asked Edit link + cancel navigation confirm **reasonable** (not redundant — cURL doesn't specify UX). Turn 2 "yep that's it. build and save." → validate → save.
+- **Inventions:** none. **`co_01`/`usr_101` normalized** to `{scope.companyId}`/`{userId}` ✓.
+- **Artifact vs target:** matches S6 watch-fors — no hardcoded sample IDs in paths; **`valuePath: "items"`** on browse + companies; **form fields from cURL bodies** (email, role, notes, active); full CRUD, embedded delete, `cta`, scope selector with `labelKey`/`valueKey`. No leakage.
+- **Feed-forward:** cURL handoff path works cleanly — 2-turn, 1 validate. Runs 2–3 for stability.
 
-*(UC2-S1 complete — see [UC2-S1 findings](#uc2-s1-findings-33-runs--confirm-before-uc2-s2) above. Remaining scenarios TBD.)*
+#### UC2-S6.2 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** b4175c4a-f474-49cb-8428-fe6987892c05 / c7de37e1-8594-4482-b17a-16b2bcea8d5d · **Chat:** `/chat/b4175c4a-f474-49cb-8428-fe6987892c05` · **View:** `/specs/c7de37e1-8594-4482-b17a-16b2bcea8d5d`
+- **Turns / validates / errors:** 1 / 1 / none
+- **Interview:** none — **one-shot** on turn 1; turn 2 confirm **not sent** (opener complete enough).
+- **Inventions:** none. `co_01`/`usr_101` → `{scope.companyId}`/`{userId}` ✓.
+- **Artifact vs target:** matches S6 watch-fors — no hardcoded IDs; `valuePath: "items"`; forms from cURL bodies; full CRUD, embedded delete, `cta`, scope selector complete. No leakage.
+- **Feed-forward:** Confirms cURL path can one-shot like S2 — distinct contentHash from .1. Run 3 for stability.
+
+#### UC2-S6.3 — 2026-08-08
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** b900e55b-1edb-4ea1-b2bd-c890d6a176c1 / f8602404-b090-4244-a46e-9a11eeaf8e6d · **Chat:** `/chat/b900e55b-1edb-4ea1-b2bd-c890d6a176c1` · **View:** `/specs/f8602404-b090-4244-a46e-9a11eeaf8e6d`
+- **Turns / validates / errors:** 1 / 2 / INVALID_TRANSITION_MAP (turn 1; passed attempt 2)
+- **Interview:** none — one-shot like .2; turn 2 not sent.
+- **Inventions:** none. `co_01`/`usr_101` normalized ✓.
+- **Artifact vs target:** matches S6 watch-fors — no hardcoded IDs; `valuePath: "items"`; forms from cURL bodies; full CRUD, embedded delete, `cta`, scope selector. No leakage.
+- **Feed-forward:** UC2-S6 complete — see findings block below.
+
+#### UC2-S6 findings (3/3 — UC2 complete)
+
+- **Reliable paths to save:** 3/3 saved — **sample-ID normalization never failed** (`co_01`/`usr_101` → placeholders 3/3). Flow: .1 **2-turn** (UX confirm), .2/.3 **1-turn** one-shot.
+- **cURL extraction:** `valuePath: "items"` 3/3; form fields from `-d` bodies 3/3; scope/companies binding 3/3; full CRUD structure 3/3.
+- **Known failure modes:** none on final artifacts — **primary S6 trap (hardcoded IDs) avoided 3/3**. `.3` needed 2 validates (`INVALID_TRANSITION_MAP` self-corrected).
+- **Interview quality:** .1 asked Edit/cancel UX (reasonable); .2/.3 skipped interview when opener complete.
+- **Script implications:** cURL paste is viable onboarding story post-fix. Eval variant: turn 1 cURL block; turn 2 optional confirm. One-shot works when opener includes CRUD + scope + delete placement + role enum.
+- **Stability:** `stable: yes` — 3/3 `saved-clean`; ID normalization reliable; turn count 1–2.
+
+### UC2 findings (post-fix exploration complete)
+
+- **Post-fix gate (S1):** passed 3/3 — vocabulary paste no longer required; 2-turn save typical.
+- **Input-form coverage:** S2 one-shot ✓, S3 OpenAPI/UserWrite ✓, S4 sample inference mostly ✓ (`.2` bad update path), S5 scope expansion ✓, S6 cURL normalization ✓.
+- **Cross-scenario reliability:** Full CRUD + embedded delete + `cta` + scope (when requested) — **high** post-fix. **`valuePath: "items"`** lands when envelope hinted (S2) or in samples/YAML/cURL — less reliable on thin prose alone (S1).
+- **Remaining off-target modes:** S4 `.2` `{scope.params.userId}`; S4/S1 `role` as `text` on one-shot; browse `notes` column often omitted.
+- **Eval promotion priorities:** S2 1-turn variant, S1 2-turn with field list, S3 2-turn YAML, S4 **2-turn** (not one-shot), S5 2-turn dual-save (grade latest spec), S6 1–2 turn cURL.
+- **Validator/product follow-ups:** reject `{scope.params.*}` in route paths (S4.2); consider browse `valuePath` prompt nudge.
 
 ---
 
@@ -522,6 +765,16 @@ S+1 is a follow-up turn in the **same session** as the parent save. Evidence mer
 
 (Log here regardless of which scenario it followed; name the parent run, e.g. "after UC2-S3.1". Use [S+1 workflow](#s1-workflow) — log parent entry **before** sending the S+1 turn.)
 
+#### S+1.1 — 2026-08-09 (after UC2-S1.postfix.3)
+- **Platform:** post-fix (prompt v1.1)
+- **Result:** saved-clean
+- **Session / spec:** 9dee3391-7204-4938-9442-d64ef9c4ebe0 / 31def521-7bc3-4092-a441-999722de37ca (S+1; parent b08ba631-c760-42c0-abdf-f5fb340ff946) · **Chat:** `/chat/9dee3391-7204-4938-9442-d64ef9c4ebe0` · **View:** `/specs/31def521-7bc3-4092-a441-999722de37ca`
+- **Turns / validates / errors:** 5 total (3 S+1 user turns) / 2 total (1 S+1 validate) / none
+- **Interview:** Turns 3–4 — agent clarified no incidents entity (turn 3) and active column already present (turn 4) before saving on turn 5. No tool calls on clarification turns.
+- **Inventions:** none — final artifact is rename-only (`Users Admin` → `Ops Console`).
+- **Artifact vs target:** matches S+1 watch-fors — full spec carried forward (4 ops, 5 transitions, embedded delete, scope selector, browse columns unchanged); re-validated before second save; new spec URL explained. Only requested change on final turn applied.
+- **Feed-forward:** Verbatim UC1 S+1 script on UC2 parent cost 2 extra clarification turns — adapt domain on future S+1 runs. Rename-only iteration works cleanly once intent is unambiguous.
+
 ### S+1 findings (fill after runs)
 
 - Did it carry the full spec forward, or drop outcomes/transitions on the rebuild?
@@ -555,7 +808,12 @@ The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …)
 
 ### Runner / harness changes (`scripts/eval-run.ts`, driver)
 
-- Fold endpoints **and** field list into `crud-admin-v0.2` conversationScript turn 2 — pending post-fix UC2-S1 gate; re-evaluate `maxUserTurns` after post-fix runs.
+- Fold endpoints **and** field list into `crud-admin-v0.2` conversationScript turn 2 — evidence: UC2-S1.1 needed fields for forms; eval script omits them today.
+- **`maxUserTurns: 3` viable post-fix** — evidence: UC2-S1 post-fix 3/3 saved-clean on 2-turn script; UC2-S2 3/3 one-shot on 1 turn / 1 validate. Re-evaluate only if UC3 multi-turn scenarios stall.
+
+### Validator changes (`lib/validate/semantic/`)
+
+- ✅ **Shipped** `INVALID_BINDING_PLACEHOLDER` — every `{...}` in API binding paths must be `{paramName}` from `params[]` or `{scope.<selectorId>}` from `entity.scope.selectors`; rejects `{scope.params.userId}` and other invented tokens — evidence: UC2-S4.2 saved-off-target with malformed update `write.path`.
 
 ### New eval variants worth scripting
 
@@ -564,4 +822,4 @@ The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …)
 ### Product / docs changes
 
 - ✅ **Shipped** enriched `GET /api/schema` (`shapes` + neutral-domain `examples`) and `SCOPE_SELECTOR_MISSING` validator rule — evidence: UC2-S1.1–S1.3 pre-fix.
-- Post-fix: rerun UC2-S1 × 3 on 3-turn script; log under [UC2-S1 post-fix run entries](#uc2-s1-post-fix-run-entries).
+- ✅ **Shipped** `INVALID_BINDING_PLACEHOLDER` validator rule — evidence: UC2-S4.2 `{scope.params.userId}` off-target pass.

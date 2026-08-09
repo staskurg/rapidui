@@ -1,4 +1,4 @@
-import type { Rui } from "@/lib/operations";
+import type { Operation, Rui } from "@/lib/operations";
 
 import { formatError } from "../messages";
 import type { ValidationError } from "../types";
@@ -17,6 +17,23 @@ export function collectBindingPaths(data: unknown): string[] {
       const path = (binding as { path?: unknown }).path;
       if (typeof path === "string") {
         paths.push(path);
+      }
+    }
+  }
+
+  return paths;
+}
+
+export function collectOperationBindingPaths(operation: Operation): string[] {
+  const paths = collectBindingPaths(operation.data);
+
+  if (operation.type === "read" && operation.presentation.actions) {
+    for (const action of operation.presentation.actions) {
+      if ("invoke" in action) {
+        paths.push(action.invoke.path);
+      }
+      if ("write" in action) {
+        paths.push(action.write.path);
       }
     }
   }

@@ -26,6 +26,7 @@ export type RuleCode =
   | "MISSING_CTA_TRANSITION"
   | "SCOPE_PLACEHOLDER_MISSING"
   | "SCOPE_SELECTOR_MISSING"
+  | "INVALID_BINDING_PLACEHOLDER"
   | "INVALID_COLUMNS"
   | "INVALID_FILTER_FIELD";
 
@@ -128,6 +129,11 @@ export const RULES: Rule[] = [
     id: "O19b",
     code: "SCOPE_SELECTOR_MISSING",
     description: "scope placeholders in bindings require a matching entity scope.selectors entry",
+  },
+  {
+    id: "O19c",
+    code: "INVALID_BINDING_PLACEHOLDER",
+    description: "binding path placeholders must be declared params or {scope.<selectorId>}",
   },
   {
     id: "O20",

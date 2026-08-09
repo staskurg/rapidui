@@ -122,6 +122,10 @@ export const ERROR_CATALOG: Record<RuleCode, { message: string; hint: string }> 
     message: 'Entity "{entityId}" uses scope placeholder {param} but has no matching scope.selectors entry.',
     hint: "Declare scope.selectors[] on the entity with id matching the placeholder (e.g. companyId for {scope.companyId}).",
   },
+  INVALID_BINDING_PLACEHOLDER: {
+    message: 'Operation "{operationId}" binding path uses invalid placeholder {param}.',
+    hint: "Use {paramName} from params[] or {scope.<selectorId>} from entity scope.selectors — not invented tokens like {scope.params.userId}.",
+  },
   INVALID_COLUMNS: {
     message: 'Browse operation "{operationId}" must have at least one column with unique keys.',
     hint: "Define presentation.columns[] with unique key per column.",
