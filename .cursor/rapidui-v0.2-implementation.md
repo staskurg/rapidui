@@ -96,7 +96,7 @@ Full definitions: reference **§15**. **v0.2 ships when S1–S10 are verified** 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0–6** | ✅ Complete | Observability (Phase 6 P0 + UI) shipped — see [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
-| **7** | 🔲 In progress | **7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **chat session persistence** 🔲 (pre-impl review ✅ — [plan](chat-session-persistence-plan.md)) · **7.4–7.7** remaining |
+| **7** | 🔲 In progress | **7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **chat session persistence** ✅ ([plan](chat-session-persistence-plan.md)) · **chat agent v1.2** 🔲 ([plan](chat-agent-v1.2-plan.md) — gates **7.4 baselines**) · **7.4–7.7** remaining |
 | **v0.3** | ⏸ After v0.2 | Renderer, auth hardening — [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 
 **One-line gap:** Observe answers *what happened*; Phase **7** (7.1–7.7) answers *was the result correct, was the path reasonable, and which model/prompt should we ship?*
@@ -3763,14 +3763,16 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 
 ### Implementation readiness (2026-08-04)
 
-**Verdict:** **7.1–7.3** complete. Ready to start **7.4**. **7.6** blocked on **7.4**.
+**Verdict:** **7.1–7.3** complete. **7.4 schema** may start in parallel; **7.4 baselines** wait for [chat agent v1.2](chat-agent-v1.2-plan.md) (prompt v1.2 → milestone Observe → exploration re-run → eval case updates). **7.6** blocked on **7.4** data.
 
 | Phase | Readiness | Notes |
 |-------|-----------|-------|
 | **7.1** | ✅ Complete | Portfolio polish + S1–S9 (2026-08-01) |
 | **7.2** | ✅ Complete | Grader hardening + mutation CI (2026-08-03) |
 | **7.3** | ✅ Complete | `eval:run` + driver shipped (2026-08-03, `8a2f91e`) |
-| **7.4** | Ready | `eval_trials` migration **007** |
+| **Chat session persistence** | ✅ Complete | Migration **009**; exploration enabler (2026-08-08) |
+| **Chat agent v1.2** | 🔲 Planned | [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md) — gates first **7.4** baselines |
+| **7.4** | Ready (schema) | `eval_trials` migration **007** — persist after v1.2 exit criteria |
 | **7.6** | Blocked on 7.4 | Links to `/observe/agent/sessions/[id]` only |
 | **7.5 / 7.7** | Not started | **7.7** build gate: **7.2–7.5** complete — see [Phase 7.7](#phase-77--modelprompt-comparison-o5) |
 
@@ -4082,7 +4084,7 @@ agent/README.md
 - [x] UC4 excluded with clear error
 - [ ] *(Recommended)* Runner vs manual parity with baseline Path A batch — eval tuning follow-up, not blocking
 
-**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Proceed to **chat session persistence** (exploration enabler), then **7.4** in parallel. UC2/UC3 live pass rates are case tuning on top of this harness.
+**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Chat session persistence ✅ (2026-08-08). Next: [chat agent v1.2](chat-agent-v1.2-plan.md), then **7.4** baselines. UC2/UC3 live pass rates are case tuning on top of this harness.
 
 ---
 

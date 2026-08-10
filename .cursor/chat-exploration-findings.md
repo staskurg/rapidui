@@ -23,6 +23,8 @@ You are helping a human who is running the scenarios from `chat-exploration-scen
 
 **Post-fix runs (platform cutover 2026-08-08):** After enriching `GET /api/schema` (`shapes` + neutral-domain `examples`) and shipping prompt **v1.1**, UC2-S1 is rerun as a **fresh acceptance gate**. Pre-fix entries (prompt v1, sparse schema) stay as baseline evidence — do not merge into post-fix stability counts. Log post-fix runs with **`Platform: post-fix (prompt v1.1)`** in the run entry (Observe `prompt_version` should read `v1.1`). **Restart the agent** after changing the prompt — uvicorn `--reload` does not watch `prompts/*.txt`.
 
+**v1.2 re-run (planned):** After shipping prompt v1.2 draft-first, log with **`Platform: post-fix (prompt v1.2 draft-first)`** — see [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). Do not merge v1.1 and v1.2 stability counts. Use result **`saved-unconfirmed`** when the agent saved before user save intent.
+
 **Platform cutover 2026-08-08 (validator):** `INVALID_BINDING_PLACEHOLDER` rejects malformed or undeclared `{...}` tokens in API binding paths (e.g. `{scope.params.userId}` from UC2-S4.2). Only adds error detection — post-change runs stay comparable; catching errors loudly is strictly better than silent bad saves. Log UC3 runs after this cutover with **`Platform: post-fix (prompt v1.1 + binding placeholder validator)`** when the deployed validator includes the rule.
 
 **Result vocabulary** (one per run):
@@ -30,6 +32,7 @@ You are helping a human who is running the scenarios from `chat-exploration-scen
 - `saved-clean` — saved, artifact matches the scenario's watch-fors
 - `saved-off-target` — saved, but artifact deviates from watch-fors (say how)
 - `saved-negotiated` — saved after the agent redirected an unsupported request (UC3-S3 style)
+- `saved-unconfirmed` — saved before user save intent (v1.2+; off-target even when the artifact is correct)
 - `no-save` — conversation ended without `save_rui` (say where it stalled)
 - `error` — infra/tool failure, not a model result (don't count toward stability)
 
@@ -1053,9 +1056,21 @@ S+1 is a follow-up turn in the **same session** as the parent save. Evidence mer
 
 The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …).
 
+### Prompt v1.2 draft-first — planned (2026-08-10)
+
+**Tracking:** [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). Supersedes the open eval/runner items below once WS4/WS5 complete.
+
+- **Prompt:** v1.2 — validated draft before save; explicit-save escape hatch; plan-only mode (UC1-S5); valuePath / messy-data / HITL-hold rules — evidence: premature-save victims in v1.1 dashboard (UC3-S6, UC3-S1, UC1-S4, UC3-S4, dual-saves).
+- **Observe:** session **milestone** (`none` → `validated` → `saved`) + list polish (**env**, **est. cost**, remove eval-case column) — [plan WS2](chat-agent-v1.2-plan.md#workstream-2--observe-agent-dashboard)
+- **Exploration:** re-run all 19 scenarios + D1–D3 under `Platform: post-fix (prompt v1.2 draft-first)`; add `saved-unconfirmed` result vocabulary.
+- **Eval cases:** contracts in-band (drop unused `mockApi`), confirm turns with explicit save phrasing, `maxUserTurns: 5` — gates Phase 7.4 baselines.
+- **7.5 blockers:** UC3-S4 clarification variant + UC3-S3 negotiation variant (`forbiddenEmbeddedAction`).
+
+Items in the sections below marked **superseded by v1.2 plan** remain as v1.1 baseline evidence until WS5 lands.
+
 ### Eval case changes (`eval/cases/*.json`)
 
-- Fold endpoints **and** field list into `crud-admin-v0.2` conversationScript turn 2 — phrased as in UC2-S1 scenario turn 2 — evidence: UC2-S1.1 needed fields for forms; eval script omits them today.
+- Fold endpoints **and** field list into `crud-admin-v0.2` conversationScript turn 2 — phrased as in UC2-S1 scenario turn 2 — evidence: UC2-S1.1 needed fields for forms; eval script omits them today. *(Superseded by v1.2 plan WS5 — pending re-run.)*
 
 ### Agent prompt changes (`agent/prompts/v1.txt`)
 
@@ -1063,8 +1078,8 @@ The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …)
 
 ### Runner / harness changes (`scripts/eval-run.ts`, driver)
 
-- Fold endpoints **and** field list into `crud-admin-v0.2` conversationScript turn 2 — evidence: UC2-S1.1 needed fields for forms; eval script omits them today.
-- **`maxUserTurns: 3` viable post-fix** — evidence: UC2-S1 post-fix 3/3 saved-clean on 2-turn script; UC2-S2 3/3 one-shot on 1 turn / 1 validate. Re-evaluate only if UC3 multi-turn scenarios stall.
+- Fold endpoints **and** field list into `crud-admin-v0.2` conversationScript turn 2 — evidence: UC2-S1.1 needed fields for forms; eval script omits them today. *(Superseded by v1.2 plan WS5.)*
+- ~~**`maxUserTurns: 3` viable post-fix**~~ — **superseded:** draft-first needs **`maxUserTurns: 5`** (v1.2 plan decision 5). v1.1 evidence: UC2-S1 post-fix 2-turn save; UC3-S4 sits at the old cap of 4.
 
 ### Validator changes (`lib/validate/semantic/`)
 

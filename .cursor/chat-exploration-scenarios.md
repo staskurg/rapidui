@@ -1,6 +1,6 @@
 # Chat exploration scenarios — UC1 / UC2 / UC3
 
-**Status:** exploration doc, written after Phase 7.3 sign-off. **Infra:** chat session persistence ✅ shipped — [plan](chat-session-persistence-plan.md). Ready for bulk UC1–UC3 scenario runs.
+**Status:** v1.1 exploration complete (see [findings](chat-exploration-findings.md)). **Next:** prompt v1.2 draft-first re-run — [implementation plan](chat-agent-v1.2-plan.md) WS3 will update this doc (definition of done, save-intent table, D1–D3 scenarios, workload) **before** any v1.2 runs are logged. **Infra:** chat session persistence ✅ shipped — [plan](chat-session-persistence-plan.md).
 **Purpose:** manually walk the agent to a saved RUI spec through *human-realistic* conversations, so we learn which paths reliably reach `save_rui` and which stall. What we learn here becomes the raw material for stronger `conversationScript`s in `eval/cases/` — but this doc itself is not an eval plan. It's a script for a human sitting in `/chat`.
 
 **Definition of done for every scenario:** the agent validates (≤5 attempts), calls `save_rui`, and shares a `viewUrl`. Anything else is a finding, not a failure to ignore.
