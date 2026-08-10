@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { NewTabLink } from "@/components/demo/NewTabLink";
-import { AgentRunOutcomeBadge } from "@/components/observe/AgentRunOutcomeBadge";
+import { AgentSessionStateBadge } from "@/components/observe/AgentSessionStateBadge";
 import { SpecLink } from "@/components/site/SpecLink";
+import { formatEstCostUsd } from "@/lib/observe/modelPricing";
 import {
   formatRelativeTime,
   getAgentRunDetail,
@@ -71,9 +72,9 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
       <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">State</dt>
             <dd className="mt-1">
-              <AgentRunOutcomeBadge outcome={run.outcome} />
+              <AgentSessionStateBadge state={run.state} />
             </dd>
           </div>
           <div>
@@ -85,10 +86,8 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
             <dd className="mt-1 font-mono text-ui">{run.promptVersion ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
-              Eval case
-            </dt>
-            <dd className="mt-1 font-mono text-ui">{run.evalCaseId ?? "—"}</dd>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Env</dt>
+            <dd className="mt-1 font-mono text-ui">{run.env ?? "—"}</dd>
           </div>
           <div>
             <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
@@ -121,6 +120,17 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
                 <span className="ml-2 text-caption text-amber-700 dark:text-amber-400">
                   (turn sum differs)
                 </span>
+              ) : null}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+              Est. cost
+            </dt>
+            <dd className="mt-1 text-ui">
+              {formatEstCostUsd(run.estCostUsd, run.estCostBasis)}
+              {run.estCostBasis === "list" ? (
+                <span className="ml-2 text-caption text-zinc-500">list price (no cache data)</span>
               ) : null}
             </dd>
           </div>
@@ -191,6 +201,12 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
             </dd>
           </div>
         </dl>
+        {run.evalCaseId ? (
+          <p className="mt-4 text-caption text-zinc-500">
+            Eval case:{" "}
+            <span className="font-mono text-zinc-600 dark:text-zinc-400">{run.evalCaseId}</span>
+          </p>
+        ) : null}
         {run.errorSummary ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-ui text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
             {run.errorSummary}
@@ -210,6 +226,7 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Turn</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Latency</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Input tokens</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500">Cached input</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Output tokens</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Validate</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Save</th>
@@ -223,6 +240,7 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
                       {turn.latencyMs !== null ? `${turn.latencyMs}ms` : "—"}
                     </td>
                     <td className="px-4 py-3">{turn.inputTokens ?? "—"}</td>
+                    <td className="px-4 py-3">{turn.cacheReadTokens ?? "—"}</td>
                     <td className="px-4 py-3">{turn.outputTokens ?? "—"}</td>
                     <td className="px-4 py-3">{turn.hadValidateCall ? "✓" : "—"}</td>
                     <td className="px-4 py-3">{turn.hadSave ? "✓" : "—"}</td>

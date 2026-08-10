@@ -57,6 +57,7 @@ def _build_base_run_payload(
         "provider": provider,
         "prompt_version": settings.rapidui_agent_prompt_version,
         "validate_attempts": state.validate_attempts,
+        "env": settings.rapidui_env,
     }
     if deps.eval_case_id:
         run_payload["eval_case_id"] = deps.eval_case_id
@@ -134,11 +135,14 @@ async def handle_turn_complete(
         "latency_ms": latency_ms,
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
+        "cache_read_tokens": usage.cache_read_tokens,
         "had_validate_call": state.turn_had_validate,
         "had_save": state.turn_had_save,
     }
 
     run_payload = _build_base_run_payload(deps, settings, state)
+    run_payload["total_tokens"] = _total_tokens(state)
+    run_payload["latency_ms"] = _session_wall_latency_ms(state)
 
     if state.turn_had_save and state.last_spec_id:
         run_payload.update(

@@ -1,7 +1,7 @@
 # Chat agent v1.2 — plan
 
-**Status:** planned (2026-08-10). Follows the chat exploration cycle ([scenarios](chat-exploration-scenarios.md), [findings](chat-exploration-findings.md)).
-**Goal:** the agent presents a validated **draft** and waits for user confirmation before `save_rui` — unless the user explicitly asked to save. Ship as **prompt v1.2** together with the other exploration-driven prompt fixes, improve **agent Observe** (session milestone funnel + list UI polish: env, cost, drop empty eval-case column), update the exploration docs, re-run the explorations, then update eval cases.
+**Status:** WS1–WS3 complete (2026-08-10). WS4–WS5 pending. Follows the chat exploration cycle ([scenarios](chat-exploration-scenarios.md), [v1.1 findings](chat-exploration-findings.md), [v1.2 findings](chat-exploration-findings-v1.2.md)).
+**Goal:** the agent presents a validated **draft** and waits for user confirmation before `save_rui` — unless the user explicitly asked to save. Ship as **prompt v1.2** together with the other exploration-driven prompt fixes, improve **agent Observe** (single **session state** column including **Draft** funnel + optional list UI polish: env, cost, drop empty eval-case column), update the exploration docs, re-run the explorations, then update eval cases.
 **Gates Phase 7.4 baselines:** yes — do not persist or compare baselines until the re-run confirms the new flow is stable (see [Sequencing](#sequencing--exit-criteria)). **7.4 schema/work (`007`/`008`, `evalTrials.ts`) may be drafted in parallel** with WS1–WS4; first `eval:run` batches and baseline snapshots wait for exit criteria.
 
 ---
@@ -23,19 +23,63 @@ One rule — *validated draft first, save only on user confirmation* — address
 1. **Draft-first gate with explicit-save escape hatch.** No save instruction from the user → agent presents a draft and waits. Explicit save intent (e.g. "save it", "validate and save", "build and save") → save immediately after a passing validate. Evidence the escape hatch matters: UC2-S2, UC3-S2, UC3-S5 went 3/3 clean as one-shots *because* the opener said save.
 2. **A draft is a validated, unsaved spec presented in the chat panel.** No new tools, no DB draft rows, no spec status column. `save_rui` keeps its single meaning (publish, POSTs `/api/specs`). Chat session persistence (shipped 2026-08-08, migration **009**) makes the draft survive refresh.
 3. **Draft presentation is one consolidated turn** — summary of what will be built (screens, operations, bindings) + spec visible in the panel + exactly one ask ("any changes, or should I save it?"). Validation happens **before** presenting, so the confirm turn is never spent on an invalid spec. Do not regress into pre-v1.1 serial interviewing.
-4. **Observe: outcome + milestone (not a `draft` outcome).** Keep lifecycle **outcomes** small (`saved` / `failed` / `abandoned` / `in_progress`). Add a derived **milestone** from `api_events`: `none` → `validated` → `saved`. The funnel metric we care about — **Validated, not saved** — is `milestone = validated` (≥1 passing validate, no save). Ingest enum unchanged; both axes retroactive over history.
+4. **Observe: single session state (not outcome + milestone).** Replace the five-value `AgentRunOutcome` display model (`saved` / `failed` / `abandoned` / `abandoned_inferred` / `in_progress`) with one derived **`AgentSessionState`**: `saved` · `draft` · `active` · `failed` · `abandoned`. The v1.2 funnel metric is **`draft`** — passing validate, no published spec. Ingest still writes terminal hints to `agent_runs.outcome` (`saved` / `failed` / `abandoned`); display state is event-derived. Retires `abandoned_inferred` from the UI and supersedes the 2026-08-07 persistence-plan rule that transcript sessions stay `in_progress` forever ([supersession notes](#observe-session-state-supersedes-persistence-plan)).
 5. **`maxUserTurns: 5`** on eval cases (was 4) — draft/confirm turns make 4 tight; UC3-S4-style discovery + confirm needs the headroom. Supersedes v1.1 findings guidance that `maxUserTurns: 3` was viable post-fix.
 6. **All v1.2 prompt fixes ship in one cutover** (one re-baseline, not two).
-7. **Agent Observe list polish.** Drop **eval case** from the list table and filters (almost always empty on manual `/chat` — case performance belongs on `/observe/evals`). Add **`env`** (`local` | `prod`) so local dev sessions don't pollute prod metrics. Add **est. cost** beside tokens (derived from turn token counts + model price table). Keep `eval_case_id` in DB for `eval:run` cross-links; show on session detail only when set.
+7. **Agent Observe list polish (WS2B — non-gating).** Drop **eval case** from the list table and filters (almost always empty on manual `/chat` — case performance belongs on `/observe/evals`). Add **`env`** (`local` | `prod`) so local dev sessions don't pollute prod metrics. Add **est. cost** beside tokens (derived from turn token counts + model price table). Keep `eval_case_id` in DB for `eval:run` cross-links; show on session detail only when set. **Does not gate 7.4 baselines** — ship when convenient; re-run needs only WS2A **Draft** state.
 
-### Observe model (reference)
+### Shipped deviations (2026-08-10)
 
-| Layer | Question | Values |
+WS1–WS2 shipped with these intentional differences from the plan text below:
+
+| Deviation | Plan said | Shipped |
 |---|---|---|
-| **Outcome** | How did the session end? | `in_progress` · `saved` · `failed` · `abandoned` · `abandoned_inferred` |
-| **Milestone** | How far did they get? | `none` · `validated` · `saved` |
+| **State funnel location** | Saved / Draft / Active / … stat cards on `/observe/agent` | Funnel on **`/observe` hub** only (Runs · Saved · Draft · Active); agent page has state badge + filter per row |
+| **Agent dashboard cards** | Replace outcome cards with state cards | **Tokens + est. cost** cards instead (operational focus) |
+| **Est. cost pricing** | List price only (`input × price + output × price`) | **Cache-aware** via migration **011** + `cache_read_tokens`; `~` prefix for legacy rows without cache data |
+| **`env` ingest** | Python agent + Next.js | **Python agent only** (`RAPIDUI_ENV` in `agent/config.py` + `agent/telemetry.py`) |
 
-**Validated, not saved** = milestone `validated` (any outcome except `saved`). Typical cases: `abandoned` + validated (user left after green validate); `in_progress` + validated (still in chat with draft in panel).
+### Observe session state (reference — locked)
+
+One column answers: *where is this session in the journey?*
+
+| State | Meaning |
+|---|---|
+| **`saved`** | Spec published (≥1 successful `POST /api/specs` in `api_events`) |
+| **`draft`** | Passing validate, no save — draft ready in panel (live or stale); **v1.2 funnel metric** |
+| **`active`** | Recent activity, no passing validate yet — still working toward a draft |
+| **`failed`** | Explicit terminal agent/harness failure (`agent_runs.outcome = 'failed'`) — **not** "last validate was red" |
+| **`abandoned`** | Idle/closed, never reached a passing validate |
+
+**Derivation** (display-only; precedence top to bottom):
+
+```typescript
+hasSave           = api_events: successful POST /api/specs
+hasPassValidate   = api_events: POST /api/validate AND valid = true
+dbFailed          = agent_runs.outcome = 'failed'
+dbAbandoned       = agent_runs.outcome = 'abandoned'
+isRecent          = last activity < AGENT_STALE_SESSION_MS
+
+if hasSave                              → saved
+if dbFailed                             → failed   // above draft — crash after green validate → Failed
+if hasPassValidate && !hasSave          → draft
+if dbAbandoned                          → abandoned  // short-circuit recency (New chat without validate)
+if isRecent                             → active
+else                                    → abandoned
+```
+
+**Semantics worth locking in the plan:**
+
+- **`failed`** = explicit terminal agent/harness failure only. Failed validate retries are normal; do not mirror API Observe's `lastValidateValid === false` rule.
+- **`dbFailed` above `hasPassValidate`:** a session that reached a green draft and then hit a terminal error shows **Failed**, not Draft — crash is more actionable than a stale draft.
+- **`hasPassValidate` above `dbAbandoned`:** New chat after a green draft (exploration protocol) → **Draft**, not Abandoned. Explicit abandon without validate → **Abandoned** immediately (fixes the old "Active for 30m" bug).
+- **Resume self-healing:** state flips back to **active** / **draft** when **new turns or api_events** update recency — opening `/chat/{sessionId}` alone does not move `last_activity_at`.
+- **Ingest unchanged:** `agent_runs.outcome` remains `saved` | `failed` | `abandoned` | null. Save signal authoritative from `api_events`, same as API Observe.
+- **Retired from UI:** `AgentRunOutcome`, `abandoned_inferred`, milestone axis, separate "Validated, not saved" metric (= **Draft count**).
+
+### Observe session state supersedes persistence plan
+
+The 2026-08-07 amendment ([chat-session-persistence-plan.md](chat-session-persistence-plan.md)) locked: sessions with `transcript_jsonb` never go stale — stay **`in_progress`** until explicit terminal outcome. **Superseded by this model:** stale transcript sessions without a passing validate → **abandoned**; with passing validate → **draft**. Update persistence plan, Phase 6/7.3½ in [rapidui-v0.2-implementation.md](rapidui-v0.2-implementation.md), and [agent/README.md](../agent/README.md) when WS2A ships.
 
 ---
 
@@ -62,66 +106,65 @@ One rule — *validated draft first, save only on user confirmation* — address
 
 ### Checklist (WS1)
 
-- [ ] `agent/prompts/v1.2.txt` created with rules 1–8
-- [ ] `RAPIDUI_AGENT_PROMPT_VERSION=v1.2` set in `agent/.env`; agent restarted; Observe shows `v1.2`
-- [ ] Spot-check 4 manual chats: (a) no save word → draft + confirm → save; (b) "validate and save" opener → one-shot; (c) change request on draft → rebuilt draft, single final save; (d) "don't build yet" opener → plan only on turn 1, no validate (UC1-S5 shape)
+- [x] `agent/prompts/v1.2.txt` created with rules 1–8
+- [x] `RAPIDUI_AGENT_PROMPT_VERSION=v1.2` set in `agent/.env`; agent restarted; Observe shows `v1.2`
+- [x] Spot-check 4 manual chats: (a) no save word → draft + confirm → save; (b) "validate and save" opener → one-shot; (c) change request on draft → rebuilt draft, single final save; (d) "don't build yet" opener → plan only on turn 1, no validate (UC1-S5 shape)
 
 ---
 
 ## Workstream 2 — Observe agent dashboard
 
-Two parallel tracks on `/observe/agent`: **session milestone** (funnel analytics) and **list UI/UX polish** (env, cost, eval-case cleanup). Same files, ship together.
+Two tracks on `/observe/agent`: **2A session state** (required for v1.2 re-run) and **2B list UI polish** (optional cleanup — **non-gating** for 7.4).
 
 ---
 
-### 2A — Session milestone
+### 2A — Session state (replaces outcome + milestone)
 
-**Design: two axes, both derived at display time from existing telemetry.** Outcomes stay on `resolveAgentRunOutcome()` — unchanged enum. Milestone is a **separate column/chip**, not a replacement outcome.
+**Design:** one derived **`AgentSessionState`** per session — see [Observe session state (reference)](#observe-session-state-reference--locked). Replaces `resolveAgentRunOutcome()` / `AgentRunOutcomeBadge` in the UI. Both Agent and API Observe trust **`api_events`** for save and validate signals; Agent Observe adds **draft** / **abandoned** / **active** split.
 
-**Milestone resolution** (from `api_events`, authoritative):
-
-| Milestone | Rule |
-|---|---|
-| **`saved`** | ≥1 successful `POST /api/specs` (same signal as saved outcome) |
-| **`validated`** | ≥1 passing `POST /api/validate` (`valid IS TRUE`) and no save |
-| **`none`** | No passing validate (may still have failed validate attempts) |
-
-**Headline funnel metric:** **`validatedNotSavedCount`** — sessions where `milestone === 'validated'`. Includes in-progress sessions still sitting on a draft (useful live signal) and abandoned sessions that never confirmed save.
-
-**Do not** add `draft` to `AgentRunOutcome`. Abandoned stays Abandoned; milestone tells you *how far* they got.
+**Headline funnel metric:** **`draftCount`** — sessions in **`draft`** state (passing validate, no save). Includes live sessions awaiting confirm and exploration runs where the human clicked New chat after a green draft.
 
 ### Tasks
 
 1. **`lib/observe/queries.ts`**
-   - Add `AgentSessionMilestone` type: `"none" | "validated" | "saved"`.
-   - Add `resolveAgentSessionMilestone(hasPassingValidate, hasSave)` — pure function.
-   - Add `sessionHasPassingValidate(sessionId)` and `sessionHasSave(sessionId)` helpers (or one `getSessionMilestoneSignals(sessionId)` query).
-   - Extend `AgentRunListRow` + `AgentRunDetail.run` with `milestone: AgentSessionMilestone`.
-   - Extend `AgentObserveSummary` with `validatedNotSavedCount` (and optionally `milestoneSavedCount` for cross-check).
-   - Wire milestone into `listAgentRuns`, `getAgentRunDetail`, `getAgentObserveSummary`.
-2. **Dashboard** (`app/observe/agent/page.tsx`) — keep existing outcome stat cards; add **Validated, not saved** stat card + `lib/observe/metric-tooltips.ts` copy ("Reached a passing validate but never published a spec").
-3. **Session list + detail** — outcome badge unchanged; add **`AgentSessionMilestoneBadge`** (or chip on list row): None / Validated / Saved. Detail view shows both outcome and milestone.
-4. **Filters** — add **Milestone** filter (all · none · validated · saved). Optional compound preset: outcome = abandoned + milestone = validated ("validated leak").
-5. **`lib/observe/__tests__/resolveAgentSessionMilestone.test.ts`** — cases: no validate → none; passing validate only → validated; save → saved (even if validate also ran); failed validates only → none.
-6. **`scripts/smoke-observe-agent.ts`** — exercise milestone resolution alongside outcomes.
-7. **`scripts/fetch-exploration-evidence.ts`** — print `milestone` + outcome; suggest exploration label: `no-save` + milestone `none` vs `validated` ("validated, not saved").
+   - Add `AgentSessionState` type: `"saved" | "draft" | "active" | "failed" | "abandoned"`.
+   - Add `resolveAgentSessionState(signals)` — pure function implementing the locked precedence.
+   - Add helpers for `hasSave`, `hasPassValidate` from `api_events` (batch in list/summary queries).
+   - Replace `outcome: AgentRunOutcome` with `state: AgentSessionState` on `AgentRunListRow` + `AgentRunDetail.run`.
+   - Replace summary counts: `savedCount`, `draftCount`, `activeCount`, `abandonedCount`, `failedCount` (drop `inProgressCount`, merge inferred abandon into `abandonedCount`).
+   - Wire into `listAgentRuns`, `getAgentRunDetail`, `getAgentObserveSummary`.
+2. **Dashboard** (`app/observe/agent/page.tsx`) — replace outcome stat cards with **Saved / Draft / Active / Abandoned / Failed**; tooltip on **Draft**: "Reached a passing validate but never published a spec".
+3. **Session list + detail** — replace `AgentRunOutcomeBadge` with **`AgentSessionStateBadge`**; single **State** column (not Outcome + Milestone).
+4. **Filters** — **State** filter (all · saved · draft · active · failed · abandoned).
+5. **`lib/observe/__tests__/resolveAgentSessionState.test.ts`** — cases: save → saved; dbFailed after validate → failed (not draft); validate only → draft; dbAbandoned without validate → abandoned (even when recent); recent no validate → active; stale no validate → abandoned; New chat after draft → draft.
+6. **`scripts/smoke-observe-agent.ts`** — exercise session state; retire `abandoned_inferred` assertions.
+7. **`scripts/fetch-exploration-evidence.ts`** — print **`state`**; suggest exploration label: `no-save` + state `draft` vs `abandoned`.
+8. **Retirement cleanup (same PR — no dangling superseded model)** — once all call sites use `resolveAgentSessionState()` / `AgentSessionStateBadge`, **delete** (do not deprecate):
+   - `resolveAgentRunOutcome()` and exported **`AgentRunOutcome`** type from `lib/observe/queries.ts`
+   - `lib/observe/__tests__/resolveAgentRunOutcome.test.ts`
+   - `components/observe/AgentRunOutcomeBadge.tsx`
+   - Any remaining imports of the above (agent list/detail pages, smoke script, `lib/eval/processMetrics.ts` if it reads display outcome — switch to `state` or ingest `agent_runs.outcome` as needed)
+   - **`agent_runs.outcome` ingest enum unchanged** — eval runner / New chat terminal POSTs (`saved` / `failed` / `abandoned`) are unaffected; only the Observe **display** layer retires.
 
 ### Checklist (WS2A)
 
-- [ ] `AgentSessionMilestone` + `resolveAgentSessionMilestone()` + api_events helpers implemented
-- [ ] List/detail rows include milestone; summary includes **Validated, not saved** count
-- [ ] Milestone badge on list/detail; tooltip copy added
-- [ ] Milestone filter (and optional validated-leak preset) on `/observe/agent`
-- [ ] Unit tests + smoke script pass; existing outcome tests unchanged
-- [ ] Evidence script reports outcome + milestone
+- [x] `AgentSessionState` + `resolveAgentSessionState()` + api_events helpers implemented
+- [x] List/detail rows use **state**; summary includes **Draft** count (hub — see [shipped deviations](#shipped-deviations-2026-08-10))
+- [x] State badge + filter on `/observe/agent`; `abandoned_inferred` retired from UI
+- [x] Unit tests + smoke script pass
+- [x] Evidence script reports session state
+- [x] **Retirement cleanup:** old outcome resolver, type, badge, and test file deleted; no remaining consumers
+- [x] Supersession notes applied in persistence plan, implementation plan Phase 6/7.3½, `agent/README.md`
 
 ---
 
-### 2B — Agent list UI/UX polish
+### 2B — Agent list UI/UX polish (non-gating)
 
 **Problem today:** Eval case column is empty for almost all rows — `eval_case_id` is only set when `eval:run` sends `X-RapidUI-Eval-Case` or chat starts from a starter chip with a pending case. Manual exploration and normal `/chat` never populate it. Mixing localhost and rapidui.dev sessions makes aggregate latency/tokens/save-rate misleading.
 
 **Principle:** Agent Observe answers *"what happened in chat sessions?"* Eval Observe (7.6) answers *"how did eval cases perform?"* Link **trial → agent session**, not eval case on every agent row.
+
+**Scope:** ship when convenient — **does not block 7.4 baselines** or the v1.2 exploration re-run.
 
 #### List table (`app/observe/agent/page.tsx`)
 
@@ -130,13 +173,13 @@ Two parallel tracks on `/observe/agent`: **session milestone** (funnel analytics
 | **Remove** eval case column + filter | Drop from list and filter bar. Keep `eval_case_id` on `agent_runs` for automated runs. |
 | **Add env** column | Values: `local` · `prod` · `—` (legacy rows). Filter: All / local / prod. |
 | **Add est. cost** column | Immediately after **Tokens**. Label **Est. cost**; show `—` when model or turn tokens missing. |
-| **Keep** | Session, Outcome, Model, Validates, Platform calls, Tokens, Started — plus milestone chip from 2A. |
+| **Keep** | Session, State, Model, Validates, Platform calls, Tokens, Started |
 
-**Suggested column order:** Session · Outcome · Milestone · Env · Model · Validates · Platform calls · Tokens · Est. cost · Started
+**Suggested column order:** Session · State · Env · Model · Validates · Platform calls · Tokens · Est. cost · Started
 
 #### Session detail (`app/observe/agent/sessions/[sessionId]/page.tsx`)
 
-- Show **env**, **milestone**, **est. cost** in summary.
+- Show **env**, **est. cost** in summary (state from 2A).
 - **Eval case:** only when `eval_case_id` is set — muted link line ("Eval case: …") pointing at `/observe/evals` trial when 7.6 exists; plain text until then. Not a primary field.
 
 #### Env ingest
@@ -153,7 +196,7 @@ Two parallel tracks on `/observe/agent`: **session milestone** (funnel analytics
 
 - **Input:** sum `agent_turns.input_tokens` / `output_tokens` for the session + `agent_runs.model`.
 - **Price table:** `lib/observe/modelPricing.ts` — minimal hardcoded USD per 1M tokens for models in use (`o4-mini` first). Full versioned table deferred to **7.7**; stub is enough for session-level "how much did this chat cost?"
-- **Formula:** `(input × inputPrice + output × outputPrice) / 1e6`. No persist on `agent_runs` in v1.2 — compute in query or list mapper (same pattern as milestone).
+- **Formula:** `(input × inputPrice + output × outputPrice) / 1e6`. No persist on `agent_runs` in v1.2 — compute in query or list mapper (same pattern as session state).
 - **Summary card (optional):** avg est. cost per saved run — only when ≥3 saved runs with cost computable.
 
 #### Eval case — what stays
@@ -178,14 +221,15 @@ Two parallel tracks on `/observe/agent`: **session milestone** (funnel analytics
 
 ### Checklist (WS2B)
 
-- [ ] `env` migrated, ingested from agent, filterable on dashboard
-- [ ] Eval case removed from agent list + filters; detail shows eval case only when set
-- [ ] Est. cost column + pricing helper; `—` when data insufficient
-- [ ] Tooltips + smoke coverage
+- [x] `env` migrated, ingested from agent, filterable on dashboard
+- [x] Eval case removed from agent list + filters; detail shows eval case only when set
+- [x] Est. cost column + pricing helper; `—` when data insufficient
+- [x] Tooltips + smoke coverage
 
-### Checklist (WS2 — both tracks)
+### Checklist (WS2)
 
-- [ ] WS2A + WS2B complete (milestone + list polish ship together on `/observe/agent`)
+- [x] **WS2A complete** (session state — gates re-run and 7.4)
+- [x] WS2B optional (env / cost / eval-case cleanup — does not gate 7.4)
 
 ---
 
@@ -217,18 +261,20 @@ Update **before** running, so watch-fors and turn shapes are defined up front.
    - **Gains a turn:** UC1-S1, UC2-S1, UC3-S1, UC3-S6, most non-explicit-save 2-turn flows → typically 3-turn (draft + confirm).
    - **+9 D-series runs** (D1–D3 × 3); total ~66 base + S+1.
 
-### `chat-exploration-findings.md`
+### Findings docs
+
+**New file:** `chat-exploration-findings-v1.2.md` — fresh run log for the v1.2 re-run. v1.1 findings stay in `chat-exploration-findings.md` (baseline, do not append v1.2 runs there).
 
 1. New platform marker: **`post-fix (prompt v1.2 draft-first)`**; v1.1 entries stay as baseline — do not merge stability counts across versions.
-2. **Result vocabulary:** add **`saved-unconfirmed`** — saved before user save intent (off-target even when the artifact is correct).
-3. Extraction checklist additions: identify the draft turn in the transcript; confirm zero `save_rui` tool parts before the save-intent turn; on successful saves confirm exactly **one** `save_rui`; log Observe **outcome + milestone** (`validated` + not saved = funnel leak).
-4. Fresh dashboard section for v1.2 runs (keep the v1.1 dashboard as-is above it).
-5. **Update "Changes to make":** mark v1.1 prompt/runner items superseded by this plan; link here.
+2. **Result vocabulary:** **`saved-unconfirmed`** — saved before user save intent (off-target even when the artifact is correct).
+3. Extraction checklist additions: identify the draft turn in the transcript; confirm zero `save_rui` tool parts before the save-intent turn; on successful saves confirm exactly **one** `save_rui`; log Observe **session state** (`draft` = funnel success for no-save draft runs; `abandoned` = bailed before validate).
+4. Empty dashboard + run-entry sections in the new v1.2 doc.
+5. **Update "Changes to make":** v1.2 deliverable lives in the new doc; v1.1 doc links here for WS4/WS5 updates.
 
 ### Checklist (WS3)
 
-- [ ] Scenarios doc: definition of done, save-intent table, global watch-fors, D1–D3, workload updated
-- [ ] Findings doc: v1.2 marker, `saved-unconfirmed`, checklist additions, fresh dashboard, "Changes to make" header updated
+- [x] Scenarios doc: definition of done, save-intent table, global watch-fors, D1–D3, workload updated
+- [x] Findings doc: new `chat-exploration-findings-v1.2.md` with v1.2 marker, `saved-unconfirmed`, checklist, dashboard, changes section; v1.1 doc reverted to baseline-only
 
 ---
 
@@ -245,7 +291,7 @@ Protocol unchanged (fresh session per run, 3 countable runs per scenario, log be
   4. Did rules 4–6 land (browse `valuePath` present or asked in UC2-S1/UC3-S1; semantics questions in UC1-S4; no premature HITL save in UC3-S4)?
   5. Do dual-saves disappear (UC1-S3, UC2-S5 → single save at confirm)?
   6. **Transcript audit:** on successful runs, zero `save_rui` before save-intent turn and exactly one `save_rui` total.
-  7. **Funnel:** D2/D3 `no-save` stalls show milestone **validated** in Observe (not confused with early abandon = milestone **none**).
+  7. **Funnel:** D2/D3 `no-save` runs show Observe state **`draft`** (not confused with early bail = **`abandoned`**).
 - **Deliverable:** findings report + updated "Changes to make" section (supersede v1.1 items, cite v1.2 run IDs), same shape as the v1.1 cycle.
 
 ### Checklist (WS4)
@@ -289,22 +335,22 @@ Informed by re-run turn shapes; carries forward the P0 items from the exploratio
 
 ```txt
 WS1 prompt v1.2        ─┐
-WS2 Observe dashboard    ─┼→ WS3 docs update → WS4 re-run explorations → WS5 eval cases → Phase 7.4 baselines
-  (2A milestone + 2B UI)  ┘   (WS1+WS2 parallel; WS3 before any v1.2 run is logged)
+WS2A session state       ─┼→ WS3 docs update → WS4 re-run explorations → WS5 eval cases → Phase 7.4 baselines
+WS2B list polish (opt.)  ─┘   (WS1+WS2A parallel; WS3 before any v1.2 run is logged)
                           │
                           └── 7.4 migrations / evalTrials.ts may be built in parallel (no baselines until exit criteria)
 ```
 
-**Proceed to 7.4 baselines when:** D1–D3 stable 3/3 · premature-save victims clean under v1.2 · one-shots still one-shot · **Validated, not saved** + **env filter** visible in Observe · UC1–UC3 eval cases updated and passing `eval:run` locally · 7.5 blocker variants drafted.
+**Proceed to 7.4 baselines when:** D1–D3 stable 3/3 · premature-save victims clean under v1.2 · one-shots still one-shot · **Draft** session state visible in Observe (stat + filter + evidence script) · UC1–UC3 eval cases updated and passing `eval:run` locally · 7.5 blocker variants drafted.
 
-**Then in 7.4:** persist trials with `prompt_version: v1.2` in the config snapshot; `final_spec_id` = latest save. *(Optional v0.3+: persist `milestone` on `eval_trials` process snapshot for automated funnel reporting.)*
+**Then in 7.4:** persist trials with `prompt_version: v1.2` in the config snapshot; `final_spec_id` = latest save. *(Optional v0.3+: persist `session_state` on `eval_trials` process snapshot for automated funnel reporting.)*
 
 ## Out of scope
 
 - DB draft rows / spec status column / new agent tools (draft is in-chat only — decision 2; panel wiring already shipped)
-- Ingest contract changes for **milestone** or **est. cost** (both display-derived in v1.2; **`env`** is the one new persisted run field via migration **010**)
-- Full **7.7** versioned model price table (v1.2 uses `lib/observe/modelPricing.ts` stub)
-- New `draft` agent outcome enum (superseded by outcome + milestone model)
+- Ingest contract changes for **session state** or **est. cost** (both display-derived in v1.2; **`env`** is the one new persisted run field via migration **010** — WS2B, non-gating)
+- Full **7.7** versioned model price table (v1.2 uses `lib/observe/modelPricing.ts` stub — WS2B)
+- `AgentRunOutcome` / `abandoned_inferred` / milestone axis in UI (superseded by single **`AgentSessionState`**)
 - `load_spec` / UC4 / `spec-update-v0.2` (unchanged: post-v0.2)
 - New renderer/preview tab work (panel already shows draft from `validate_rui`; separate polish track if needed)
 - Validator/schema changes (v1.1-cycle rules closed the known classes; none needed here)

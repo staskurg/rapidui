@@ -1,9 +1,14 @@
 # Chat exploration scenarios — UC1 / UC2 / UC3
 
-**Status:** v1.1 exploration complete (see [findings](chat-exploration-findings.md)). **Next:** prompt v1.2 draft-first re-run — [implementation plan](chat-agent-v1.2-plan.md) WS3 will update this doc (definition of done, save-intent table, D1–D3 scenarios, workload) **before** any v1.2 runs are logged. **Infra:** chat session persistence ✅ shipped — [plan](chat-session-persistence-plan.md).
+**Status:** v1.1 exploration complete (see [v1.1 findings](chat-exploration-findings.md)). **Next:** prompt v1.2 draft-first re-run — log in [v1.2 findings](chat-exploration-findings-v1.2.md) per [implementation plan](chat-agent-v1.2-plan.md). **Infra:** chat session persistence ✅ shipped — [plan](chat-session-persistence-plan.md).
 **Purpose:** manually walk the agent to a saved RUI spec through *human-realistic* conversations, so we learn which paths reliably reach `save_rui` and which stall. What we learn here becomes the raw material for stronger `conversationScript`s in `eval/cases/` — but this doc itself is not an eval plan. It's a script for a human sitting in `/chat`.
 
-**Definition of done for every scenario:** the agent validates (≤5 attempts), calls `save_rui`, and shares a `viewUrl`. Anything else is a finding, not a failure to ignore.
+**Definition of done for every scenario:** the agent validates (≤5 attempts), calls `save_rui`, and shares a `viewUrl`. Two valid terminal shapes under prompt v1.2:
+
+1. **Explicit-save opener (escape hatch):** user save intent in turn 1 → agent validates and saves in one shot (no draft detour). Examples: UC2-S2, UC3-S2, UC3-S5, D1.
+2. **Draft → confirm → save:** agent presents a validated draft (summary + panel + one confirm ask), user confirms with save intent on a later turn → single `save_rui`. Examples: D2 turn 2, UC1-S1 turn 3.
+
+Saving without either shape — agent calls `save_rui` before the user's save-intent turn — is a finding: **`saved-unconfirmed`**, even when the artifact is correct.
 
 **Deliberately out of scope:** failure paths (validation never passing, user abandoning mid-run). This doc maps the *successful* routes; unhappy paths are a later exercise.
 
@@ -13,42 +18,92 @@
 
 1. Start the agent service and the Next.js app (README, Path A), then open `/chat`. After the first message, the URL updates to `/chat/{sessionId}` ([chat-session-persistence-plan.md](chat-session-persistence-plan.md)).
 2. **Fresh chat session per scenario run** — use **New chat** (new URL/session id). Never reuse a session; it contaminates the next run.
-3. **Repeat each scenario 3 times** before moving on (`UC1-S1.1`, `.2`, `.3`, then UC1-S2, …). An `error` run (infra failure) does not count — rerun until you have 3 countable results. See [findings doc — run protocol](chat-exploration-findings.md#instructions-for-the-assisting-agent).
+3. **Repeat each scenario 3 times** before moving on (`UC1-S1.1`, `.2`, `.3`, then UC1-S2, …). An `error` run (infra failure) does not count — rerun until you have 3 countable results. See [v1.2 findings — run protocol](chat-exploration-findings-v1.2.md#instructions-for-the-assisting-agent).
 4. Paste user turns verbatim, including the code blocks. Wait for the agent to finish each reply before the next turn.
 5. Where the evidence lives afterward:
    - **Full conversation (restore):** `/chat/{sessionId}` — same UI as the live run
    - **Transcript API:** `GET /api/chat/sessions/{sessionId}/transcript`
    - **Validate attempts, tool calls, errors:** `/observe/agent/sessions/{sessionId}` (human UI) or `npm run fetch:exploration-evidence -- {sessionId} {runId}` (assisting agent)
    - **The saved artifact:** the `viewUrl` the agent returns (`/specs/{id}`), or `GET /api/specs/{id}` with `X-RapidUI-Session-Id: {sessionId}` for JSON
-6. **Log each run** in `.cursor/chat-exploration-findings.md` before starting the next run. Include the chat URL in each run entry.
+6. **Log each run** in `.cursor/chat-exploration-findings-v1.2.md` before starting the next run. Include the chat URL in each run entry. (v1.1 runs remain in [chat-exploration-findings.md](chat-exploration-findings.md).)
 7. **S+1 (post-save iteration):** run as an extra turn in the **same session** after a successful save. Log the parent scenario run **first**, then send the S+1 turn and log S+1 separately. Do not extract parent metrics after S+1 — they will include the follow-up turn.
 
-**Workload:** 19 scenarios × 3 runs ≈ **57 base runs**, plus S+1 at least once per use case (3+), plus optional UC1-S2 riders. Budget accordingly.
+**Workload:** 22 scenarios × 3 runs ≈ **66 base runs** (19 original + D1–D3), plus S+1 at least once per use case (3+), plus optional UC1-S2 riders. Budget accordingly.
+
+## Global watch-fors (every scenario, v1.2+)
+
+Apply on top of each scenario's own watch-fors:
+
+- **No `save_rui` before user save-intent turn** — see [save-intent table](#save-intent-classification-v12) for which turn carries save intent per scenario. Premature save → `saved-unconfirmed`.
+- **Draft turn shape** — when the agent reaches a passing validate without explicit-save opener: one consolidated turn with (a) concise summary of screens/ops/bindings/inferences, (b) note that the spec is visible in the panel, (c) exactly one closing confirm ask (e.g. "any changes, or should I save it?"). No new interview questions in the draft turn.
+- **Plan-only restraint (UC1-S5)** — when the user said "don't build yet", turn 1 must be prose plan only: no `validate_rui`, no draft JSON, no save.
+
+## Save-intent classification (v1.2)
+
+Under draft-first, every **successful** scenario must include **explicit save phrasing** somewhere — either in the opener (escape hatch: "validate and save", "build and save") or on a **separate confirm turn** after the draft ("looks good, save it", "go ahead and save", "save it when it's good"). **"Build it" / "go" / "yes" alone are not save intent** unless the agent's draft turn asked "should I save it?" and the user affirms.
+
+| Rule | Detail |
+|---|---|
+| **Escape hatch** | Save intent in turn 1 opener → one-shot validate + save (no draft detour) |
+| **Draft → confirm** | Turns 1…N−1 deliver contract / answers; turn N (or N+1 after scope fork) uses explicit save phrasing |
+| **Incomplete by design** | Only when intentionally bailing after draft (New chat) — log as `no-save`, Observe state **`draft`** |
+
+Which user turn carries **save intent** (earliest legitimate `save_rui`):
+
+| Scenario | Save-intent turn | Shape | Explicit save phrasing (scripted) |
+|---|---|---|---|
+| UC1-S1 | 3 | draft → confirm | Turn 3: "yep, that works. **save it.**" |
+| UC1-S2 | 2 | draft → confirm | Turn 2: "looks right, **go ahead and save.**" |
+| UC1-S3 | 2 | draft → confirm | Turn 2: "…**then save it.**" |
+| UC1-S4 | 2–3 | draft → confirm | Final turn: "**good, save it.**" (after semantics answers) |
+| UC1-S5 | 4 | draft → confirm | Turn 4: "**looks good, save it.**" (turn 1 plan-only; turn 2 scope) |
+| UC1-S6 | 2 | draft → confirm | Turn 2: "yep, exactly. **save it.**" |
+| UC2-S1 | 3–4 | draft → confirm | Final turn: "**looks good, save it.**" (turn 3 scope answer if asked) |
+| UC2-S2 | 1 | one-shot (escape hatch) | Opener: "**Validate and save** when it passes" |
+| UC2-S3 | 3 | draft → confirm | Turn 3: "**looks good, save it.**" (turn 2 = CRUD/scope, no save word) |
+| UC2-S4 | 2 | draft → confirm | Turn 2: "**build and save**" |
+| UC2-S5 | 3 | draft → confirm | Turn 3: "**save it.**" |
+| UC2-S6 | 2 | draft → confirm | Turn 2: "**build and save**" |
+| UC3-S1 | 3 | draft → confirm | Turn 3: "**looks good, save it.**" (turn 2 = UX clarify, no save word) |
+| UC3-S2 | 1 | one-shot (escape hatch) | Opener: "**validate and save**" |
+| UC3-S3 | 2 | draft → confirm | Turn 2: "do it that way and **save**" |
+| UC3-S4 | 4 | draft → confirm | Turn 4: "that plan works, **save it.**" |
+| UC3-S5 | 2 | draft → confirm | Turn 2: "**build and save**" |
+| UC3-S6 | 2 | draft → confirm | Turn 2: "**save it when it's good**" |
+| D1 | 1 | one-shot (escape hatch) | UC2-S2 opener verbatim |
+| D2 | 2 | draft → confirm | Turn 2: "**looks good, save it**" |
+| D3 | 3 | draft → confirm | Turn 3: "**looks good, save it**" (turn 2 = change, no save) |
+| S+1 | +1 | varies | "**save it again**" (change-only turn → re-draft + separate save turn) |
+
+**Turn-count delta vs v1.1:** escape-hatch openers stay ~same (UC2-S2, UC3-S2, D1). Most others gain one turn for draft + explicit-save confirm. UC2-S1 / UC1-S5 may need **4 turns** when a scope or plan fork adds a step before the save turn.
 
 ## Scenario index
 
-User-turn counts include the opener (the guided runner counts the first prompt as turn 1 and aborts past a case's `maxUserTurns` — currently 4 in all three cases; note UC3-S4 sits exactly at that cap).
+User-turn counts include the opener (the guided runner counts the first prompt as turn 1 and aborts past a case's `maxUserTurns` — bump to **5** for v1.2 eval cases; draft/confirm turns need headroom).
 
-| ID | Input form | Skill isolated | User turns |
+| ID | Input form | Skill isolated | User turns (v1.2) |
 |---|---|---|---|
 | UC1-S1 | JSON paste (on request) | asks for data instead of inventing | 3 |
-| UC1-S2 | CSV paste (up front) | CSV parsing, one-shot flow | 2 |
+| UC1-S2 | CSV paste (up front) | CSV parsing, draft → confirm | 2 |
 | UC1-S3 | none (invent) | believable invention, late requirement | 2 |
 | UC1-S4 | messy JSON | column judgment, clarifying questions | 2–3 |
-| UC1-S5 | inline JSON | restraint ("don't build yet"), scope expansion | 3 |
+| UC1-S5 | inline JSON | restraint ("don't build yet"), scope expansion | 4 |
 | UC1-S6 | API-shaped JSON envelope | static-vs-API discrimination at the boundary | 2 |
-| UC2-S1 | prose endpoint list + fields (on request) | interview for the API contract | 3 |
-| UC2-S2 | everything in one prompt | skipping redundant questions | 2 |
-| UC2-S3 | OpenAPI YAML | schema extraction, read vs write shapes | 2–3 |
+| UC2-S1 | prose endpoint list + fields (on request) | interview for the API contract | 3–4 |
+| UC2-S2 | everything in one prompt | skipping redundant questions (escape hatch) | 1–2 |
+| UC2-S3 | OpenAPI YAML | schema extraction, read vs write shapes | 3 |
 | UC2-S4 | sample 200 responses | envelope/`valuePath` inference | 2 |
 | UC2-S5 | prose, staged | re-planning when scope grows | 3 |
 | UC2-S6 | cURL notes | normalizing concrete IDs to placeholders | 2 |
-| UC3-S1 | story + endpoints | canonical HITL path | 2 |
-| UC3-S2 | everything in one prompt | one-shot HITL | 2 |
+| UC3-S1 | story + endpoints | canonical HITL path | 3 |
+| UC3-S2 | everything in one prompt | one-shot HITL (escape hatch) | 1–2 |
 | UC3-S3 | endpoints + invalid ask | pushback on row actions | 2 |
 | UC3-S4 | prose, drip-fed | full discovery interview | 4 |
 | UC3-S5 | different domain | pattern generalization | 2 |
 | UC3-S6 | endpoints, no story | confirming human meaning | 2 |
+| D1 | UC2-S2 opener verbatim | escape hatch regression | 1–2 |
+| D2 | UC2-S2 minus save sentence | draft gate isolation | 2 |
+| D3 | D2 + iteration | iterate-then-save | 3 |
 | S+1 | follow-up after any save | post-save iteration | +1 |
 
 ---
@@ -88,7 +143,7 @@ The interesting variable is **form and timing**: everything up front vs. drip-fe
 
 ## Logging
 
-All run logging lives in the companion doc: **`.cursor/chat-exploration-findings.md`** — agent instructions, [transcript extraction checklist](chat-exploration-findings.md#transcript-extraction-checklist), run-entry template, dashboard, per-use-case findings, and the final "changes to make" section. Log **every run** (3× per scenario) there before starting the next run. Assisting agent: `npm run fetch:exploration-evidence -- {sessionId} {runId}`.
+All run logging lives in the companion doc: **`.cursor/chat-exploration-findings-v1.2.md`** (v1.2 re-run) — agent instructions, [transcript extraction checklist](chat-exploration-findings-v1.2.md#transcript-extraction-checklist), run-entry template, dashboard, per-use-case findings, and the final "changes to make" section. v1.1 baseline: [chat-exploration-findings.md](chat-exploration-findings.md). Log **every run** (3× per scenario) before starting the next run. Assisting agent: `npm run fetch:exploration-evidence -- {sessionId} {runId}`.
 
 ---
 
@@ -118,7 +173,7 @@ The most common real path: the user leads with intent only, and the data exists 
 
 **Turn 3 (user):** confirm whatever plan it proposes: "yep, that works. save it."
 
-**Watch for:** `data.mode: static` with the three records embedded verbatim; no invented endpoints; a sensible `/incidents` route.
+**Watch for:** `data.mode: static` with the three records embedded verbatim; no invented endpoints; a sensible `/incidents` route. **v1.2:** no save on turn 2 (data paste); draft turn after validate on turn 2; save only on turn 3.
 
 ---
 
@@ -179,7 +234,7 @@ Real pasted data is never clean. Tests whether the agent selects sensible column
 
 **Turn 2 (user):** answer whatever it asks (e.g. "sev 1 is worst"; "assignee name is enough"; "skip tags"). Then: "good, save it."
 
-**Watch for:** does it ask about `sev` ordering and the nested `assignee` object, or silently guess? Does it flatten `assignee.name`? Cryptic keys (`ttl`) should become human labels. This is the scenario that tells us how much data-cleaning conversation our eval scripts need to budget for.
+**Watch for:** does it ask about `sev` ordering and the nested `assignee` object **before drafting**, or silently guess? Does it flatten `assignee.name`? Cryptic keys (`ttl`) should become human labels; epoch timestamps should become human-readable dates. **v1.2:** semantics questions must land before the draft turn — not after a premature save.
 
 ---
 
@@ -195,9 +250,13 @@ Drip-feed of scope. The canonical UC1 case asks for both screens up front; human
 
 > actually while you're at it add a second screen for teams. make up 3 teams, whatever. no need to link the two screens.
 
-**Turn 3 (user):** "ok that's the plan. save it."
+**Turn 3 (user):** wait for draft in panel (agent validates after scope expansion).
 
-**Watch for:** restraint — the agent must *not* compose or save JSON on turn 1 when explicitly told to hold off; then extending its plan instead of restarting; two entities, each with its own entrypoint; no forced navigation between unrelated screens. Justification: scope expansion mid-flight is the #1 way real conversations diverge from our current two-line scripts, and "shape it with me first" is a common collaborative mode our scripts never exercise.
+**Turn 4 (user):**
+
+> looks good, save it.
+
+**Watch for:** restraint — the agent must *not* compose, validate, or save on turn 1 when explicitly told to hold off (plan-only mode); then extending its plan instead of restarting; two entities, each with its own entrypoint; no forced navigation between unrelated screens. **v1.2:** turn 1 is prose plan only — no `validate_rui`, no draft JSON. Explicit save on turn 4 only.
 
 ---
 
@@ -258,11 +317,13 @@ UC2 needs **endpoints and field shape** (see [basic information](#what-the-agent
 
 **Turn 3 (user):** if the agent asks how to model company scope (dropdown vs separate Companies screen), answer:
 
-> dropdown company picker on the users list, bound to GET /api/companies. paths use {scope.companyId}. yes, build it.
+> dropdown company picker on the users list, bound to GET /api/companies. paths use {scope.companyId}.
 
-If it does **not** ask the scope fork and moves to validate/save after turn 2, turn 3 is simply: "yes, build it."
+**Turn 4 (user)** — or **turn 3** if no scope question was asked, after the draft appears in the panel:
 
-**Watch for:** all five op types (browse, read, create, update, delete-on-read); delete embedded on `read`; `cta` transition browse→create; scope selector bound to `/api/companies`; create/update forms use `email`, `role`, `notes`, `active` with sensible types (email, select, textarea, checkbox). This aligns with what the grader asserts on structure; field names should match the turn 2 list unless the agent re-confirms a change.
+> looks good, save it.
+
+**Watch for:** all five op types (browse, read, create, update, delete-on-read); delete embedded on `read`; `cta` transition browse→create; scope selector bound to `/api/companies`; create/update forms use `email`, `role`, `notes`, `active` with sensible types (email, select, textarea, checkbox). **v1.2:** agent should ask about list response envelope (`valuePath`) if not given. Draft after contract; explicit save on final turn only — never "build it" without "save".
 
 **Note:** `crud-admin-v0.2` eval script omits the field list — a known gap. Use this scenario's turn 2 wording when promoting to eval.
 
@@ -364,9 +425,13 @@ The "backend already has a spec" path — arguably the most realistic for teams 
 
 **Turn 2 (user):**
 
-> full CRUD. delete on the detail screen with confirm. dropdown company picker on the users list, bound to GET /api/companies — list and item calls use ?companyId={scope.companyId}. build it.
+> full CRUD. delete on the detail screen with confirm. dropdown company picker on the users list, bound to GET /api/companies — list and item calls use ?companyId={scope.companyId}.
 
-**Watch for:** does it build forms from `UserWrite` — the write shape — rather than `User` (i.e. no `id` field on create/update forms)? Email as email input, role as select with the enum, active as checkbox? Does it carry the required `companyId` query param into every binding? Justification: if YAML-paste works, it's the lowest-effort onboarding story we have; if it doesn't, we know to say "paste an endpoint list" in the product copy instead. The read/write schema split is deliberate — building forms from the read shape is a silent, plausible-looking failure.
+**Turn 3 (user):** after the draft appears in the panel:
+
+> looks good, save it.
+
+**Watch for:** does it build forms from `UserWrite` — the write shape — rather than `User` (i.e. no `id` field on create/update forms)? Email as email input, role as select with the enum, active as checkbox? Does it carry the required `companyId` query param into every binding? **v1.2:** turn 2 has no save word; save only on turn 3.
 
 ---
 
@@ -468,9 +533,13 @@ The baseline, matching the current eval case. Run it by hand first for the same 
 >
 > API: GET /api/drafts (inbox), GET /api/drafts/{draftId}, POST /api/drafts/{draftId}/approve, POST /api/drafts/{draftId}/reject.
 
-**Turn 2 (user):** "approve and reject are buttons on the detail screen, not on the rows. add a status filter on the inbox. build it."
+**Turn 2 (user):** "approve and reject are buttons on the detail screen, not on the rows. add a status filter on the inbox."
 
-**Watch for:** two `act` actions on `read` with outcomes (success should navigate back to the inbox); `row` transition inbox→detail; `presentation.filter` (singular) for status.
+**Turn 3 (user):** after the draft appears in the panel:
+
+> looks good, save it.
+
+**Watch for:** two `act` actions on `read` with outcomes (success should navigate back to the inbox); `row` transition inbox→detail; `presentation.filter` (singular) for status. **v1.2:** turn 2 has no save word; save only on turn 3.
 
 ---
 
@@ -524,7 +593,7 @@ The user has the problem but none of the framing. Tests the full discovery inter
 
 **Turn 4 (user):** "that plan works, save it."
 
-**Watch for:** whether the agent's questions actually cover the required inputs (or whether it starts building after turn 2 with no action endpoints — a guaranteed dead end); turns-to-save. Justification: this measures the interview quality directly, which is what our current thin-script evals for UC3 are really failing on — "we don't know yet how to communicate with the agent," and neither does a first-time user.
+**Watch for:** whether the agent's questions actually cover the required inputs (or whether it starts building after turn 2 with no action endpoints — a guaranteed dead end); turns-to-save. **v1.2:** must not present a complete draft or save until approve/reject endpoints are known (turn 3+); no invented update/send ops.
 
 ---
 
@@ -565,7 +634,53 @@ The inverse of UC3-S4: the user hands over the full API contract but zero domain
 
 > they're AI-written support replies waiting on a human. detail adds body, ticketSubject, customerMessage. buttons on the detail screen, back to the list after either one. save it when it's good.
 
-**Watch for:** does the agent ask about *meaning* (what is a draft, what does a reviewer judge) or only mechanics? Does it correctly refuse to treat approve/reject as create/update CRUD writes? Justification: paired with UC3-S4 this isolates the two halves of discovery — S4 has the story and no contract, S6 has the contract and no story. If either half fails, we know which side the eval scripts need to spell out.
+**Watch for:** does the agent ask about *meaning* (what is a draft, what does a reviewer judge) or only mechanics? Does it correctly refuse to treat approve/reject as create/update CRUD writes? **v1.2:** no save on turn 1 — turn 1 is endpoints-only; save intent is turn 2 ("save it when it's good"). Agent must interview for meaning before drafting.
+
+---
+
+## D-series — Draft workflow isolation (UC2 users-admin domain)
+
+Run on the UC2 users-admin domain to reuse known contracts. Three scenarios × 3 runs each — log as D1.1–D3.3. Priority: run D1–D3 **first** in the v1.2 re-run before revisiting the full base set.
+
+### D1 — Power-user explicit save (escape hatch)
+
+UC2-S2 opener verbatim. Tests that explicit save in the opener bypasses the draft detour.
+
+**Turn 1 (user):**
+
+> Build a users admin. Full CRUD. API: GET/POST /api/users, GET/PATCH/DELETE /api/users/{userId}, GET /api/companies for a required company scope selector — list and item calls take ?companyId={scope.companyId}. Users have id, email, role (admin|member), notes, and active (boolean). List and companies responses wrap arrays in `{items: [...]}`; company options use `id` + `name`. Delete goes on the detail screen with a confirm. Validate and save when it passes.
+
+**Turn 2 (user):** at most one confirmation: "yep, go."
+
+**Watch for:** one-shot save on turn 1 (escape hatch); no draft detour; same artifact as UC2-S2. Premature-save victim under v1.1 — must stay one-shot under v1.2.
+
+---
+
+### D2 — Complete contract, no save word (draft gate)
+
+UC2-S2 turn 1 **without** the final "Validate and save when it passes" sentence. Tests the draft-first gate.
+
+**Turn 1 (user):**
+
+> Build a users admin. Full CRUD. API: GET/POST /api/users, GET/PATCH/DELETE /api/users/{userId}, GET /api/companies for a required company scope selector — list and item calls take ?companyId={scope.companyId}. Users have id, email, role (admin|member), notes, and active (boolean). List and companies responses wrap arrays in `{items: [...]}`; company options use `id` + `name`. Delete goes on the detail screen with a confirm.
+
+**Turn 2 (user):** "looks good, save it."
+
+**Watch for:** draft + summary + confirm ask on turn 1, **no save** until turn 2; panel shows validated spec; exactly one `save_rui` in the session. Observe session state for a no-save bail (click New chat after draft) should be **`draft`**, not **`abandoned`**.
+
+---
+
+### D3 — Draft iteration (iterate-then-save)
+
+D2 opener; turn 2 requests a change; turn 3 confirms save. Tests the iteration loop and single final save.
+
+**Turn 1 (user):** same as D2.
+
+**Turn 2 (user):** "drop the notes column, add a status badge."
+
+**Turn 3 (user):** "looks good, save it."
+
+**Watch for:** rebuilt re-validated draft on turn 2 with everything else carried forward (outcomes, transitions, scope — the known casualties); **no save** on turn 2; exactly **one** `save_rui` on turn 3. Notes column absent, status badge present in final artifact.
 
 ---
 
@@ -585,8 +700,9 @@ Every real session will include this, and no scenario above covers it: the agent
 
 - does the agent carry the *full* previous spec forward, or rebuild from memory and drop pieces (outcomes and transitions are the usual casualties)?
 - does it re-validate before the second save, per its own workflow?
-- does it tell the user this is a new spec with a new URL, or hand back a link with no explanation?
+- does it tell the user this is a **new spec with a new URL**, not "updated"?
 - one change requested → exactly one change made (no drive-by "improvements").
+- **v1.2 draft-first after save:** the scripted S+1 turn uses explicit save phrasing ("save it again") → immediate re-save after validate. If the S+1 turn is a **change request without save phrasing**, expect a re-draft + confirm ask, not a save — log as finding if the agent saves without save intent.
 
 Justification: iterate-after-seeing-it is the most human behavior in the whole doc, and it's also the seed for UC4 (`spec-update`) — what we observe here tells us what `load_spec` actually needs to do.
 
@@ -600,6 +716,8 @@ Three things to extract from the logs, all feeding directly back into `eval/case
 2. **Which input forms the agent handles natively** (JSON paste, CSV, YAML, sample responses, cURL notes, prose) vs. which need product guidance. Anything it handles well becomes a legitimate eval variant; anything it fumbles becomes either a prompt fix or an explicit "paste it like this" hint in the UI.
 3. **Answers to the cross-run questions.** Across all runs, regardless of scenario:
    - Does it reliably distinguish pasted static data from an API contract (never inventing endpoints for UC1, never embedding static records for UC2/UC3)?
-   - Once it has enough information, does it *stop asking* and go validate → save, or does it keep interviewing?
+   - Once it has enough information, does it present a draft (v1.2) instead of saving prematurely or keep interviewing past the draft point?
+   - On successful saves: zero `save_rui` before the save-intent turn and exactly one `save_rui` total (except S+1 re-save)?
    - Does it ever invent paths, envelopes, fields, or scope behavior it wasn't given?
    - Which successful paths were stable enough (same shape across reruns) to promote into scripted cases as-is?
+   - Do D2/D3 no-save bails show Observe session state **`draft`** (not **`abandoned`**)?

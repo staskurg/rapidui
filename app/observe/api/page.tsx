@@ -10,6 +10,7 @@ import {
   listDistinctAgents,
   listDistinctEvalCases,
   listRecentSessions,
+  OBSERVE_DEFAULT_WINDOW_DAYS,
   truncateSessionId,
 } from "@/lib/observe/queries";
 import { apiMetricTooltips } from "@/lib/observe/metric-tooltips";
@@ -67,8 +68,8 @@ export default async function ApiObservePage({ searchParams }: ApiObservePagePro
       <header className="space-y-2">
         <h1 className="text-title font-semibold tracking-tight">API telemetry</h1>
         <p className="text-ui text-zinc-600 dark:text-zinc-400">
-          Discovery, validate, and save events from external agents and RapidUI Agent — last 30
-          days.
+          Discovery, validate, and save events from external agents and RapidUI Agent — last{" "}
+          {OBSERVE_DEFAULT_WINDOW_DAYS} days.
         </p>
       </header>
 

@@ -6,11 +6,23 @@ export const agentMetricTooltips = {
   p95Latency:
     "95th percentile run latency among saved sessions — the slow tail (retries, multi-turn fixes). Saved runs only. Shows — until at least 10 saved runs.",
   avgTokens:
-    "Average total tokens recorded on agent_runs for sessions in the window (when the agent reports token usage).",
+    "Average total tokens per session in the window — summed from agent_turns when available (includes draft/active runs), otherwise from agent_runs.",
   avgValidateAttempts:
     "Average POST /api/validate calls per session, counted from api_events (authoritative platform telemetry).",
   avgPlatformApiCalls:
     "Average platform HTTP requests per session from api_events (discovery, validate, save). Not LLM tool-call counts.",
+  draftCount:
+    "Sessions that reached a passing validate but never published a spec — draft ready in the panel (live or stale).",
+  env:
+    "Deployment environment for the agent run — local dev sessions vs prod (rapidui.dev). Legacy rows without env show —.",
+  estCost:
+    "Estimated LLM cost from summed turn tokens and model list rates. When cache_read_tokens are recorded, cached input is priced at the discounted rate. Legacy runs without cache data show ~ (list price, upper bound).",
+  avgEstCost:
+    "Average estimated LLM cost per session among runs with computable turn tokens and a known model price.",
+  totalTokens:
+    "Sum of session tokens (input + output) across runs in the selected period.",
+  totalEstCost:
+    "Sum of estimated LLM cost in the selected period. ~ prefix on rows or totals means list-price upper bound (no cache telemetry for those runs).",
 } as const;
 
 export const apiMetricTooltips = {

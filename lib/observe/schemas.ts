@@ -28,6 +28,8 @@ export const apiEventInputSchema = z.object({
   http_status: z.number().int().nullable().optional(),
 });
 
+export type AgentRunEnv = "local" | "prod";
+
 const agentRunPayloadSchema = z.object({
   outcome: z.enum(["saved", "failed", "abandoned"]).optional(),
   spec_id: z.string().uuid().optional(),
@@ -36,6 +38,7 @@ const agentRunPayloadSchema = z.object({
   provider: z.string().optional(),
   prompt_version: z.string().optional(),
   eval_case_id: z.string().optional(),
+  env: z.enum(["local", "prod"]).optional(),
   total_tokens: z.number().int().nonnegative().optional(),
   latency_ms: z.number().int().nonnegative().optional(),
   intent: z.string().optional(),
@@ -49,6 +52,7 @@ const agentTurnPayloadSchema = z.object({
   latency_ms: z.number().int().nonnegative().optional(),
   input_tokens: z.number().int().nonnegative().optional(),
   output_tokens: z.number().int().nonnegative().optional(),
+  cache_read_tokens: z.number().int().nonnegative().optional(),
   had_validate_call: z.boolean().optional(),
   had_save: z.boolean().optional(),
 });

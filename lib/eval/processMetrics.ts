@@ -33,15 +33,18 @@ export async function countInfraFailures(sessionId: string): Promise<number> {
 export async function collectProcessMetrics(
   sessionId: string,
 ): Promise<ProcessMetrics> {
-  const [validateAttempts, platformApiCalls, infraFailureCount, runDetail] =
+  const [validateAttempts, platformApiCalls, infraFailureCount, runDetail, outcomeResult] =
     await Promise.all([
       countValidateAttempts(sessionId),
       countPlatformApiCalls(sessionId),
       countInfraFailures(sessionId),
       getAgentRunDetail(sessionId),
+      sql`SELECT outcome FROM agent_runs WHERE session_id = ${sessionId} LIMIT 1`,
     ]);
 
-  const agentOutcome = runDetail?.run.outcome ?? null;
+  const agentOutcome = outcomeResult.rows[0]?.outcome
+    ? String(outcomeResult.rows[0].outcome)
+    : null;
 
   return {
     validateAttempts,

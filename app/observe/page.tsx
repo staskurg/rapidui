@@ -104,16 +104,14 @@ export default async function ObserveHubPage() {
               <dd className="mt-1 text-title font-semibold">{agentSummary.savedCount}</dd>
             </div>
             <div>
-              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
-                Abandoned
-              </dt>
-              <dd className="mt-1 text-title font-semibold">{agentSummary.abandonedCount}</dd>
+              <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Draft</dt>
+              <dd className="mt-1 text-title font-semibold">{agentSummary.draftCount}</dd>
             </div>
             <div>
               <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
-                In progress
+                Active
               </dt>
-              <dd className="mt-1 text-title font-semibold">{agentSummary.inProgressCount}</dd>
+              <dd className="mt-1 text-title font-semibold">{agentSummary.activeCount}</dd>
             </div>
           </dl>
         </section>

@@ -1,4 +1,6 @@
-# Chat exploration findings — run log & report
+# Chat exploration findings — run log & report (v1.1)
+
+**Status:** v1.1 exploration complete — **frozen baseline**. v1.2 re-run logs go in **[chat-exploration-findings-v1.2.md](chat-exploration-findings-v1.2.md)**.
 
 **Companion to:** `.cursor/chat-exploration-scenarios.md` (the scenario scripts live there; this doc holds what happened).  
 **Prerequisite infra:** [`.cursor/chat-session-persistence-plan.md`](chat-session-persistence-plan.md) — ✅ shipped (2026-08-08). Bulk scenario runs can proceed.
@@ -23,7 +25,7 @@ You are helping a human who is running the scenarios from `chat-exploration-scen
 
 **Post-fix runs (platform cutover 2026-08-08):** After enriching `GET /api/schema` (`shapes` + neutral-domain `examples`) and shipping prompt **v1.1**, UC2-S1 is rerun as a **fresh acceptance gate**. Pre-fix entries (prompt v1, sparse schema) stay as baseline evidence — do not merge into post-fix stability counts. Log post-fix runs with **`Platform: post-fix (prompt v1.1)`** in the run entry (Observe `prompt_version` should read `v1.1`). **Restart the agent** after changing the prompt — uvicorn `--reload` does not watch `prompts/*.txt`.
 
-**v1.2 re-run (planned):** After shipping prompt v1.2 draft-first, log with **`Platform: post-fix (prompt v1.2 draft-first)`** — see [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). Do not merge v1.1 and v1.2 stability counts. Use result **`saved-unconfirmed`** when the agent saved before user save intent.
+**v1.2 re-run:** log in **[chat-exploration-findings-v1.2.md](chat-exploration-findings-v1.2.md)** — do not append v1.2 runs here.
 
 **Platform cutover 2026-08-08 (validator):** `INVALID_BINDING_PLACEHOLDER` rejects malformed or undeclared `{...}` tokens in API binding paths (e.g. `{scope.params.userId}` from UC2-S4.2). Only adds error detection — post-change runs stay comparable; catching errors loudly is strictly better than silent bad saves. Log UC3 runs after this cutover with **`Platform: post-fix (prompt v1.1 + binding placeholder validator)`** when the deployed validator includes the rule.
 
@@ -32,7 +34,6 @@ You are helping a human who is running the scenarios from `chat-exploration-scen
 - `saved-clean` — saved, artifact matches the scenario's watch-fors
 - `saved-off-target` — saved, but artifact deviates from watch-fors (say how)
 - `saved-negotiated` — saved after the agent redirected an unsupported request (UC3-S3 style)
-- `saved-unconfirmed` — saved before user save intent (v1.2+; off-target even when the artifact is correct)
 - `no-save` — conversation ended without `save_rui` (say where it stalled)
 - `error` — infra/tool failure, not a model result (don't count toward stability)
 
@@ -1054,19 +1055,17 @@ S+1 is a follow-up turn in the **same session** as the parent save. Evidence mer
 
 ## Changes to make
 
-The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …).
+The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …). **v1.2 re-run findings and updates:** [chat-exploration-findings-v1.2.md](chat-exploration-findings-v1.2.md).
 
-### Prompt v1.2 draft-first — planned (2026-08-10)
+### Prompt v1.2 draft-first — shipped (2026-08-10)
 
-**Tracking:** [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). Supersedes the open eval/runner items below once WS4/WS5 complete.
+**Tracking:** [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). WS1–WS3 shipped; WS4 re-run logs in [findings v1.2](chat-exploration-findings-v1.2.md); WS5 eval cases pending.
 
-- **Prompt:** v1.2 — validated draft before save; explicit-save escape hatch; plan-only mode (UC1-S5); valuePath / messy-data / HITL-hold rules — evidence: premature-save victims in v1.1 dashboard (UC3-S6, UC3-S1, UC1-S4, UC3-S4, dual-saves).
-- **Observe:** session **milestone** (`none` → `validated` → `saved`) + list polish (**env**, **est. cost**, remove eval-case column) — [plan WS2](chat-agent-v1.2-plan.md#workstream-2--observe-agent-dashboard)
-- **Exploration:** re-run all 19 scenarios + D1–D3 under `Platform: post-fix (prompt v1.2 draft-first)`; add `saved-unconfirmed` result vocabulary.
-- **Eval cases:** contracts in-band (drop unused `mockApi`), confirm turns with explicit save phrasing, `maxUserTurns: 5` — gates Phase 7.4 baselines.
-- **7.5 blockers:** UC3-S4 clarification variant + UC3-S3 negotiation variant (`forbiddenEmbeddedAction`).
+- ✅ **Prompt v1.2** — `agent/prompts/v1.2.txt`, `RAPIDUI_AGENT_PROMPT_VERSION=v1.2`
+- ✅ **Observe session state** — [plan WS2](chat-agent-v1.2-plan.md#workstream-2--observe-agent-dashboard)
+- ✅ **Exploration docs** — scenarios + separate [v1.2 findings doc](chat-exploration-findings-v1.2.md)
 
-Items in the sections below marked **superseded by v1.2 plan** remain as v1.1 baseline evidence until WS5 lands.
+Items below marked **superseded by v1.2 plan** remain as v1.1 baseline evidence until WS5 lands.
 
 ### Eval case changes (`eval/cases/*.json`)
 

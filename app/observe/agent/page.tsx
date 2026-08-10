@@ -1,7 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { AgentRunOutcomeBadge } from "@/components/observe/AgentRunOutcomeBadge";
+import { AgentSessionStateBadge } from "@/components/observe/AgentSessionStateBadge";
+import { ObserveAgentFiltersForm, ObserveApplyButton, ObserveClearFiltersButton } from "@/components/observe/ObserveAgentFiltersForm";
 import { ObserveNoticeBanner } from "@/components/observe/ObserveNoticeBanner";
+import { ObservePeriodPills } from "@/components/observe/ObservePeriodField";
+import { ObserveRefreshButton } from "@/components/observe/ObserveRefreshButton";
 import { StatCard } from "@/components/observe/StatCard";
 import { StatCardGrid } from "@/components/observe/StatCardGrid";
 import {
@@ -9,13 +13,23 @@ import {
   getAgentObserveSummary,
   listAgentRuns,
   listDistinctAgentRunAgents,
-  listDistinctEvalCases,
   listDistinctModels,
   listDistinctPromptVersions,
+  resolveObserveWindow,
   truncateSessionId,
+  type AgentRunEnv,
+  type AgentSessionState,
 } from "@/lib/observe/queries";
+import { formatEstCostUsd, formatTokenCount } from "@/lib/observe/modelPricing";
 import { getObserveNotice, isObserveNoticeKey } from "@/lib/observe/notices";
 import { agentMetricTooltips } from "@/lib/observe/metric-tooltips";
+import {
+  buildAgentFilterHref,
+  buildAgentFilterQuery,
+  canonicalAgentFilterInput,
+  hasActiveAgentFilters,
+  shouldCanonicalizeAgentFilterUrl,
+} from "@/lib/observe/agentFilterQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -23,22 +37,19 @@ type AgentObservePageProps = {
   searchParams: Promise<{
     model?: string;
     promptVersion?: string;
-    evalCase?: string;
     agent?: string;
     session?: string;
+    state?: string;
+    env?: string;
+    days?: string;
+    from?: string;
+    to?: string;
     notice?: string;
   }>;
 };
 
 function buildFilterQuery(filters: Record<string, string | undefined>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    if (value) {
-      params.set(key, value);
-    }
-  }
-  const query = params.toString();
-  return query ? `?${query}` : "";
+  return buildAgentFilterQuery(filters);
 }
 
 function formatLatency(value: number | null, minSavedRuns: number, savedCount: number): string {
@@ -51,26 +62,61 @@ function formatLatency(value: number | null, minSavedRuns: number, savedCount: n
   return `${value}ms`;
 }
 
+const SESSION_STATES: AgentSessionState[] = [
+  "saved",
+  "draft",
+  "active",
+  "failed",
+  "abandoned",
+];
+
+const AGENT_ENVS: AgentRunEnv[] = ["local", "prod"];
+
 export default async function AgentObservePage({ searchParams }: AgentObservePageProps) {
   const params = await searchParams;
-  const filters = {
+
+  if (shouldCanonicalizeAgentFilterUrl(params)) {
+    redirect(buildAgentFilterHref(canonicalAgentFilterInput(params)));
+  }
+
+  const observeWindow = resolveObserveWindow({
+    from: params.from,
+    to: params.to,
+    windowDays: params.days ? Number(params.days) : undefined,
+  });
+  const stateFilter = SESSION_STATES.includes(params.state as AgentSessionState)
+    ? (params.state as AgentSessionState)
+    : undefined;
+  const envFilter = AGENT_ENVS.includes(params.env as AgentRunEnv)
+    ? (params.env as AgentRunEnv)
+    : undefined;
+  const filterQueryParams = {
     model: params.model,
     promptVersion: params.promptVersion,
-    evalCase: params.evalCase,
     agent: params.agent,
     session: params.session,
+    state: stateFilter,
+    env: envFilter,
+    from: observeWindow.isDefaultWindow ? undefined : observeWindow.from,
+    to: observeWindow.isDefaultWindow ? undefined : observeWindow.to,
   };
+  const filters = {
+    ...filterQueryParams,
+    from: observeWindow.from,
+    to: observeWindow.to,
+  };
+  const { dateRangeLabel, windowDays } = observeWindow;
 
-  const [summary, runs, models, promptVersions, evalCases, agents] = await Promise.all([
+  const [summary, runs, models, promptVersions, agents] = await Promise.all([
     getAgentObserveSummary(filters),
     listAgentRuns(filters),
-    listDistinctModels(),
-    listDistinctPromptVersions(),
-    listDistinctEvalCases(),
-    listDistinctAgentRunAgents(),
+    listDistinctModels({ from: observeWindow.from, to: observeWindow.to }),
+    listDistinctPromptVersions({ from: observeWindow.from, to: observeWindow.to }),
+    listDistinctAgentRunAgents({ from: observeWindow.from, to: observeWindow.to }),
   ]);
 
-  const filterQuery = buildFilterQuery(filters);
+  const filterQuery = buildFilterQuery(filterQueryParams);
+  const hasActiveFilters = hasActiveAgentFilters(filterQueryParams);
   const hasData = summary.runCount > 0;
   const noticeKey = isObserveNoticeKey(params.notice) ? params.notice : undefined;
   const notice = noticeKey ? getObserveNotice(noticeKey, { sessionId: params.session }) : null;
@@ -85,18 +131,25 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
         />
       ) : null}
 
-      <header className="space-y-2">
-        <h1 className="text-title font-semibold tracking-tight">Agent telemetry</h1>
-        <p className="text-ui text-zinc-600 dark:text-zinc-400">
-          RapidUI Agent chat sessions — outcomes, latency, tokens, and platform API usage. Last 30
-          days.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-title font-semibold tracking-tight">Agent telemetry</h1>
+          <p className="text-ui text-zinc-600 dark:text-zinc-400">
+            RapidUI Agent chat sessions — session state, latency, tokens, and platform API usage.
+          </p>
+        </div>
+        <ObserveRefreshButton />
       </header>
 
-      <form
-        method="get"
-        className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+      <ObserveAgentFiltersForm
+        formKey={filterQuery || "default"}
+        className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
       >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <p className="text-ui font-medium text-zinc-700 dark:text-zinc-300">{dateRangeLabel}</p>
+          <ObservePeriodPills activeDays={windowDays} />
+        </div>
+        <div className="flex flex-wrap items-end gap-3 p-4">
         <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">Model</span>
           <select
@@ -128,16 +181,31 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
           </select>
         </label>
         <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Eval case</span>
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">State</span>
           <select
-            name="evalCase"
-            defaultValue={params.evalCase ?? ""}
+            name="state"
+            defaultValue={params.state ?? ""}
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
           >
-            <option value="">All cases</option>
-            {evalCases.map((evalCase) => (
-              <option key={evalCase} value={evalCase}>
-                {evalCase}
+            <option value="">All states</option>
+            {SESSION_STATES.map((state) => (
+              <option key={state} value={state}>
+                {state.charAt(0).toUpperCase() + state.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-[9rem] flex-1 space-y-1 text-ui">
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">Env</span>
+          <select
+            name="env"
+            defaultValue={params.env ?? ""}
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-ui dark:border-zinc-700 dark:bg-zinc-950"
+          >
+            <option value="">All envs</option>
+            {AGENT_ENVS.map((env) => (
+              <option key={env} value={env}>
+                {env}
               </option>
             ))}
           </select>
@@ -166,23 +234,17 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-ui dark:border-zinc-700 dark:bg-zinc-950"
           />
         </label>
-        <div className="flex shrink-0 items-end gap-2">
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-ui font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Apply filters
-          </button>
-          {filterQuery ? (
-            <Link
-              href="/observe/agent"
-              className="rounded-md px-4 py-2 text-ui font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
-            >
-              Clear
-            </Link>
-          ) : null}
+        <div className="shrink-0 space-y-1 text-ui">
+          <span className="font-medium text-zinc-700 opacity-0 dark:text-zinc-300" aria-hidden="true">
+            Apply
+          </span>
+          <div className="flex items-center gap-1.5">
+            <ObserveApplyButton />
+            {hasActiveFilters ? <ObserveClearFiltersButton /> : null}
+          </div>
         </div>
-      </form>
+        </div>
+      </ObserveAgentFiltersForm>
 
       <StatCardGrid>
         <StatCard label="Runs" value={String(summary.runCount)} />
@@ -203,10 +265,31 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
           value={summary.avgTokens === null ? "—" : String(summary.avgTokens)}
           tooltip={agentMetricTooltips.avgTokens}
         />
-        <StatCard label="Saved" value={String(summary.savedCount)} />
-        <StatCard label="Failed" value={String(summary.failedCount)} />
-        <StatCard label="Abandoned" value={String(summary.abandonedCount)} />
-        <StatCard label="In progress" value={String(summary.inProgressCount)} />
+        <StatCard
+          label="Total tokens"
+          value={formatTokenCount(summary.totalTokens)}
+          hint="in selected period"
+          tooltip={agentMetricTooltips.totalTokens}
+        />
+        <StatCard
+          label="Avg est. cost"
+          value={formatEstCostUsd(summary.avgEstCostUsd)}
+          hint="per session with turn tokens"
+          tooltip={agentMetricTooltips.avgEstCost}
+        />
+        <StatCard
+          label="Total est. cost"
+          value={formatEstCostUsd(
+            summary.totalEstCostUsd,
+            summary.estCostHasListBasis ? "list" : null,
+          )}
+          hint={
+            summary.estCostHasListBasis
+              ? "includes ~ list-price runs"
+              : "in selected period"
+          }
+          tooltip={agentMetricTooltips.totalEstCost}
+        />
         <StatCard
           label="Avg validate attempts"
           value={
@@ -247,12 +330,13 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
               <thead className="bg-zinc-50 dark:bg-zinc-950/50">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Session</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500">Outcome</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500">State</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500">Env</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Model</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500">Eval case</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Validates</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Platform calls</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Tokens</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500">Est. cost</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Started</th>
                 </tr>
               </thead>
@@ -269,13 +353,16 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <AgentRunOutcomeBadge outcome={run.outcome} />
+                      <AgentSessionStateBadge state={run.state} />
                     </td>
+                    <td className="px-4 py-3 font-mono text-caption">{run.env ?? "—"}</td>
                     <td className="px-4 py-3 font-mono text-caption">{run.model ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-caption">{run.evalCaseId ?? "—"}</td>
                     <td className="px-4 py-3">{run.validateAttempts}</td>
                     <td className="px-4 py-3">{run.platformApiCalls}</td>
                     <td className="px-4 py-3">{run.totalTokens ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {formatEstCostUsd(run.estCostUsd, run.estCostBasis)}
+                    </td>
                     <td className="px-4 py-3 text-zinc-500">
                       {formatRelativeTime(run.startedAt)}
                     </td>

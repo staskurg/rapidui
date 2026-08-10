@@ -2975,7 +2975,7 @@ Lane B — agent_runs + agent_turns (RapidUI Agent only)
 2. **`api_events` is authoritative** for validate attempts, platform API call counts, and (after migration 006) **`http_status`** for transport vs semantic classification.
 3. **`agent_runs` is authoritative** for terminal outcome, tokens, run latency, model/prompt/eval metadata.
 4. **Path B external agents** (curl, Cursor) write `api_events` only — no `agent_runs` row; Agent dashboard shows RapidUI Agent sessions only.
-5. **Do not unify** API Observe `resolveSessionOutcome()` (heuristic from validate rows) with Agent `resolveAgentRunOutcome()` (prefer DB `outcome`) — different views, different precedence.
+5. **Do not unify** API Observe `resolveSessionOutcome()` with Agent display resolvers — different views. *(Agent Observe: `resolveAgentRunOutcome()` as shipped Phase 6; superseded in UI by **`resolveAgentSessionState()`** — [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md). Both surfaces trust `api_events` for save/validate.)*
 
 #### Header propagation (session context on every row)
 
@@ -3051,14 +3051,14 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | **Terminal outcomes — required** | Emit **`saved`**, **`failed`**, **`abandoned`** from Agent ingest; **`in_progress`** when `outcome IS NULL` and session is recent. Phase 4 deferral reversed — not optional. |
 | **When `saved` fires** | Turn completes AND `SessionState.turn_had_save` AND `last_spec_id` set → `outcome: 'saved'`, `spec_id`, `total_tokens`, `latency_ms` (session wall clock), `finished_at`. *(Already implemented.)* |
 | **When `failed` fires** | Turn completes AND no save AND **unrecoverable failure** — see [outcome triggers](#outcome-triggers-locked-for-p0) below. **Not** on every failed validate (retries are normal). |
-| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** 30m stale inference **only when no transcript** (amended 2026-08-07 — sessions with `transcript_jsonb` stay `in_progress`). Eval runner (**7.3**) POSTs explicitly on timeout. |
+| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** derived **abandoned** session state when idle (see [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md)). Eval runner (**7.3**) POSTs explicitly on timeout. |
 | **New chat abandon (Q1/Q2)** | On session rotate, **before** minting new id: fire-and-forget `POST /api/observe/ingest/agent` with `{ session_id: priorId, run: { outcome: "abandoned" } }`. Skip if thread empty or panel already saved. **Also:** PUT final transcript snapshot for prior session before abandon ([plan](chat-session-persistence-plan.md)). **No** new FastAPI route. |
-| **Stale-session inference (Q1)** | **`AGENT_STALE_SESSION_MS = 30 minutes`** — for tab-close / unknown exit when DB `outcome` still null **and `transcript_jsonb` IS NULL**. Badge: “Abandoned (inferred)”. Sessions **with** transcript never flip to inferred abandon on idle time — stay **`in_progress`** until explicit terminal outcome. |
+| **Stale-session inference (Q1)** | **Superseded (2026-08-10) by [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md):** single derived **`AgentSessionState`**; **`abandoned_inferred`** retired from UI. Was: **`AGENT_STALE_SESSION_MS = 30 minutes`** + transcript exemption (2026-08-07). |
 | **`http_status` on `api_events` (Q3)** | **Ship in P0** — migration `006_api_events_http_status.sql`; wire `recordApiEvent` / `recordDiscoveryEvent`. |
 | **FastAPI disconnect (Q4)** | **Skip v0.2** — document as v0.3+ backlog; rely on New chat abandon + 30m inference. |
 | **Latency sample minimums (Q5)** | **p50:** show “—” if &lt; **3** saved runs; **p95:** show “—” if &lt; **10** saved runs. UI subtitle documents minimums. |
 | **Agent instance policy (v0.2)** | Pin **one Agent instance** for prod/demo; document restart collision on `(run_id, turn_index)` upsert. Derive durable counters from `api_events`. |
-| **API vs Agent outcome display** | Keep **separate** resolvers: `resolveSessionOutcome()` (API Observe) vs `resolveAgentRunOutcome()` (Agent Observe). Do not collapse. |
+| **API vs Agent outcome display** | API Observe: `resolveSessionOutcome()` (saved / failed / in_progress from events). Agent Observe: **`resolveAgentSessionState()`** (saved / draft / active / failed / abandoned) — [v1.2 plan](chat-agent-v1.2-plan.md). Both trust `api_events` for save/validate signals. |
 | **External agents on Agent dashboard** | Agent dashboard lists **`agent_runs` rows only**. Path B sessions appear in `/observe/api` only — no synthetic agent rows. |
 | **Phase 4 deferral reversed** | Explicit `outcome: 'failed'` is **required** for Phase 6 — not optional hardening. |
 
@@ -3069,8 +3069,8 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | **`saved`** | Turn with successful `save_rui` | — |
 | **`failed`** | (1) Uncaught exception in `/chat` handler or tool that aborts the turn with no save; OR (2) pydantic-ai run ends in **error** state with `error_summary` set and no save; OR (3) explicit eval-runner timeout POST (**7.3**) | Failed validate alone (normal retry loop); user still chatting |
 | **`abandoned`** | (1) **New chat:** Main UI POSTs to existing `/api/observe/ingest/agent` for **prior** `session_id` when user rotates session; OR (2) eval runner script ends without save (**7.3**) | Thread empty (no messages); session already **`saved`**; during normal agent turns |
-| **`in_progress` (inferred)** | No DB write — UI/query only | `outcome IS NULL` and (last activity within **30 minutes** OR **`transcript_jsonb` IS NOT NULL**) |
-| **`abandoned` (inferred)** | No DB write — UI/query only | `outcome IS NULL`, **`transcript_jsonb` IS NULL**, and last activity **> 30 minutes** ago; badge: “Abandoned (inferred)” |
+| **`in_progress` (inferred)** | No DB write — UI/query only | *Superseded by v1.2 WS2A → **`active`***. Was: `outcome IS NULL` and (last activity within **30 minutes** OR **`transcript_jsonb` IS NOT NULL**) |
+| **`abandoned` (inferred)** | No DB write — UI/query only | *Superseded by v1.2 WS2A → derived **`abandoned`***. Was: `outcome IS NULL`, no transcript, idle **> 30m**; badge “Abandoned (inferred)” |
 
 **Ingest rule exception (locked):** Only FastAPI posts turn/run metrics during `/chat`. **Exception:** Main UI may POST terminal **`abandoned`** for the **previous** session id on explicit New chat only — not from LLM/tools.
 
@@ -3763,7 +3763,7 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 
 ### Implementation readiness (2026-08-04)
 
-**Verdict:** **7.1–7.3** complete. **7.4 schema** may start in parallel; **7.4 baselines** wait for [chat agent v1.2](chat-agent-v1.2-plan.md) (prompt v1.2 → milestone Observe → exploration re-run → eval case updates). **7.6** blocked on **7.4** data.
+**Verdict:** **7.1–7.3** complete. **7.4 schema** may start in parallel; **7.4 baselines** wait for [chat agent v1.2](chat-agent-v1.2-plan.md) (prompt v1.2 → session state Observe → exploration re-run → eval case updates). **7.6** blocked on **7.4** data.
 
 | Phase | Readiness | Notes |
 |-------|-----------|-------|
@@ -4125,6 +4125,8 @@ Persist full Vercel AI v6 `messages[]` per live `/chat` session on `agent_runs.t
 
 - **`abandoned_inferred`:** only when `outcome IS NULL`, **no** `transcript_jsonb`, idle **> 30m**
 - Sessions with transcript stay **`in_progress`** until explicit terminal outcome
+
+**Superseded (2026-08-10) by [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md):** single **`AgentSessionState`**; stale without passing validate → **abandoned**; stale with passing validate → **draft**; `abandoned_inferred` retired from UI.
 
 ### Task list
 

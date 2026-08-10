@@ -11,7 +11,7 @@ import {
   getAgentRunDetail,
   getAgentRunExists,
   listAgentRuns,
-  resolveAgentRunOutcome,
+  resolveAgentSessionState,
 } from "../lib/observe/queries";
 import { ingestAgentTelemetry } from "../lib/observe/writes";
 import { validateSpec } from "../lib/validate";
@@ -27,7 +27,7 @@ async function runSmokeObserveAgent(): Promise<void> {
   const savedSessionId = `smoke-agent-saved-${randomUUID()}`;
   await ingestAgentTelemetry({
     session_id: savedSessionId,
-    run: { outcome: "saved", validate_attempts: 2, total_tokens: 100, latency_ms: 5000 },
+    run: { outcome: "saved", validate_attempts: 2, total_tokens: 100, latency_ms: 5000, env: "local" },
     turns: [{ turn_index: 0, latency_ms: 5000, had_save: true }],
   });
 
@@ -70,19 +70,50 @@ async function runSmokeObserveAgent(): Promise<void> {
   `;
   assert(abandonedRun.rows[0]?.outcome === "abandoned", "Expected abandoned outcome");
 
-  // --- Stale-session inference ---
-  const staleAt = new Date(Date.now() - AGENT_STALE_SESSION_MS - 60_000);
+  // --- Session state derivation ---
+  const now = Date.now();
+  const staleAt = new Date(now - AGENT_STALE_SESSION_MS - 60_000);
+  const recentAt = new Date(now - 5 * 60 * 1000);
+
   assert(
-    resolveAgentRunOutcome(null, staleAt) === "abandoned_inferred",
-    "Stale null outcome should infer abandoned",
+    resolveAgentSessionState({
+      dbOutcome: null,
+      lastActivityAt: staleAt,
+      hasSave: false,
+      hasPassValidate: false,
+      now,
+    }) === "abandoned",
+    "Stale session without validate should be abandoned",
   );
   assert(
-    resolveAgentRunOutcome(null, staleAt, true) === "in_progress",
-    "Stale null outcome with transcript should stay in progress",
+    resolveAgentSessionState({
+      dbOutcome: null,
+      lastActivityAt: recentAt,
+      hasSave: false,
+      hasPassValidate: false,
+      now,
+    }) === "active",
+    "Recent session without validate should be active",
   );
   assert(
-    resolveAgentRunOutcome(null, new Date()) === "in_progress",
-    "Recent null outcome should be in progress",
+    resolveAgentSessionState({
+      dbOutcome: "abandoned",
+      lastActivityAt: recentAt,
+      hasSave: false,
+      hasPassValidate: true,
+      now,
+    }) === "draft",
+    "Passing validate after New chat should stay draft",
+  );
+  assert(
+    resolveAgentSessionState({
+      dbOutcome: "failed",
+      lastActivityAt: recentAt,
+      hasSave: false,
+      hasPassValidate: true,
+      now,
+    }) === "failed",
+    "Terminal failed after validate should be failed, not draft",
   );
 
   // --- http_status persisted ---
@@ -134,13 +165,20 @@ async function runSmokeObserveAgent(): Promise<void> {
   // --- Query layer shape ---
   const summary = await getAgentObserveSummary();
   assert(typeof summary.runCount === "number", "getAgentObserveSummary returns runCount");
+  assert(typeof summary.draftCount === "number", "getAgentObserveSummary returns draftCount");
+  assert(typeof summary.avgEstCostUsd === "number" || summary.avgEstCostUsd === null, "getAgentObserveSummary returns avgEstCostUsd");
+  assert(typeof summary.totalTokens === "number" || summary.totalTokens === null, "getAgentObserveSummary returns totalTokens");
+  assert(typeof summary.totalEstCostUsd === "number" || summary.totalEstCostUsd === null, "getAgentObserveSummary returns totalEstCostUsd");
 
   const runs = await listAgentRuns({}, 5);
   assert(Array.isArray(runs), "listAgentRuns returns array");
 
   const detail = await getAgentRunDetail(abandonedSessionId);
   assert(detail !== null, "getAgentRunDetail should find abandoned session");
-  assert(detail.run.outcome === "abandoned", "Detail outcome should be abandoned");
+  assert(detail.run.state === "abandoned", "Detail state should be abandoned");
+
+  const savedDetail = await getAgentRunDetail(savedSessionId);
+  assert(savedDetail?.run.env === "local", "Ingested env should persist on agent_runs");
 
   const exists = await getAgentRunExists(abandonedSessionId);
   assert(exists, "getAgentRunExists should return true");
@@ -152,7 +190,7 @@ async function runSmokeObserveAgent(): Promise<void> {
   console.log(`- terminal outcomes (saved/failed/abandoned)`);
   console.log(`- downgrade guard on session ${savedSessionId.slice(0, 20)}…`);
   console.log(`- http_status=400 on session ${httpSessionId.slice(0, 20)}…`);
-  console.log(`- query helpers + stale inference (${AGENT_STALE_SESSION_MS}ms)`);
+  console.log(`- session state resolver (${AGENT_STALE_SESSION_MS}ms stale window)`);
 }
 
 runSmokeObserveAgent().catch((error: unknown) => {

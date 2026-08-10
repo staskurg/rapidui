@@ -205,9 +205,11 @@ On each completed turn the handler POSTs `turns[]` plus partial `run` fields. Te
 
 Failed validate retries alone do **not** emit `failed` — the agent is expected to fix and retry.
 
-Sessions with no DB outcome and last activity **> 30 minutes** ago are shown as **Abandoned (inferred)** in Observe (tab close / unknown exit) — **only when no chat transcript is stored**. Sessions with `transcript_jsonb` on `agent_runs` stay **In progress** until an explicit terminal outcome (`saved` / `failed` / `abandoned`). See [chat-session-persistence-plan.md](../.cursor/chat-session-persistence-plan.md).
+**Observe session state (2026-08-10):** Agent Observe uses a single derived **`AgentSessionState`** (`saved` · `draft` · `active` · `failed` · `abandoned`) — see [chat-agent-v1.2-plan.md](../.cursor/chat-agent-v1.2-plan.md#observe-session-state-reference--locked). **`failed`** = explicit terminal ingest only, not failed validate retries. **`draft`** = passing validate, no save (v1.2 funnel). Ingest still writes `saved` / `failed` / `abandoned` to `agent_runs.outcome`; save signal authoritative from `api_events`.
 
-FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + stale inference (non-transcript sessions only).
+**Legacy (superseded when WS2A ships):** sessions with no DB outcome and last activity **> 30 minutes** ago were shown as **Abandoned (inferred)** — only when no chat transcript was stored. Sessions with `transcript_jsonb` stayed **In progress** until explicit terminal outcome. That model is replaced by session state above.
+
+FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + derived session state (WS2A).
 
 ### Chat transcript API (Next.js)
 
@@ -215,7 +217,7 @@ Full conversation replay for live `/chat` sessions is stored separately from age
 
 ### o4-mini token accounting
 
-`result.usage.input_tokens` and `output_tokens` from pydantic-ai include model-reported usage per turn. For o4-mini, reasoning tokens may be included in output counts depending on provider reporting — use Observe totals for directional comparison, not billing.
+`result.usage.input_tokens`, `output_tokens`, and `cache_read_tokens` from pydantic-ai are ingested per turn. Observe prices cached input at $0.275/1M (o4-mini); legacy turns without `cache_read_tokens` show list-price estimates (~ prefix, upper bound). For o4-mini, reasoning tokens may be included in output counts depending on provider reporting.
 
 ### Single-instance policy (v0.2)
 
@@ -246,6 +248,7 @@ Custom attributes on chat requests: `session_id`, `prompt_version` (correlate wi
 | `RAPIDUI_BASE_URL` | Yes | `http://localhost:3000` | Platform base URL |
 | `RAPIDUI_AGENT_MODEL` | No | `openai:o4-mini` | Pydantic AI model string |
 | `RAPIDUI_AGENT_PROMPT_VERSION` | No | `v1` | Loads `prompts/{version}.txt` into `Agent(instructions=...)` |
+| `RAPIDUI_ENV` | No | `local` | Ingest env tag on `agent_runs` (`local` \| `prod`) — set `prod` on Render |
 | `LOGFIRE_TOKEN` | No | — | Enables Logfire OTel instrumentation |
 
 The agent does **not** connect to Neon directly in v0.2.

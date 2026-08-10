@@ -93,6 +93,7 @@ export async function upsertAgentRun(
       provider,
       prompt_version,
       eval_case_id,
+      env,
       total_tokens,
       latency_ms,
       intent,
@@ -109,6 +110,7 @@ export async function upsertAgentRun(
       ${run?.provider ?? null},
       ${run?.prompt_version ?? null},
       ${run?.eval_case_id ?? null},
+      ${run?.env ?? null},
       ${run?.total_tokens ?? null},
       ${run?.latency_ms ?? null},
       ${run?.intent ?? null},
@@ -127,6 +129,7 @@ export async function upsertAgentRun(
       provider = COALESCE(EXCLUDED.provider, agent_runs.provider),
       prompt_version = COALESCE(EXCLUDED.prompt_version, agent_runs.prompt_version),
       eval_case_id = COALESCE(EXCLUDED.eval_case_id, agent_runs.eval_case_id),
+      env = COALESCE(EXCLUDED.env, agent_runs.env),
       total_tokens = COALESCE(EXCLUDED.total_tokens, agent_runs.total_tokens),
       latency_ms = COALESCE(EXCLUDED.latency_ms, agent_runs.latency_ms),
       intent = COALESCE(EXCLUDED.intent, agent_runs.intent),
@@ -149,6 +152,7 @@ export async function upsertAgentTurn(
       latency_ms,
       input_tokens,
       output_tokens,
+      cache_read_tokens,
       had_validate_call,
       had_save
     )
@@ -158,6 +162,7 @@ export async function upsertAgentTurn(
       ${turn.latency_ms ?? null},
       ${turn.input_tokens ?? null},
       ${turn.output_tokens ?? null},
+      ${turn.cache_read_tokens ?? null},
       ${turn.had_validate_call ?? false},
       ${turn.had_save ?? false}
     )
@@ -165,6 +170,7 @@ export async function upsertAgentTurn(
       latency_ms = EXCLUDED.latency_ms,
       input_tokens = EXCLUDED.input_tokens,
       output_tokens = EXCLUDED.output_tokens,
+      cache_read_tokens = EXCLUDED.cache_read_tokens,
       had_validate_call = EXCLUDED.had_validate_call,
       had_save = EXCLUDED.had_save
     RETURNING id

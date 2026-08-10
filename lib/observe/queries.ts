@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db/client";
+import { estimateSessionCostUsd, type CostBasis } from "@/lib/observe/modelPricing";
 import {
   DISCOVERY_ENDPOINTS,
   POST_ENDPOINTS,
@@ -6,7 +7,7 @@ import {
 
 export { DISCOVERY_ENDPOINTS } from "@/lib/observe/schemas";
 
-export const OBSERVE_DEFAULT_WINDOW_DAYS = 30;
+export const OBSERVE_DEFAULT_WINDOW_DAYS = 7;
 
 export type SessionOutcome = "saved" | "failed" | "in_progress";
 
@@ -84,10 +85,150 @@ export type EvalTeaser = {
   caseBreakdown: { evalCaseId: string; passed: number; total: number }[];
 };
 
+export const OBSERVE_WINDOW_PRESETS = [1, 7, 30] as const;
+export type ObserveWindowDays = (typeof OBSERVE_WINDOW_PRESETS)[number];
+
+export function parseObserveWindowDays(value: string | undefined): ObserveWindowDays {
+  const parsed = Number(value);
+  if (parsed === 1 || parsed === 7 || parsed === 30) {
+    return parsed;
+  }
+  return OBSERVE_DEFAULT_WINDOW_DAYS;
+}
+
+function utcDayStart(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function utcDayEnd(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999),
+  );
+}
+
+export function parseIsoDateUtc(value: string | undefined): string | null {
+  if (!value?.trim()) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+export function formatIsoDateUtc(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function windowRangeForPreset(
+  windowDays: ObserveWindowDays,
+  endDate = new Date(),
+): { from: string; to: string; windowStart: Date; windowEnd: Date } {
+  const windowEnd = utcDayEnd(endDate);
+  const windowStartDate = utcDayStart(endDate);
+  windowStartDate.setUTCDate(windowStartDate.getUTCDate() - (windowDays - 1));
+
+  return {
+    from: formatIsoDateUtc(windowStartDate),
+    to: formatIsoDateUtc(windowEnd),
+    windowStart: windowStartDate,
+    windowEnd,
+  };
+}
+
+function calendarDaysInclusive(start: Date, end: Date): number {
+  const startMs = utcDayStart(start).getTime();
+  const endMs = utcDayStart(end).getTime();
+  return Math.round((endMs - startMs) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+function inferWindowDaysFromRange(start: Date, end: Date): ObserveWindowDays {
+  const span = calendarDaysInclusive(start, end);
+  if (span === 1) {
+    return 1;
+  }
+  if (span === 7) {
+    return 7;
+  }
+  if (span === 30) {
+    return 30;
+  }
+  return OBSERVE_DEFAULT_WINDOW_DAYS;
+}
+
+export function isDefaultObserveWindow(
+  from: string,
+  to: string,
+  endDate = new Date(),
+): boolean {
+  const defaults = windowRangeForPreset(OBSERVE_DEFAULT_WINDOW_DAYS, endDate);
+  return from === defaults.from && to === defaults.to;
+}
+
+export function formatObserveDateRangeLabel(start: Date, end: Date): string {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    timeZone: "UTC",
+  });
+  const startLabel = formatter.format(start);
+  const endLabel = formatter.format(end);
+  return `${startLabel} – ${endLabel} (UTC)`;
+}
+
+/** Rolling window for API observe pages. */
 export function windowStart(windowDays = OBSERVE_DEFAULT_WINDOW_DAYS): Date {
   const start = new Date();
   start.setUTCDate(start.getUTCDate() - windowDays);
   return start;
+}
+
+/** Calendar-day window for agent dashboard — from/to dates or preset length ending today UTC. */
+export function resolveObserveWindow(filters: {
+  from?: string;
+  to?: string;
+  windowDays?: number;
+}): {
+  windowStart: Date;
+  windowEnd: Date;
+  from: string;
+  to: string;
+  windowDays: ObserveWindowDays;
+  dateRangeLabel: string;
+  isDefaultWindow: boolean;
+} {
+  const parsedFrom = parseIsoDateUtc(filters.from);
+  const parsedTo = parseIsoDateUtc(filters.to);
+
+  if (parsedFrom && parsedTo) {
+    const windowStartDate = new Date(`${parsedFrom}T00:00:00.000Z`);
+    const windowEnd = new Date(`${parsedTo}T23:59:59.999Z`);
+    const from = formatIsoDateUtc(windowStartDate);
+    const to = formatIsoDateUtc(utcDayStart(windowEnd));
+
+    return {
+      windowStart: windowStartDate,
+      windowEnd,
+      from,
+      to,
+      windowDays: inferWindowDaysFromRange(windowStartDate, windowEnd),
+      dateRangeLabel: formatObserveDateRangeLabel(windowStartDate, windowEnd),
+      isDefaultWindow: isDefaultObserveWindow(from, to),
+    };
+  }
+
+  const windowDays = parseObserveWindowDays(
+    filters.windowDays === undefined ? undefined : String(filters.windowDays),
+  );
+  const range = windowRangeForPreset(windowDays);
+
+  return {
+    windowStart: range.windowStart,
+    windowEnd: range.windowEnd,
+    from: range.from,
+    to: range.to,
+    windowDays,
+    dateRangeLabel: formatObserveDateRangeLabel(range.windowStart, range.windowEnd),
+    isDefaultWindow: windowDays === OBSERVE_DEFAULT_WINDOW_DAYS,
+  };
 }
 
 export function resolveSessionOutcome(
@@ -597,37 +738,64 @@ export async function listDistinctEvalCases(
   return result.rows.map((row) => String(row.eval_case_id));
 }
 
-// --- Agent Observe (Phase 6) ---
 // Validate attempts and platform API call counts are authoritative from api_events.
 
 export const AGENT_STALE_SESSION_MS = 30 * 60 * 1000;
 
-export type AgentRunOutcome =
-  | "saved"
-  | "failed"
-  | "abandoned"
-  | "abandoned_inferred"
-  | "in_progress";
+export type AgentSessionState = "saved" | "draft" | "active" | "failed" | "abandoned";
+
+export type AgentSessionSignals = {
+  dbOutcome: string | null;
+  lastActivityAt: Date;
+  hasSave: boolean;
+  hasPassValidate: boolean;
+  now?: number;
+};
+
+export type SessionEventSignals = {
+  hasSave: boolean;
+  hasPassValidate: boolean;
+};
+
+export type AgentRunEnv = "local" | "prod";
+
+export type SessionTurnTokens = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  /** True when at least one turn has non-null cache_read_tokens (post-migration ingest). */
+  hasCacheData: boolean;
+};
 
 export type AgentObserveFilters = {
   model?: string;
   promptVersion?: string;
-  evalCase?: string;
   agent?: string;
   session?: string;
+  state?: AgentSessionState;
+  env?: AgentRunEnv;
+  from?: string;
+  to?: string;
+  /** Legacy form field — converted to from/to before navigation. */
   windowDays?: number;
 };
 
 export type AgentObserveSummary = {
   runCount: number;
   savedCount: number;
-  failedCount: number;
+  draftCount: number;
+  activeCount: number;
   abandonedCount: number;
-  inProgressCount: number;
+  failedCount: number;
   p50LatencyMs: number | null;
   p95LatencyMs: number | null;
   savedRunsForLatency: number;
   avgTokens: number | null;
+  totalTokens: number | null;
+  avgEstCostUsd: number | null;
+  totalEstCostUsd: number | null;
+  /** True when any session in the window uses list-price cost (no cache telemetry). */
+  estCostHasListBasis: boolean;
   avgValidateAttempts: number | null;
   avgPlatformApiCalls: number | null;
   runsByDay: { date: string; count: number }[];
@@ -637,12 +805,15 @@ export type AgentRunListRow = {
   sessionId: string;
   startedAt: Date;
   finishedAt: Date | null;
-  outcome: AgentRunOutcome;
+  state: AgentSessionState;
+  env: AgentRunEnv | null;
   model: string | null;
   promptVersion: string | null;
   evalCaseId: string | null;
   intent: string | null;
   totalTokens: number | null;
+  estCostUsd: number | null;
+  estCostBasis: CostBasis | null;
   latencyMs: number | null;
   validateAttempts: number;
   advisoryValidateAttempts: number | null;
@@ -656,6 +827,7 @@ export type AgentTurnRow = {
   latencyMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  cacheReadTokens: number | null;
   hadValidateCall: boolean;
   hadSave: boolean;
 };
@@ -676,37 +848,125 @@ export type AgentRunTranscriptMeta = {
 };
 
 function agentFilterValues(filters: AgentObserveFilters) {
+  const window = resolveObserveWindow(filters);
   return {
-    windowStart: windowStart(filters.windowDays),
+    windowStart: window.windowStart,
+    windowEnd: window.windowEnd,
+    windowDays: window.windowDays,
+    dateRangeLabel: window.dateRangeLabel,
     model: filters.model?.trim() || null,
     promptVersion: filters.promptVersion?.trim() || null,
-    evalCase: filters.evalCase?.trim() || null,
     agent: filters.agent?.trim() || null,
     session: filters.session?.trim() || null,
+    state: filters.state ?? null,
+    env: filters.env ?? null,
   };
 }
 
-export function resolveAgentRunOutcome(
-  dbOutcome: string | null,
-  lastActivityAt: Date,
-  hasTranscript = false,
-): AgentRunOutcome {
-  if (dbOutcome === "saved") {
+export function resolveAgentSessionState(signals: AgentSessionSignals): AgentSessionState {
+  const { dbOutcome, lastActivityAt, hasSave, hasPassValidate } = signals;
+  const now = signals.now ?? Date.now();
+
+  if (hasSave) {
     return "saved";
   }
   if (dbOutcome === "failed") {
     return "failed";
   }
+  if (hasPassValidate) {
+    return "draft";
+  }
   if (dbOutcome === "abandoned") {
     return "abandoned";
   }
 
-  if (hasTranscript) {
-    return "in_progress";
+  const isRecent = now - lastActivityAt.getTime() <= AGENT_STALE_SESSION_MS;
+  return isRecent ? "active" : "abandoned";
+}
+
+const EMPTY_EVENT_SIGNALS: SessionEventSignals = { hasSave: false, hasPassValidate: false };
+
+export async function getSessionEventSignalsBatch(
+  sessionIds: string[],
+): Promise<Map<string, SessionEventSignals>> {
+  const signals = new Map<string, SessionEventSignals>();
+  if (sessionIds.length === 0) {
+    return signals;
   }
 
-  const stale = Date.now() - lastActivityAt.getTime() > AGENT_STALE_SESSION_MS;
-  return stale ? "abandoned_inferred" : "in_progress";
+  const result = await sql`
+    SELECT
+      session_id,
+      BOOL_OR(spec_id IS NOT NULL) AS has_save,
+      BOOL_OR(endpoint = '/api/validate' AND valid = true) AS has_pass_validate
+    FROM api_events
+    WHERE session_id = ANY(${sessionIds})
+    GROUP BY session_id
+  `;
+
+  for (const sessionId of sessionIds) {
+    signals.set(sessionId, { ...EMPTY_EVENT_SIGNALS });
+  }
+
+  for (const row of result.rows) {
+    signals.set(String(row.session_id), {
+      hasSave: Boolean(row.has_save),
+      hasPassValidate: Boolean(row.has_pass_validate),
+    });
+  }
+
+  return signals;
+}
+
+const EMPTY_TURN_TOKENS: SessionTurnTokens = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  hasCacheData: false,
+};
+
+export async function getSessionTurnTokensBatch(
+  sessionIds: string[],
+): Promise<Map<string, SessionTurnTokens>> {
+  const tokens = new Map<string, SessionTurnTokens>();
+  if (sessionIds.length === 0) {
+    return tokens;
+  }
+
+  for (const sessionId of sessionIds) {
+    tokens.set(sessionId, { ...EMPTY_TURN_TOKENS });
+  }
+
+  const result = await sql`
+    SELECT
+      ar.session_id,
+      COALESCE(SUM(at.input_tokens), 0) AS input_tokens,
+      COALESCE(SUM(at.output_tokens), 0) AS output_tokens,
+      COALESCE(SUM(at.cache_read_tokens), 0) AS cache_read_tokens,
+      BOOL_OR(at.cache_read_tokens IS NOT NULL) AS has_cache_data
+    FROM agent_runs ar
+    LEFT JOIN agent_turns at ON at.run_id = ar.id
+    WHERE ar.session_id = ANY(${sessionIds})
+    GROUP BY ar.session_id
+  `;
+
+  for (const row of result.rows) {
+    tokens.set(String(row.session_id), {
+      inputTokens: toNumber(row.input_tokens),
+      outputTokens: toNumber(row.output_tokens),
+      cacheReadTokens: toNumber(row.cache_read_tokens),
+      hasCacheData: Boolean(row.has_cache_data),
+    });
+  }
+
+  return tokens;
+}
+
+function parseAgentRunEnv(value: unknown): AgentRunEnv | null {
+  if (value === "local" || value === "prod") {
+    return value;
+  }
+  return null;
 }
 
 /** Authoritative validate attempt count from api_events. */
@@ -730,25 +990,61 @@ export async function countPlatformApiCalls(sessionId: string): Promise<number> 
   return toNumber(result.rows[0]?.cnt);
 }
 
+function sumTurnTokens(turnTokens: SessionTurnTokens): number {
+  return turnTokens.inputTokens + turnTokens.outputTokens;
+}
+
+/** Prefer turn-level sums when present — authoritative for in-progress sessions. */
+export function resolveSessionTotalTokens(
+  dbTotal: number | null,
+  turnTokens: SessionTurnTokens,
+): number | null {
+  const turnSum = sumTurnTokens(turnTokens);
+  if (turnSum > 0) {
+    return turnSum;
+  }
+  return dbTotal;
+}
+
 function mapAgentRunRow(
   row: Record<string, unknown>,
   validateAttempts: number,
   platformApiCalls: number,
+  eventSignals: SessionEventSignals = EMPTY_EVENT_SIGNALS,
+  turnTokens: SessionTurnTokens = EMPTY_TURN_TOKENS,
 ): AgentRunListRow {
   const lastActivityAt = toDate(row.last_activity_at);
   const dbOutcome = row.outcome ? String(row.outcome) : null;
-  const hasTranscript = Boolean(row.has_transcript);
+  const model = row.model ? String(row.model) : null;
+  const costEstimate = estimateSessionCostUsd(
+    model,
+    turnTokens.inputTokens,
+    turnTokens.outputTokens,
+    turnTokens.cacheReadTokens,
+    turnTokens.hasCacheData,
+  );
 
   return {
     sessionId: String(row.session_id),
     startedAt: toDate(row.started_at),
     finishedAt: toNullableDate(row.finished_at),
-    outcome: resolveAgentRunOutcome(dbOutcome, lastActivityAt, hasTranscript),
-    model: row.model ? String(row.model) : null,
+    state: resolveAgentSessionState({
+      dbOutcome,
+      lastActivityAt,
+      hasSave: eventSignals.hasSave,
+      hasPassValidate: eventSignals.hasPassValidate,
+    }),
+    env: parseAgentRunEnv(row.env),
+    model,
     promptVersion: row.prompt_version ? String(row.prompt_version) : null,
     evalCaseId: row.eval_case_id ? String(row.eval_case_id) : null,
     intent: row.intent ? String(row.intent) : null,
-    totalTokens: row.total_tokens === null ? null : toNumber(row.total_tokens),
+    totalTokens: resolveSessionTotalTokens(
+      row.total_tokens === null ? null : toNumber(row.total_tokens),
+      turnTokens,
+    ),
+    estCostUsd: costEstimate?.usd ?? null,
+    estCostBasis: costEstimate?.basis ?? null,
     latencyMs: row.latency_ms === null ? null : toNumber(row.latency_ms),
     validateAttempts,
     advisoryValidateAttempts:
@@ -767,13 +1063,14 @@ export async function getAgentRunExists(sessionId: string): Promise<boolean> {
 }
 
 export async function listDistinctModels(
-  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+  range: Pick<AgentObserveFilters, "from" | "to"> = {},
 ): Promise<string[]> {
-  const ws = windowStart(windowDays);
+  const { windowStart: ws, windowEnd: we } = resolveObserveWindow(range);
   const result = await sql`
     SELECT DISTINCT model
     FROM agent_runs
     WHERE started_at >= ${ws}
+      AND started_at <= ${we}
       AND model IS NOT NULL
     ORDER BY model ASC
   `;
@@ -781,13 +1078,14 @@ export async function listDistinctModels(
 }
 
 export async function listDistinctPromptVersions(
-  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+  range: Pick<AgentObserveFilters, "from" | "to"> = {},
 ): Promise<string[]> {
-  const ws = windowStart(windowDays);
+  const { windowStart: ws, windowEnd: we } = resolveObserveWindow(range);
   const result = await sql`
     SELECT DISTINCT prompt_version
     FROM agent_runs
     WHERE started_at >= ${ws}
+      AND started_at <= ${we}
       AND prompt_version IS NOT NULL
     ORDER BY prompt_version ASC
   `;
@@ -795,24 +1093,43 @@ export async function listDistinctPromptVersions(
 }
 
 export async function listDistinctAgentRunAgents(
-  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+  range: Pick<AgentObserveFilters, "from" | "to"> = {},
 ): Promise<string[]> {
-  const ws = windowStart(windowDays);
+  const { windowStart: ws, windowEnd: we } = resolveObserveWindow(range);
   const result = await sql`
     SELECT DISTINCT ae.agent
     FROM agent_runs ar
     JOIN api_events ae ON ae.session_id = ar.session_id
     WHERE ar.started_at >= ${ws}
+      AND ar.started_at <= ${we}
       AND ae.agent IS NOT NULL
     ORDER BY ae.agent ASC
   `;
   return result.rows.map((row) => String(row.agent));
 }
 
+export async function listDistinctEnvs(
+  range: Pick<AgentObserveFilters, "from" | "to"> = {},
+): Promise<AgentRunEnv[]> {
+  const { windowStart: ws, windowEnd: we } = resolveObserveWindow(range);
+  const result = await sql`
+    SELECT DISTINCT env
+    FROM agent_runs
+    WHERE started_at >= ${ws}
+      AND started_at <= ${we}
+      AND env IS NOT NULL
+    ORDER BY env ASC
+  `;
+
+  return result.rows
+    .map((row) => parseAgentRunEnv(row.env))
+    .filter((env): env is AgentRunEnv => env !== null);
+}
+
 export async function getAgentObserveSummary(
   filters: AgentObserveFilters = {},
 ): Promise<AgentObserveSummary> {
-  const { windowStart: ws, model, promptVersion, evalCase, session } =
+  const { windowStart: ws, windowEnd: we, model, promptVersion, session, state: stateFilter, env } =
     agentFilterValues(filters);
 
   const runsResult = await sql`
@@ -820,6 +1137,7 @@ export async function getAgentObserveSummary(
       ar.outcome,
       ar.latency_ms,
       ar.total_tokens,
+      ar.model,
       ar.session_id,
       ar.started_at,
       ar.finished_at,
@@ -827,51 +1145,93 @@ export async function getAgentObserveSummary(
         (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
         ar.finished_at,
         ar.started_at
-      ) AS last_activity_at,
-      (ar.transcript_jsonb IS NOT NULL) AS has_transcript
+      ) AS last_activity_at
     FROM agent_runs ar
     WHERE ar.started_at >= ${ws}
+      AND ar.started_at <= ${we}
       AND (${model}::text IS NULL OR ar.model = ${model})
       AND (${promptVersion}::text IS NULL OR ar.prompt_version = ${promptVersion})
-      AND (${evalCase}::text IS NULL OR ar.eval_case_id = ${evalCase})
+      AND (${env}::text IS NULL OR ar.env = ${env})
       AND (${session}::text IS NULL OR ar.session_id = ${session})
   `;
 
+  const sessionIds = runsResult.rows.map((row) => String(row.session_id));
+  const [eventSignals, turnTokens] = await Promise.all([
+    getSessionEventSignalsBatch(sessionIds),
+    getSessionTurnTokensBatch(sessionIds),
+  ]);
+
   let savedCount = 0;
-  let failedCount = 0;
+  let draftCount = 0;
+  let activeCount = 0;
   let abandonedCount = 0;
-  let inProgressCount = 0;
+  let failedCount = 0;
   const savedLatencies: number[] = [];
   const tokenTotals: number[] = [];
+  const estCosts: number[] = [];
+  let estCostHasListBasis = false;
+  let matchedRunCount = 0;
 
   for (const row of runsResult.rows) {
+    const sessionId = String(row.session_id);
     const lastActivityAt = toDate(row.last_activity_at);
-    const outcome = resolveAgentRunOutcome(
-      row.outcome ? String(row.outcome) : null,
+    const signals = eventSignals.get(sessionId) ?? EMPTY_EVENT_SIGNALS;
+    const state = resolveAgentSessionState({
+      dbOutcome: row.outcome ? String(row.outcome) : null,
       lastActivityAt,
-      Boolean(row.has_transcript),
-    );
+      hasSave: signals.hasSave,
+      hasPassValidate: signals.hasPassValidate,
+    });
 
-    switch (outcome) {
+    if (stateFilter && state !== stateFilter) {
+      continue;
+    }
+
+    matchedRunCount += 1;
+
+    switch (state) {
       case "saved":
         savedCount += 1;
         if (row.latency_ms !== null) {
           savedLatencies.push(toNumber(row.latency_ms));
         }
         break;
+      case "draft":
+        draftCount += 1;
+        break;
+      case "active":
+        activeCount += 1;
+        break;
+      case "abandoned":
+        abandonedCount += 1;
+        break;
       case "failed":
         failedCount += 1;
         break;
-      case "abandoned":
-      case "abandoned_inferred":
-        abandonedCount += 1;
-        break;
-      default:
-        inProgressCount += 1;
     }
 
-    if (row.total_tokens !== null) {
-      tokenTotals.push(toNumber(row.total_tokens));
+    const model = row.model ? String(row.model) : null;
+    const tokens = turnTokens.get(sessionId) ?? EMPTY_TURN_TOKENS;
+    const sessionTotal = resolveSessionTotalTokens(
+      row.total_tokens === null ? null : toNumber(row.total_tokens),
+      tokens,
+    );
+    if (sessionTotal !== null) {
+      tokenTotals.push(sessionTotal);
+    }
+
+    const estCost = estimateSessionCostUsd(
+      model,
+      tokens.inputTokens,
+      tokens.outputTokens,
+      tokens.cacheReadTokens,
+      tokens.hasCacheData,
+    );
+    if (estCost !== null) {
+      estCosts.push(estCost.usd);
+      if (estCost.basis === "list") {
+        estCostHasListBasis = true;
+      }
     }
   }
 
@@ -887,19 +1247,34 @@ export async function getAgentObserveSummary(
       ? savedLatencies[Math.floor(savedRunsForLatency * 0.95)] ?? null
       : null;
 
-  const sessionIds = runsResult.rows.map((row) => String(row.session_id));
-
   let avgValidateAttempts: number | null = null;
   let avgPlatformApiCalls: number | null = null;
 
-  if (sessionIds.length > 0) {
+  const filteredSessionIds = stateFilter
+    ? runsResult.rows
+        .filter((row) => {
+          const sessionId = String(row.session_id);
+          const signals = eventSignals.get(sessionId) ?? EMPTY_EVENT_SIGNALS;
+          return (
+            resolveAgentSessionState({
+              dbOutcome: row.outcome ? String(row.outcome) : null,
+              lastActivityAt: toDate(row.last_activity_at),
+              hasSave: signals.hasSave,
+              hasPassValidate: signals.hasPassValidate,
+            }) === stateFilter
+          );
+        })
+        .map((row) => String(row.session_id))
+    : sessionIds;
+
+  if (filteredSessionIds.length > 0) {
     const metricsResult = await sql`
       SELECT
         session_id,
         COUNT(*) FILTER (WHERE endpoint = '/api/validate') AS validate_cnt,
         COUNT(*) AS platform_cnt
       FROM api_events
-      WHERE session_id = ANY(${sessionIds})
+      WHERE session_id = ANY(${filteredSessionIds})
       GROUP BY session_id
     `;
 
@@ -924,9 +1299,10 @@ export async function getAgentObserveSummary(
     SELECT DATE(started_at AT TIME ZONE 'UTC')::text AS day, COUNT(*) AS runs
     FROM agent_runs
     WHERE started_at >= ${ws}
+      AND started_at <= ${we}
       AND (${model}::text IS NULL OR model = ${model})
       AND (${promptVersion}::text IS NULL OR prompt_version = ${promptVersion})
-      AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
+      AND (${env}::text IS NULL OR env = ${env})
       AND (${session}::text IS NULL OR session_id = ${session})
     GROUP BY day
     ORDER BY day DESC
@@ -934,11 +1310,12 @@ export async function getAgentObserveSummary(
   `;
 
   return {
-    runCount: runsResult.rows.length,
+    runCount: matchedRunCount,
     savedCount,
-    failedCount,
+    draftCount,
+    activeCount,
     abandonedCount,
-    inProgressCount,
+    failedCount,
     p50LatencyMs,
     p95LatencyMs,
     savedRunsForLatency,
@@ -946,6 +1323,20 @@ export async function getAgentObserveSummary(
       tokenTotals.length > 0
         ? Math.round(tokenTotals.reduce((sum, value) => sum + value, 0) / tokenTotals.length)
         : null,
+    totalTokens:
+      tokenTotals.length > 0
+        ? tokenTotals.reduce((sum, value) => sum + value, 0)
+        : null,
+    avgEstCostUsd:
+      estCosts.length > 0
+        ? Math.round((estCosts.reduce((sum, value) => sum + value, 0) / estCosts.length) * 1000) /
+          1000
+        : null,
+    totalEstCostUsd:
+      estCosts.length > 0
+        ? Math.round(estCosts.reduce((sum, value) => sum + value, 0) * 100) / 100
+        : null,
+    estCostHasListBasis,
     avgValidateAttempts:
       avgValidateAttempts === null ? null : Math.round(avgValidateAttempts * 10) / 10,
     avgPlatformApiCalls:
@@ -961,8 +1352,10 @@ export async function listAgentRuns(
   filters: AgentObserveFilters = {},
   limit = 50,
 ): Promise<AgentRunListRow[]> {
-  const { windowStart: ws, model, promptVersion, evalCase, session, agent } =
+  const { windowStart: ws, windowEnd: we, model, promptVersion, session, agent, state: stateFilter, env } =
     agentFilterValues(filters);
+
+  const fetchLimit = stateFilter ? Math.max(limit * 4, 200) : limit;
 
   const result = await sql`
     SELECT
@@ -973,6 +1366,7 @@ export async function listAgentRuns(
       ar.model,
       ar.prompt_version,
       ar.eval_case_id,
+      ar.env,
       ar.intent,
       ar.total_tokens,
       ar.latency_ms,
@@ -982,13 +1376,13 @@ export async function listAgentRuns(
         (SELECT MAX(ae.occurred_at) FROM api_events ae WHERE ae.session_id = ar.session_id),
         ar.finished_at,
         ar.started_at
-      ) AS last_activity_at,
-      (ar.transcript_jsonb IS NOT NULL) AS has_transcript
+      ) AS last_activity_at
     FROM agent_runs ar
     WHERE ar.started_at >= ${ws}
+      AND ar.started_at <= ${we}
       AND (${model}::text IS NULL OR ar.model = ${model})
       AND (${promptVersion}::text IS NULL OR ar.prompt_version = ${promptVersion})
-      AND (${evalCase}::text IS NULL OR ar.eval_case_id = ${evalCase})
+      AND (${env}::text IS NULL OR ar.env = ${env})
       AND (${session}::text IS NULL OR ar.session_id = ${session})
       AND (
         ${agent}::text IS NULL
@@ -998,8 +1392,14 @@ export async function listAgentRuns(
         )
       )
     ORDER BY ar.started_at DESC
-    LIMIT ${limit}
+    LIMIT ${fetchLimit}
   `;
+
+  const sessionIds = result.rows.map((row) => String(row.session_id));
+  const [eventSignals, turnTokens] = await Promise.all([
+    getSessionEventSignalsBatch(sessionIds),
+    getSessionTurnTokensBatch(sessionIds),
+  ]);
 
   const rows: AgentRunListRow[] = [];
   for (const row of result.rows) {
@@ -1008,7 +1408,22 @@ export async function listAgentRuns(
       countValidateAttempts(sessionId),
       countPlatformApiCalls(sessionId),
     ]);
-    rows.push(mapAgentRunRow(row, validateAttempts, platformApiCalls));
+    const mapped = mapAgentRunRow(
+      row,
+      validateAttempts,
+      platformApiCalls,
+      eventSignals.get(sessionId) ?? EMPTY_EVENT_SIGNALS,
+      turnTokens.get(sessionId) ?? EMPTY_TURN_TOKENS,
+    );
+
+    if (stateFilter && mapped.state !== stateFilter) {
+      continue;
+    }
+
+    rows.push(mapped);
+    if (rows.length >= limit) {
+      break;
+    }
   }
 
   return rows;
@@ -1025,6 +1440,7 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
       ar.model,
       ar.prompt_version,
       ar.eval_case_id,
+      ar.env,
       ar.intent,
       ar.total_tokens,
       ar.latency_ms,
@@ -1036,9 +1452,9 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
         ar.finished_at,
         ar.started_at
       ) AS last_activity_at,
-      (ar.transcript_jsonb IS NOT NULL) AS has_transcript,
       ar.transcript_turn_count,
-      ar.transcript_updated_at
+      ar.transcript_updated_at,
+      (ar.transcript_jsonb IS NOT NULL) AS has_transcript
     FROM agent_runs ar
     WHERE ar.session_id = ${sessionId}
   `;
@@ -1048,26 +1464,38 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
     return null;
   }
 
-  const [validateAttempts, platformApiCalls, turnsResult, timeline] = await Promise.all([
-    countValidateAttempts(sessionId),
-    countPlatformApiCalls(sessionId),
-    sql`
+  const [validateAttempts, platformApiCalls, eventSignals, turnTokens, turnsResult, timeline] =
+    await Promise.all([
+      countValidateAttempts(sessionId),
+      countPlatformApiCalls(sessionId),
+      getSessionEventSignalsBatch([sessionId]),
+      getSessionTurnTokensBatch([sessionId]),
+      sql`
       SELECT
         turn_index,
         latency_ms,
         input_tokens,
         output_tokens,
+        cache_read_tokens,
         had_validate_call,
         had_save
       FROM agent_turns
       WHERE run_id = ${String(row.id)}
       ORDER BY turn_index ASC
     `,
-    getSessionTimeline(sessionId),
-  ]);
+      getSessionTimeline(sessionId),
+    ]);
+
+  const dbTotalTokens = row.total_tokens === null ? null : toNumber(row.total_tokens);
 
   const run = {
-    ...mapAgentRunRow(row, validateAttempts, platformApiCalls),
+    ...mapAgentRunRow(
+      row,
+      validateAttempts,
+      platformApiCalls,
+      eventSignals.get(sessionId) ?? EMPTY_EVENT_SIGNALS,
+      turnTokens.get(sessionId) ?? EMPTY_TURN_TOKENS,
+    ),
     errorSummary: row.error_summary ? String(row.error_summary) : null,
   };
 
@@ -1076,6 +1504,8 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
     latencyMs: turnRow.latency_ms === null ? null : toNumber(turnRow.latency_ms),
     inputTokens: turnRow.input_tokens === null ? null : toNumber(turnRow.input_tokens),
     outputTokens: turnRow.output_tokens === null ? null : toNumber(turnRow.output_tokens),
+    cacheReadTokens:
+      turnRow.cache_read_tokens === null ? null : toNumber(turnRow.cache_read_tokens),
     hadValidateCall: Boolean(turnRow.had_validate_call),
     hadSave: Boolean(turnRow.had_save),
   }));
@@ -1085,7 +1515,7 @@ export async function getAgentRunDetail(sessionId: string): Promise<AgentRunDeta
     0,
   );
   const tokenParityMismatch =
-    run.totalTokens !== null && turns.length > 0 && turnTokenSum !== run.totalTokens;
+    dbTotalTokens !== null && turns.length > 0 && turnTokenSum !== dbTotalTokens;
   const validateCountMismatch =
     run.advisoryValidateAttempts !== null &&
     run.advisoryValidateAttempts !== validateAttempts;

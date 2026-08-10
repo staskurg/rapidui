@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     rapidui_base_url: str = "http://localhost:3000"
     rapidui_agent_model: str = "openai:o4-mini"
     rapidui_agent_prompt_version: str = "v1"
+    rapidui_env: str = "local"
     logfire_token: str | None = None
 
     http_timeout_seconds: float = 60.0

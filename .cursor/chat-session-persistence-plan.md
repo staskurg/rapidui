@@ -321,11 +321,13 @@ Fresh `/chat` visits never hit GET — no redirect loop.
 
 ### Observe stale-session inference (30 minutes)
 
-**Decision (locked):** sessions with a stored transcript **do not expire** to “Abandoned (inferred)” based on idle time. They remain **`in_progress`** until an explicit terminal outcome (`saved` / `failed` / `abandoned`).
+**Decision (locked 2026-08-07):** sessions with a stored transcript **do not expire** to “Abandoned (inferred)” based on idle time. They remain **`in_progress`** until an explicit terminal outcome (`saved` / `failed` / `abandoned`).
+
+**Superseded (2026-08-10) by [chat agent v1.2](chat-agent-v1.2-plan.md) WS2A:** Agent Observe moves to a single derived **`AgentSessionState`**. Stale sessions without a passing validate → **`abandoned`**; stale with passing validate → **`draft`**. Retires `abandoned_inferred` from the UI. Resume: new turns/`api_events` update recency (page view alone does not). See plan [Observe session state](chat-agent-v1.2-plan.md#observe-session-state-reference--locked).
 
 Today `resolveAgentRunOutcome()` in `lib/observe/queries.ts` uses `AGENT_STALE_SESSION_MS = 30 * 60 * 1000` to infer abandon when `outcome IS NULL` and last activity > 30m. That is **Observe display only** — it never blocked chat — but it mislabels exploration sessions paused overnight.
 
-**Change for this feature:**
+**Shipped change (2026-08-07, replaced by v1.2 WS2A):**
 
 ```typescript
 // resolveAgentRunOutcome — add hasTranscript parameter
@@ -469,7 +471,7 @@ Updated (2026-08-07):
 - [x] Extend `getAgentRunDetail` with transcript metadata
 - [x] “Open in chat” on agent session detail (summary grid)
 - [x] SessionBar: Observe link only (no copy-link button)
-- [x] `resolveAgentRunOutcome`: no time-based expiry when `transcript_jsonb` present
+- [x] `resolveAgentRunOutcome`: no time-based expiry when `transcript_jsonb` present *(superseded by v1.2 WS2A `AgentSessionState` — see [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md))*
 
 ### Phase E — Docs + exploration workflow (2 hours)
 
@@ -649,9 +651,9 @@ Can land in either order — no FK dependency between migrations.
 
 ### Q9: 30-minute stale session inference
 
-**Decision (locked):** sessions **with** `transcript_jsonb` never flip to `abandoned_inferred` on idle time — stay **`in_progress`** until explicit terminal outcome. Keep 30m inference only for sessions without transcript.
+**Decision (locked 2026-08-07):** sessions **with** `transcript_jsonb` never flip to `abandoned_inferred` on idle time — stay **`in_progress`** until explicit terminal outcome. Keep 30m inference only for sessions without transcript.
 
-See [Observe stale-session inference](#observe-stale-session-inference-30-minutes).
+**Superseded (2026-08-10) by [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md#2a--session-state-replaces-outcome--milestone):** single **`AgentSessionState`**; stale without passing validate → **abandoned**; stale with passing validate → **draft**. See [Observe stale-session inference](#observe-stale-session-inference-30-minutes).
 
 ---
 
