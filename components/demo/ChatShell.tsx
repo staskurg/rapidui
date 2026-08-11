@@ -7,7 +7,9 @@ import type { UIMessage } from "ai";
 import { ChatTranscriptLoadErrorBanner } from "@/components/demo/ChatTranscriptLoadErrorBanner";
 import { MainDemo } from "@/components/demo/MainDemo";
 import { fetchChatTranscript } from "@/lib/chat/fetchTranscript";
+import { normalizeWireMessages } from "@/lib/chat/normalizeWireMessages";
 import { parseChatPathSessionId } from "@/lib/chat/parseChatPath";
+import type { UIMessageWire } from "@/lib/chat/transcriptSchema";
 import {
   clearPendingSessionId,
   clearSessionId,
@@ -93,7 +95,7 @@ function ChatShellInner() {
       }
 
       const { messages, updatedAt } = result.transcript;
-      setInitialMessages(messages as UIMessage[]);
+      setInitialMessages(normalizeWireMessages(messages as UIMessageWire[]) as UIMessage[]);
       setRestoredUpdatedAt(updatedAt);
       setIsRestoredSession(messages.length > 0);
       setRuntimeEpoch((value) => value + 1);

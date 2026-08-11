@@ -1,4 +1,26 @@
+import { normalizeWireMessages } from "@/lib/chat/normalizeWireMessages";
+import type { UIMessageWire } from "@/lib/chat/transcriptSchema";
+
 const AGENT_FETCH_TIMEOUT_MS = 30_000;
+
+function normalizeAgentChatBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
+  if (typeof body !== "string") {
+    return body;
+  }
+
+  try {
+    const parsed = JSON.parse(body) as { messages?: UIMessageWire[] };
+    if (!Array.isArray(parsed.messages)) {
+      return body;
+    }
+    return JSON.stringify({
+      ...parsed,
+      messages: normalizeWireMessages(parsed.messages),
+    });
+  } catch {
+    return body;
+  }
+}
 
 /** Fetch with a client-side timeout so chat does not hang on a dead agent. */
 export async function fetchWithAgentTimeout(
@@ -7,9 +29,14 @@ export async function fetchWithAgentTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AGENT_FETCH_TIMEOUT_MS);
+  const requestInit: RequestInit = {
+    ...init,
+    signal: controller.signal,
+    body: normalizeAgentChatBody(init?.body),
+  };
 
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await fetch(input, requestInit);
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error(

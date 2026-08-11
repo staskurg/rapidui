@@ -1059,7 +1059,7 @@ The deliverable. Every item must cite run evidence (`UC2-S3.1`, `UC3-S4.2`, …)
 
 ### Prompt v1.2 draft-first — shipped (2026-08-10)
 
-**Tracking:** [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). WS1–WS3 shipped; WS4 re-run logs in [findings v1.2](chat-exploration-findings-v1.2.md); WS5 eval cases pending.
+**Tracking:** [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md). WS1–WS4 complete (2026-08-11); re-run evidence in [findings v1.2](chat-exploration-findings-v1.2.md); **WS5 eval cases pending** before Phase 7.4 baselines.
 
 - ✅ **Prompt v1.2** — `agent/prompts/v1.2.txt`, `RAPIDUI_AGENT_PROMPT_VERSION=v1.2`
 - ✅ **Observe session state** — [plan WS2](chat-agent-v1.2-plan.md#workstream-2--observe-agent-dashboard)

@@ -1,6 +1,6 @@
 # Chat agent v1.2 — plan
 
-**Status:** WS1–WS3 complete (2026-08-10). WS4–WS5 pending. Follows the chat exploration cycle ([scenarios](chat-exploration-scenarios.md), [v1.1 findings](chat-exploration-findings.md), [v1.2 findings](chat-exploration-findings-v1.2.md)).
+**Status:** WS1–WS4 complete (2026-08-11). **WS5 pending** — eval case updates + 7.5 blocker variants before Phase 7.4 baselines. Follows the chat exploration cycle ([scenarios](chat-exploration-scenarios.md), [v1.1 findings](chat-exploration-findings.md), [v1.2 findings](chat-exploration-findings-v1.2.md)).
 **Goal:** the agent presents a validated **draft** and waits for user confirmation before `save_rui` — unless the user explicitly asked to save. Ship as **prompt v1.2** together with the other exploration-driven prompt fixes, improve **agent Observe** (single **session state** column including **Draft** funnel + optional list UI polish: env, cost, drop empty eval-case column), update the exploration docs, re-run the explorations, then update eval cases.
 **Gates Phase 7.4 baselines:** yes — do not persist or compare baselines until the re-run confirms the new flow is stable (see [Sequencing](#sequencing--exit-criteria)). **7.4 schema/work (`007`/`008`, `evalTrials.ts`) may be drafted in parallel** with WS1–WS4; first `eval:run` batches and baseline snapshots wait for exit criteria.
 
@@ -296,11 +296,28 @@ Protocol unchanged (fresh session per run, 3 countable runs per scenario, log be
 
 ### Checklist (WS4)
 
-- [ ] D1–D3 stable (3/3 each on expected flow)
-- [ ] Premature-save victims re-run clean under v1.2
-- [ ] Full base set re-logged with v1.2 marker
-- [ ] Findings blocks + cross-run findings drafted and confirmed
-- [ ] "Changes to make" updated; v1.1 guidance marked superseded
+- [x] D1–D3 stable (3/3 each on expected flow)
+- [x] Premature-save victims re-run clean under v1.2 (save gate; no `saved-unconfirmed`)
+- [x] Full base set re-logged with v1.2 marker (22 scenarios × 3 runs; 66 base runs)
+- [x] Findings blocks + cross-run findings drafted — see [v1.2 findings](chat-exploration-findings-v1.2.md)
+- [x] "Changes to make" updated; v1.1 guidance marked superseded
+- [ ] S+1 sampled once (UC2 / D3.3) — optional UC1 + UC3 S+1 runs remain if desired before WS5
+
+### WS4 re-run summary (2026-08-11)
+
+| Question | Result |
+|---|---|
+| Save gate holds? | **Yes** — zero `saved-unconfirmed` across 66 base runs |
+| Escape hatch one-shots? | **Mostly** — D1/UC2-S2/UC3-S2 honor 1-turn path 2/3; 1- vs 2-turn variance on identical opener |
+| Draft iteration carry-forward? | **Yes** — D3 3/3; S+1.1 (UC2) carry-forward ✓ |
+| Rule 4 (`valuePath`)? | **Yes** — UC2-S1/UC3-S1 stable |
+| Rule 5 (messy-data)? | **No** — UC1-S4 0/3 clean (`saved-off-target` stable) |
+| Rule 6 (HITL hold)? | **Yes** — UC3-S4 3/3; no premature validate/save |
+| Dual-saves gone? | **Yes** — UC1-S3, UC2-S5 single save at confirm |
+| Turn economy | **+1 typical** for draft flows vs v1.1; not +2/+3 |
+| Infra fix | `normalizeWireMessages` — failed validate retry no longer 422s turn 2 (UC1-S3.3) |
+
+**Artifact gaps to address in WS5 / optional prompt tweak:** UC1-S4 semantics, UC3-S6 endpoints-only draft gate (2/3), escape-hatch flow variance, UC1-S3 metric derivation.
 
 ---
 
@@ -341,9 +358,19 @@ WS2B list polish (opt.)  ─┘   (WS1+WS2A parallel; WS3 before any v1.2 run is
                           └── 7.4 migrations / evalTrials.ts may be built in parallel (no baselines until exit criteria)
 ```
 
-**Proceed to 7.4 baselines when:** D1–D3 stable 3/3 · premature-save victims clean under v1.2 · one-shots still one-shot · **Draft** session state visible in Observe (stat + filter + evidence script) · UC1–UC3 eval cases updated and passing `eval:run` locally · 7.5 blocker variants drafted.
+**Proceed to 7.4 baselines when:** ~~D1–D3 stable 3/3~~ ✓ · ~~premature-save victims clean under v1.2~~ ✓ · ~~one-shots still one-shot~~ ✓ (with noted variance) · ~~**Draft** session state visible in Observe~~ ✓ · UC1–UC3 eval cases updated and passing `eval:run` locally · 7.5 blocker variants drafted.
 
 **Then in 7.4:** persist trials with `prompt_version: v1.2` in the config snapshot; `final_spec_id` = latest save. *(Optional v0.3+: persist `session_state` on `eval_trials` process snapshot for automated funnel reporting.)*
+
+## Remaining work (WS5 → 7.4)
+
+1. **Eval cases** — delete or render `mockApi`; contracts in-band; explicit-save confirm turns (`"Looks good — save it."` not `"Yes, build it."`); `maxUserTurns: 5` on UC1–UC3 cases.
+2. **`eval:run` green** — all three updated canonical cases locally.
+3. **7.5 blocker variants** — UC3-S4 clarification + UC3-S3 negotiation JSONs.
+4. **Optional variants** — D1 one-shot, D3 iterate (may land with 7.5).
+5. **Optional prompt v1.2.1** — strengthen rule 5 (UC1-S4), UC3-S6 endpoints-only interview-before-draft, escape-hatch consistency (D1/UC2-S2/UC3-S2).
+6. **Optional S+1** — UC1 + UC3 post-save iteration runs (UC2 done via S+1.1 / D3.3).
+7. **Phase 7.4** — first baseline snapshots after WS5 exit criteria met.
 
 ## Out of scope
 

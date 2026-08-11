@@ -3,6 +3,7 @@
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useRef } from "react";
 
+import { normalizeWireMessages } from "./normalizeWireMessages";
 import {
   putChatTranscript,
   shouldPersistTranscript,
@@ -18,7 +19,7 @@ type ChatOnFinishArg = {
 };
 
 function toWireMessages(messages: UIMessage[]): UIMessageWire[] {
-  return messages as UIMessageWire[];
+  return normalizeWireMessages(messages as UIMessageWire[]);
 }
 
 /**
