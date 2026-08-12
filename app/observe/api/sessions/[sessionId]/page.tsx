@@ -10,13 +10,22 @@ import {
   getSessionTimeline,
   truncateSessionId,
 } from "@/lib/observe/queries";
+import { buildApiFilterQuery } from "@/lib/observe/apiFilterQuery";
 import { buildMissingSessionAgentObserveHref } from "@/lib/observe/notices";
 
 export const dynamic = "force-dynamic";
 
 type SessionDetailPageProps = {
   params: Promise<{ sessionId: string }>;
-  searchParams: Promise<{ fromAgent?: string }>;
+  searchParams: Promise<{
+    agent?: string;
+    evalCase?: string;
+    session?: string;
+    from?: string;
+    to?: string;
+    /** @deprecated use agent search param */
+    fromAgent?: string;
+  }>;
 };
 
 function timelineRowClass(event: {
@@ -49,7 +58,8 @@ export default async function SessionDetailPage({
   searchParams,
 }: SessionDetailPageProps) {
   const { sessionId } = await params;
-  const { fromAgent } = await searchParams;
+  const queryParams = await searchParams;
+  const agent = queryParams.agent ?? queryParams.fromAgent;
 
   const [summary, timeline, agentRunExists] = await Promise.all([
     getSessionSummary(sessionId),
@@ -61,9 +71,13 @@ export default async function SessionDetailPage({
     redirect(buildMissingSessionAgentObserveHref(sessionId));
   }
 
-  const backHref = fromAgent
-    ? `/observe/api?agent=${encodeURIComponent(fromAgent)}`
-    : "/observe/api";
+  const backHref = `/observe/api${buildApiFilterQuery({
+    agent,
+    evalCase: queryParams.evalCase,
+    session: queryParams.session,
+    from: queryParams.from,
+    to: queryParams.to,
+  })}`;
 
   return (
     <div className="space-y-8">

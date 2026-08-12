@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agentFilterInputWithPreset,
   buildAgentFilterQuery,
   canonicalAgentFilterInput,
   hasActiveAgentFilters,
@@ -9,7 +10,8 @@ import {
 import { windowRangeForPreset } from "@/lib/observe/queries";
 
 describe("buildAgentFilterQuery", () => {
-  it("omits empty filter values", () => {
+  it("includes non-date agent filters", () => {
+    const defaults = windowRangeForPreset(7);
     expect(
       buildAgentFilterQuery({
         model: "",
@@ -17,26 +19,7 @@ describe("buildAgentFilterQuery", () => {
         state: "",
         session: "  ",
       }),
-    ).toBe("?promptVersion=v1.2");
-  });
-
-  it("uses from/to dates instead of days", () => {
-    expect(
-      buildAgentFilterQuery({
-        from: "2026-08-10",
-        to: "2026-08-10",
-      }),
-    ).toBe("?from=2026-08-10&to=2026-08-10");
-  });
-
-  it("omits default 7-day range from the URL", () => {
-    const defaults = windowRangeForPreset(7);
-    expect(
-      buildAgentFilterQuery({
-        from: defaults.from,
-        to: defaults.to,
-      }),
-    ).toBe("");
+    ).toBe(`?promptVersion=v1.2&from=${defaults.from}&to=${defaults.to}`);
   });
 
   it("converts legacy days param when building query", () => {
@@ -48,20 +31,7 @@ describe("buildAgentFilterQuery", () => {
 });
 
 describe("shouldCanonicalizeAgentFilterUrl", () => {
-  it("detects empty, legacy, and default-range params", () => {
-    expect(shouldCanonicalizeAgentFilterUrl({ model: "" })).toBe(true);
-    expect(shouldCanonicalizeAgentFilterUrl({ days: "1" })).toBe(true);
-    expect(shouldCanonicalizeAgentFilterUrl({ from: "2026-08-10" })).toBe(true);
-
-    const defaults = windowRangeForPreset(7);
-    expect(
-      shouldCanonicalizeAgentFilterUrl({
-        from: defaults.from,
-        to: defaults.to,
-      }),
-    ).toBe(true);
-
-    expect(shouldCanonicalizeAgentFilterUrl({ model: "o4-mini" })).toBe(false);
+  it("accepts canonical non-default date ranges", () => {
     expect(
       shouldCanonicalizeAgentFilterUrl({
         from: "2026-08-10",
@@ -72,7 +42,9 @@ describe("shouldCanonicalizeAgentFilterUrl", () => {
 });
 
 describe("canonicalAgentFilterInput", () => {
-  it("strips blank fields and legacy days", () => {
+  it("resolves legacy days", () => {
+    const oneDay = windowRangeForPreset(1);
+
     expect(
       canonicalAgentFilterInput({
         model: " o4-mini ",
@@ -81,8 +53,8 @@ describe("canonicalAgentFilterInput", () => {
       }),
     ).toEqual({
       model: "o4-mini",
-      from: windowRangeForPreset(1).from,
-      to: windowRangeForPreset(1).to,
+      from: oneDay.from,
+      to: oneDay.to,
     });
   });
 });
@@ -92,12 +64,28 @@ describe("hasActiveAgentFilters", () => {
     expect(hasActiveAgentFilters({})).toBe(false);
   });
 
-  it("is true when a non-default date range is active", () => {
+  it("ignores notice params", () => {
+    expect(hasActiveAgentFilters({ notice: "missing-session" })).toBe(false);
+  });
+});
+
+describe("agentFilterInputWithPreset", () => {
+  it("preserves agent-specific filters", () => {
+    const oneDay = windowRangeForPreset(1);
+
     expect(
-      hasActiveAgentFilters({
-        from: "2026-08-10",
-        to: "2026-08-10",
-      }),
-    ).toBe(true);
+      agentFilterInputWithPreset(
+        {
+          model: "o4-mini",
+          from: "2026-08-01",
+          to: "2026-08-07",
+        },
+        1,
+      ),
+    ).toEqual({
+      model: "o4-mini",
+      from: oneDay.from,
+      to: oneDay.to,
+    });
   });
 });

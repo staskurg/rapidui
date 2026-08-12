@@ -26,7 +26,7 @@ describe("formatObserveDateRangeLabel", () => {
       new Date("2026-08-10T00:00:00.000Z"),
       new Date("2026-08-10T23:59:59.999Z"),
     );
-    expect(label).toBe("Aug 10 – Aug 10 (UTC)");
+    expect(label).toBe("Aug 10 – Aug 10");
   });
 
   it("shows a range for multi-day windows", () => {
@@ -34,7 +34,7 @@ describe("formatObserveDateRangeLabel", () => {
       new Date("2026-08-04T00:00:00.000Z"),
       new Date("2026-08-10T23:59:59.999Z"),
     );
-    expect(label).toBe("Aug 04 – Aug 10 (UTC)");
+    expect(label).toBe("Aug 04 – Aug 10");
   });
 });
 
@@ -58,7 +58,7 @@ describe("resolveObserveWindow", () => {
     expect(resolved.from).toBe("2026-08-10");
     expect(resolved.to).toBe("2026-08-10");
     expect(resolved.windowDays).toBe(1);
-    expect(resolved.dateRangeLabel).toBe("Aug 10 – Aug 10 (UTC)");
+    expect(resolved.dateRangeLabel).toBe("Aug 10 – Aug 10");
     expect(resolved.isDefaultWindow).toBe(false);
   });
 

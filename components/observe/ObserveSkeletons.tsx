@@ -30,6 +30,29 @@ export function ObservePageHeaderSkeleton() {
   );
 }
 
+export function ObserveTelemetryHeaderSkeleton() {
+  return (
+    <header className="flex items-center justify-between gap-4">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-4 w-full max-w-2xl" />
+      </div>
+      <div className="flex shrink-0 items-center gap-5">
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-9 w-40 rounded-md" />
+          <Skeleton className="h-3.5 w-3.5 rounded-full" />
+        </div>
+        <div className="flex items-center gap-0.5">
+          <Skeleton className="h-6 w-8 rounded-full" />
+          <Skeleton className="h-6 w-8 rounded-full" />
+          <Skeleton className="h-6 w-8 rounded-full" />
+        </div>
+        <Skeleton className="h-9 w-9 rounded-md" />
+      </div>
+    </header>
+  );
+}
+
 export function StatCardsSkeleton({
   count = 4,
   className = statCardGridClass,
@@ -58,7 +81,11 @@ export function FilterFormSkeleton({ fields = 3 }: { fields?: number }) {
       {Array.from({ length: fields }, (_, index) => (
         <div
           key={index}
-          className={`space-y-2 ${index === fields - 1 ? "min-w-[12rem] flex-[1.5]" : "min-w-[9rem] flex-1"}`}
+          className={
+            index === fields - 1
+              ? "min-w-48 flex-1.5 space-y-2"
+              : "min-w-36 flex-1 space-y-2"
+          }
         >
           <Skeleton className="h-4 w-16" />
           <Skeleton className="h-10 w-full" />
@@ -150,7 +177,20 @@ export function ApiDashboardSkeleton() {
   return (
     <div className="space-y-8">
       <LoadingStatus label="Loading API telemetry" />
-      <ObservePageHeaderSkeleton />
+      <ObserveTelemetryHeaderSkeleton />
+      <ApiObserveDataSkeleton includeStatus={false} />
+    </div>
+  );
+}
+
+export function ApiObserveDataSkeleton({
+  includeStatus = true,
+}: {
+  includeStatus?: boolean;
+}) {
+  return (
+    <div className="space-y-8">
+      {includeStatus ? <LoadingStatus label="Loading API telemetry data" /> : null}
       <FilterFormSkeleton fields={3} />
       <StatCardsSkeleton count={9} />
       <TableSkeleton rows={6} columns={7} />
@@ -162,10 +202,23 @@ export function AgentDashboardSkeleton() {
   return (
     <div className="space-y-8">
       <LoadingStatus label="Loading agent telemetry" />
-      <ObservePageHeaderSkeleton />
-      <FilterFormSkeleton fields={5} />
-      <StatCardsSkeleton count={8} />
-      <TableSkeleton rows={6} columns={8} />
+      <ObserveTelemetryHeaderSkeleton />
+      <AgentObserveDataSkeleton includeStatus={false} />
+    </div>
+  );
+}
+
+export function AgentObserveDataSkeleton({
+  includeStatus = true,
+}: {
+  includeStatus?: boolean;
+}) {
+  return (
+    <div className="space-y-8">
+      {includeStatus ? <LoadingStatus label="Loading agent telemetry data" /> : null}
+      <FilterFormSkeleton fields={6} />
+      <StatCardsSkeleton count={9} />
+      <TableSkeleton rows={6} columns={9} />
     </div>
   );
 }

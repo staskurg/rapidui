@@ -15,6 +15,11 @@ export type ObserveFilters = {
   agent?: string;
   evalCase?: string;
   session?: string;
+  from?: string;
+  to?: string;
+  /** Legacy form field — converted to from/to before navigation. */
+  days?: string;
+  /** Rolling window length when from/to absent (hub default). */
   windowDays?: number;
 };
 
@@ -171,7 +176,7 @@ export function formatObserveDateRangeLabel(start: Date, end: Date): string {
   });
   const startLabel = formatter.format(start);
   const endLabel = formatter.format(end);
-  return `${startLabel} – ${endLabel} (UTC)`;
+  return `${startLabel} – ${endLabel}`;
 }
 
 /** Rolling window for API observe pages. */
@@ -285,8 +290,17 @@ function toNullableBoolean(value: unknown): boolean | null {
 }
 
 function filterValues(filters: ObserveFilters) {
+  const window = resolveObserveWindow({
+    from: filters.from,
+    to: filters.to,
+    windowDays:
+      filters.windowDays ??
+      (filters.days?.trim() ? Number(filters.days) : undefined),
+  });
+
   return {
-    windowStart: windowStart(filters.windowDays),
+    windowStart: window.windowStart,
+    windowEnd: window.windowEnd,
     agent: filters.agent?.trim() || null,
     evalCase: filters.evalCase?.trim() || null,
     session: filters.session?.trim() || null,
@@ -325,7 +339,7 @@ export function truncateSessionId(sessionId: string, visible = 8): string {
 async function queryDiscoveryMetrics(
   filters: ObserveFilters,
 ): Promise<{ discoveryHits: number; discoveryByEndpoint: Record<string, number> }> {
-  const { windowStart: ws, agent, evalCase, session } = filterValues(filters);
+  const { windowStart: ws, windowEnd: we, agent, evalCase, session } = filterValues(filters);
 
   const result = await sql`
     SELECT
@@ -333,6 +347,7 @@ async function queryDiscoveryMetrics(
       COUNT(*) AS cnt
     FROM api_events
     WHERE occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND endpoint IN (
         ${DISCOVERY_ENDPOINTS[0]},
         ${DISCOVERY_ENDPOINTS[1]},
@@ -370,7 +385,7 @@ export async function getDiscoverySummary(
 export async function getSessionFunnel(
   filters: ObserveFilters = {},
 ): Promise<NonNullable<ApiObserveSummary["funnel"]>> {
-  const { windowStart: ws, agent, evalCase, session } = filterValues(filters);
+  const { windowStart: ws, windowEnd: we, agent, evalCase, session } = filterValues(filters);
 
   const result = await sql`
     SELECT
@@ -389,6 +404,7 @@ export async function getSessionFunnel(
       FROM api_events
       WHERE session_id IS NOT NULL
         AND occurred_at >= ${ws}
+        AND occurred_at <= ${we}
         AND (${agent}::text IS NULL OR agent = ${agent})
         AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
         AND (${session}::text IS NULL OR session_id = ${session})
@@ -408,7 +424,7 @@ export async function getSessionFunnel(
 }
 
 async function queryHubMetrics(filters: ObserveFilters): Promise<ObserveHubSummary> {
-  const { windowStart: ws, agent, evalCase, session } = filterValues(filters);
+  const { windowStart: ws, windowEnd: we, agent, evalCase, session } = filterValues(filters);
   const [postResult, discovery] = await Promise.all([
     sql`
       SELECT
@@ -419,6 +435,7 @@ async function queryHubMetrics(filters: ObserveFilters): Promise<ObserveHubSumma
         COUNT(*) FILTER (WHERE spec_id IS NOT NULL) AS specs_saved
       FROM api_events
       WHERE occurred_at >= ${ws}
+        AND occurred_at <= ${we}
         AND (${agent}::text IS NULL OR agent = ${agent})
         AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
         AND (${session}::text IS NULL OR session_id = ${session})
@@ -447,7 +464,7 @@ export async function getApiObserveSummary(
   filters: ObserveFilters = {},
 ): Promise<ApiObserveSummary> {
   const hub = await queryHubMetrics(filters);
-  const { windowStart: ws, agent, evalCase, session } = filterValues(filters);
+  const { windowStart: ws, windowEnd: we, agent, evalCase, session } = filterValues(filters);
   const funnel = await getSessionFunnel(filters);
 
   const summaryResult = await sql`
@@ -456,6 +473,7 @@ export async function getApiObserveSummary(
       COUNT(*) FILTER (WHERE endpoint = '/api/validate' AND valid IS NULL) AS transport_failure_count
     FROM api_events
     WHERE occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND endpoint IN (${POST_ENDPOINTS[0]}, ${POST_ENDPOINTS[1]})
       AND (${agent}::text IS NULL OR agent = ${agent})
       AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
@@ -470,6 +488,7 @@ export async function getApiObserveSummary(
       FROM api_events
       WHERE session_id IS NOT NULL
         AND occurred_at >= ${ws}
+        AND occurred_at <= ${we}
         AND endpoint IN (${POST_ENDPOINTS[0]}, ${POST_ENDPOINTS[1]})
         AND (${agent}::text IS NULL OR agent = ${agent})
         AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
@@ -485,6 +504,7 @@ export async function getApiObserveSummary(
     WHERE endpoint = '/api/validate'
       AND valid = FALSE
       AND occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND (${agent}::text IS NULL OR agent = ${agent})
       AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
       AND (${session}::text IS NULL OR session_id = ${session})
@@ -498,6 +518,7 @@ export async function getApiObserveSummary(
     FROM api_events
     WHERE spec_id IS NOT NULL
       AND occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND (${agent}::text IS NULL OR agent = ${agent})
       AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
       AND (${session}::text IS NULL OR session_id = ${session})
@@ -509,6 +530,7 @@ export async function getApiObserveSummary(
     SELECT DATE(occurred_at AT TIME ZONE 'UTC')::text AS day, COUNT(*) AS requests
     FROM api_events
     WHERE occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND endpoint IN (${POST_ENDPOINTS[0]}, ${POST_ENDPOINTS[1]})
       AND (${agent}::text IS NULL OR agent = ${agent})
       AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
@@ -546,7 +568,7 @@ export async function listRecentSessions(
   filters: ObserveFilters = {},
   limit = 50,
 ): Promise<SessionListRow[]> {
-  const { windowStart: ws, agent, evalCase, session } = filterValues(filters);
+  const { windowStart: ws, windowEnd: we, agent, evalCase, session } = filterValues(filters);
 
   const result = await sql`
     SELECT
@@ -562,6 +584,7 @@ export async function listRecentSessions(
     FROM api_events
     WHERE session_id IS NOT NULL
       AND occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND endpoint IN (${POST_ENDPOINTS[0]}, ${POST_ENDPOINTS[1]})
       AND (${agent}::text IS NULL OR agent = ${agent})
       AND (${evalCase}::text IS NULL OR eval_case_id = ${evalCase})
@@ -705,14 +728,15 @@ export async function getEvalTeaser(
 }
 
 export async function listDistinctAgents(
-  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+  range: Pick<ObserveFilters, "from" | "to"> = {},
 ): Promise<string[]> {
-  const ws = windowStart(windowDays);
+  const { windowStart: ws, windowEnd: we } = resolveObserveWindow(range);
 
   const result = await sql`
     SELECT DISTINCT agent
     FROM api_events
     WHERE occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND agent IS NOT NULL
       AND session_id IS NOT NULL
     ORDER BY agent ASC
@@ -722,14 +746,15 @@ export async function listDistinctAgents(
 }
 
 export async function listDistinctEvalCases(
-  windowDays = OBSERVE_DEFAULT_WINDOW_DAYS,
+  range: Pick<ObserveFilters, "from" | "to"> = {},
 ): Promise<string[]> {
-  const ws = windowStart(windowDays);
+  const { windowStart: ws, windowEnd: we } = resolveObserveWindow(range);
 
   const result = await sql`
     SELECT DISTINCT eval_case_id
     FROM api_events
     WHERE occurred_at >= ${ws}
+      AND occurred_at <= ${we}
       AND eval_case_id IS NOT NULL
       AND session_id IS NOT NULL
     ORDER BY eval_case_id ASC

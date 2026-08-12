@@ -4,29 +4,59 @@ import { useRouter } from "next/navigation";
 import {
   createContext,
   useContext,
-  useTransition,
   type FormEvent,
   type ReactNode,
 } from "react";
 
-import { agentFilterInputFromForm, buildAgentFilterHref } from "@/lib/observe/agentFilterQuery";
+import {
+  agentFilterInputFromForm,
+  buildAgentFilterHref,
+} from "@/lib/observe/agentFilterQuery";
+import {
+  apiFilterInputFromForm,
+  buildApiFilterHref,
+} from "@/lib/observe/apiFilterQuery";
+import { useObserveNavigation } from "@/lib/observe/observePendingContext";
 
 const FormPendingContext = createContext(false);
 
-type ObserveAgentFiltersFormProps = {
+type ObserveDateRange = {
+  from?: string;
+  to?: string;
+};
+
+export type ObserveFilterScope = "agent" | "api";
+
+const filterQueryByScope = {
+  agent: {
+    buildHref: buildAgentFilterHref,
+    parseFormInput: agentFilterInputFromForm,
+  },
+  api: {
+    buildHref: buildApiFilterHref,
+    parseFormInput: apiFilterInputFromForm,
+  },
+} as const;
+
+type ObserveFiltersFormProps = {
   children: ReactNode;
   className?: string;
   /** Remount form when filters change so defaultValue/defaultChecked stay in sync. */
   formKey?: string;
+  preserveDateRange?: ObserveDateRange;
+  scope: ObserveFilterScope;
 };
 
-export function ObserveAgentFiltersForm({
+export function ObserveFiltersForm({
   children,
   className,
   formKey,
-}: ObserveAgentFiltersFormProps) {
+  preserveDateRange,
+  scope,
+}: ObserveFiltersFormProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const { isPending, startObserveTransition } = useObserveNavigation();
+  const { buildHref, parseFormInput } = filterQueryByScope[scope];
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,8 +69,13 @@ export function ObserveAgentFiltersForm({
       }
     }
 
-    startTransition(() => {
-      router.push(buildAgentFilterHref(agentFilterInputFromForm(filters)));
+    startObserveTransition(() => {
+      router.push(
+        buildHref({
+          ...parseFormInput(filters),
+          ...preserveDateRange,
+        }),
+      );
     });
   }
 
@@ -53,18 +88,9 @@ export function ObserveAgentFiltersForm({
   );
 }
 
-type ObserveApplyButtonProps = {
-  className?: string;
-};
-
 function ApplySpinner({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={className}
-      aria-hidden
-    >
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
       <circle
         className="opacity-25"
         cx="12"
@@ -86,8 +112,10 @@ const actionButtonClass =
   "inline-flex items-center justify-center rounded-md text-ui font-medium";
 
 export function ObserveApplyButton({
-  className = `${actionButtonClass} min-w-[3.25rem] px-3 py-2 bg-zinc-900 text-white disabled:cursor-wait disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900`,
-}: ObserveApplyButtonProps) {
+  className = `${actionButtonClass} min-w-13 px-3 py-2 bg-zinc-900 text-white disabled:cursor-wait disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900`,
+}: {
+  className?: string;
+}) {
   const isPending = useContext(FormPendingContext);
 
   return (
@@ -115,19 +143,26 @@ function ClearFiltersIcon({ className }: { className?: string }) {
   );
 }
 
-export function ObserveClearFiltersButton() {
+export function ObserveClearFiltersButton({
+  preserveDateRange,
+  scope,
+}: {
+  preserveDateRange?: ObserveDateRange;
+  scope: ObserveFilterScope;
+}) {
   const router = useRouter();
   const formPending = useContext(FormPendingContext);
-  const [isClearing, startClearTransition] = useTransition();
+  const { isPending: observePending, startObserveTransition } = useObserveNavigation();
+  const { buildHref } = filterQueryByScope[scope];
 
   function handleClear() {
-    startClearTransition(() => {
-      router.replace(buildAgentFilterHref({}));
+    startObserveTransition(() => {
+      router.replace(buildHref(preserveDateRange ?? {}));
       router.refresh();
     });
   }
 
-  const isPending = formPending || isClearing;
+  const isPending = formPending || observePending;
 
   return (
     <button
