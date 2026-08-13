@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     include: [
+      "lib/demo/__tests__/**/*.test.ts",
       "lib/eval/__tests__/**/*.test.ts",
       "lib/chat/__tests__/**/*.test.ts",
       "lib/observe/__tests__/**/*.test.ts",
