@@ -20,6 +20,19 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+/** Mutation helper — browse table schema has no actions; grader still must detect them. */
+function injectBrowseActions(
+  rui: Rui,
+  actions: Array<Record<string, unknown>>,
+): Rui {
+  const mutated = structuredClone(rui);
+  const browseOp = mutated.operations.find((op) => op.type === "browse");
+  if (browseOp?.type === "browse") {
+    Object.assign(browseOp.presentation, { actions });
+  }
+  return mutated;
+}
+
 function runMutationChecks(): void {
   const uc1Case = loadCase("static-browse-v0.2");
   const uc1OneBrowse = structuredClone(uc1Golden) as Rui;
@@ -56,8 +69,38 @@ function runMutationChecks(): void {
     "UC3 single-act mutation should fail uc3-act-on-detail",
   );
 
+  const negotiationCase = loadCase("ai-review-queue-negotiation-v0.2");
+  const uc3RowAct = injectBrowseActions(uc3Golden as Rui, [
+    {
+      id: "op-row-approve",
+      type: "act",
+      label: "Approve",
+      variant: "primary",
+      invoke: {
+        method: "POST",
+        path: "/api/drafts/{draftId}/approve",
+      },
+      outcomes: {
+        success: { stay: true },
+        error: { stay: true },
+      },
+    },
+  ]);
+  const negotiationMutation = evaluateAssertions(
+    uc3RowAct,
+    negotiationCase.successCriteria.assertions,
+  );
+  const noRowAct = negotiationMutation.find(
+    (result) => result.id === "uc3-no-row-act",
+  );
+  assert(
+    noRowAct && !noRowAct.passed,
+    "UC3 row-act mutation should fail uc3-no-row-act",
+  );
+
   console.log("- Mutation UC1 one-browse fails uc1-browse-count");
   console.log("- Mutation UC3 single-act fails uc3-act-on-detail");
+  console.log("- Mutation UC3 row-act fails uc3-no-row-act");
 }
 
 async function runSmokeEval(): Promise<void> {

@@ -48,6 +48,24 @@ describe("golden assertions", () => {
     );
     expect(results.every((result) => result.passed)).toBe(true);
   });
+
+  it("UC3 golden passes clarification variant criteria", () => {
+    const evalCase = loadCase("ai-review-queue-clarification-v0.2");
+    const results = evaluateAssertions(
+      uc3Golden as Rui,
+      evalCase.successCriteria.assertions,
+    );
+    expect(results.every((result) => result.passed)).toBe(true);
+  });
+
+  it("UC3 golden passes negotiation variant criteria", () => {
+    const evalCase = loadCase("ai-review-queue-negotiation-v0.2");
+    const results = evaluateAssertions(
+      uc3Golden as Rui,
+      evalCase.successCriteria.assertions,
+    );
+    expect(results.every((result) => result.passed)).toBe(true);
+  });
 });
 
 describe("mutation fixtures", () => {
@@ -125,7 +143,23 @@ describe("mutation fixtures", () => {
     expect(actOnDetail?.actual).toBe(1);
   });
 
+  it("UC3 missing browse filter fails uc3-browse-filter", () => {
+    const evalCase = loadCase("ai-review-queue-v0.2");
+    const mutated = structuredClone(uc3Golden) as Rui;
+    const browseOp = mutated.operations.find((op) => op.type === "browse");
+
+    if (browseOp?.type === "browse" && browseOp.presentation.filter) {
+      delete browseOp.presentation.filter;
+    }
+
+    const results = evaluateAssertions(mutated, evalCase.successCriteria.assertions);
+    const browseFilter = results.find((result) => result.id === "uc3-browse-filter");
+
+    expect(browseFilter?.passed).toBe(false);
+  });
+
   it("forbiddenEmbeddedAction fails when act exists on browse", () => {
+    const evalCase = loadCase("ai-review-queue-negotiation-v0.2");
     const mutated = injectBrowseActions(uc3Golden as Rui, [
       {
         id: "op-row-approve",
@@ -143,16 +177,13 @@ describe("mutation fixtures", () => {
       },
     ]);
 
-    const results = evaluateAssertions(mutated, [
-      {
-        id: "v4-no-row-act",
-        kind: "forbiddenEmbeddedAction",
-        type: "act",
-        hostOperationType: "browse",
-      },
-    ]);
+    const results = evaluateAssertions(
+      mutated,
+      evalCase.successCriteria.assertions,
+    );
+    const forbidden = results.find((result) => result.id === "uc3-no-row-act");
 
-    expect(results[0]?.passed).toBe(false);
+    expect(forbidden?.passed).toBe(false);
   });
 });
 

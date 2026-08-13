@@ -1,7 +1,9 @@
 import { normalizeWireMessages } from "@/lib/chat/normalizeWireMessages";
 import type { UIMessageWire } from "@/lib/chat/transcriptSchema";
 
-const AGENT_FETCH_TIMEOUT_MS = 30_000;
+const AGENT_FETCH_TIMEOUT_MS = Number(
+  process.env.NEXT_PUBLIC_AGENT_FETCH_TIMEOUT_MS ?? 60_000,
+);
 
 function normalizeAgentChatBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== "string") {

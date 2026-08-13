@@ -11,8 +11,43 @@ const MODEL_PRICING_USD_PER_1M: Record<
   string,
   { input: number; cachedInput: number; output: number }
 > = {
-  "o4-mini": { input: 1.1, cachedInput: 0.275, output: 4.4 },
+  "gpt-5.6-terra": { input: 2.0, cachedInput: 0.20, output: 12.0 },
 };
+
+export type SessionTokenBreakdown = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  hasCacheData: boolean;
+};
+
+function lookupModelPricing(model: string) {
+  if (MODEL_PRICING_USD_PER_1M[model]) {
+    return MODEL_PRICING_USD_PER_1M[model];
+  }
+  const base = model.includes(":") ? model.split(":").pop()! : model;
+  return MODEL_PRICING_USD_PER_1M[base];
+}
+
+/** Prefer turn-level input/output; fall back to run total when turns lack a split. */
+export function resolveTokensForCost(
+  turnTokens: SessionTokenBreakdown,
+  dbTotalTokens: number | null,
+): SessionTokenBreakdown {
+  if (turnTokens.inputTokens > 0 || turnTokens.outputTokens > 0) {
+    return turnTokens;
+  }
+  if (dbTotalTokens !== null && dbTotalTokens > 0) {
+    const inputTokens = Math.round(dbTotalTokens * 0.8);
+    return {
+      inputTokens,
+      outputTokens: dbTotalTokens - inputTokens,
+      cacheReadTokens: 0,
+      hasCacheData: false,
+    };
+  }
+  return turnTokens;
+}
 
 export function estimateSessionCostUsd(
   model: string | null,
@@ -25,7 +60,7 @@ export function estimateSessionCostUsd(
     return null;
   }
 
-  const pricing = MODEL_PRICING_USD_PER_1M[model];
+  const pricing = lookupModelPricing(model);
   if (!pricing) {
     return null;
   }

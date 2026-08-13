@@ -176,7 +176,7 @@ Repeat for `static-browse-v0.2` and `ai-review-queue-v0.2` when verifying **S7**
 
 ## v0.2 ship criteria (S1–S9)
 
-Verified as part of Phase 7.1 portfolio polish. Full definitions: [`.cursor/rapidui-v0.2.md`](.cursor/rapidui-v0.2.md) §15.
+Verified as part of Phase 7.1 portfolio polish. Definitions and verification steps are in the table below.
 
 | # | Criterion | How to verify |
 |---|-----------|---------------|
@@ -312,13 +312,6 @@ eval/cases/         # eval case definitions (prompt + successCriteria)
 - [https://rapidui.dev/llms.txt](https://rapidui.dev/llms.txt) — start here for external agents
 - [https://rapidui.dev/api/docs](https://rapidui.dev/api/docs) — full agent documentation (JSON)
 - [https://rapidui.dev/api/schema](https://rapidui.dev/api/schema) — operations vocabulary and schema rules
-
-Implementation plan and MVP scope live in `.cursor/`:
-
-- [rapidui-v0.2-implementation.md](.cursor/rapidui-v0.2-implementation.md) — phase checklists (Phases 0–6 complete; Phase 7 in progress)
-- [rapidui-v0.2.md](.cursor/rapidui-v0.2.md) — product reference
-- [rapidui-mvp-v0.1-implementation.md](.cursor/rapidui-mvp-v0.1-implementation.md)
-- [rapidui-mvp-v0.1.md](.cursor/rapidui-mvp-v0.1.md)
 
 ## Deployment
 

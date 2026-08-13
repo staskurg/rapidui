@@ -1,5 +1,5 @@
 import { sql } from "@/lib/db/client";
-import { estimateSessionCostUsd, type CostBasis } from "@/lib/observe/modelPricing";
+import { estimateSessionCostUsd, resolveTokensForCost, type CostBasis } from "@/lib/observe/modelPricing";
 import {
   DISCOVERY_ENDPOINTS,
   POST_ENDPOINTS,
@@ -1041,12 +1041,15 @@ function mapAgentRunRow(
   const lastActivityAt = toDate(row.last_activity_at);
   const dbOutcome = row.outcome ? String(row.outcome) : null;
   const model = row.model ? String(row.model) : null;
+  const dbTotalTokens =
+    row.total_tokens === null ? null : toNumber(row.total_tokens);
+  const tokensForCost = resolveTokensForCost(turnTokens, dbTotalTokens);
   const costEstimate = estimateSessionCostUsd(
     model,
-    turnTokens.inputTokens,
-    turnTokens.outputTokens,
-    turnTokens.cacheReadTokens,
-    turnTokens.hasCacheData,
+    tokensForCost.inputTokens,
+    tokensForCost.outputTokens,
+    tokensForCost.cacheReadTokens,
+    tokensForCost.hasCacheData,
   );
 
   return {
@@ -1065,7 +1068,7 @@ function mapAgentRunRow(
     evalCaseId: row.eval_case_id ? String(row.eval_case_id) : null,
     intent: row.intent ? String(row.intent) : null,
     totalTokens: resolveSessionTotalTokens(
-      row.total_tokens === null ? null : toNumber(row.total_tokens),
+      dbTotalTokens,
       turnTokens,
     ),
     estCostUsd: costEstimate?.usd ?? null,
@@ -1237,20 +1240,20 @@ export async function getAgentObserveSummary(
 
     const model = row.model ? String(row.model) : null;
     const tokens = turnTokens.get(sessionId) ?? EMPTY_TURN_TOKENS;
-    const sessionTotal = resolveSessionTotalTokens(
-      row.total_tokens === null ? null : toNumber(row.total_tokens),
-      tokens,
-    );
+    const dbTotalTokens =
+      row.total_tokens === null ? null : toNumber(row.total_tokens);
+    const sessionTotal = resolveSessionTotalTokens(dbTotalTokens, tokens);
     if (sessionTotal !== null) {
       tokenTotals.push(sessionTotal);
     }
 
+    const tokensForCost = resolveTokensForCost(tokens, dbTotalTokens);
     const estCost = estimateSessionCostUsd(
       model,
-      tokens.inputTokens,
-      tokens.outputTokens,
-      tokens.cacheReadTokens,
-      tokens.hasCacheData,
+      tokensForCost.inputTokens,
+      tokensForCost.outputTokens,
+      tokensForCost.cacheReadTokens,
+      tokensForCost.hasCacheData,
     );
     if (estCost !== null) {
       estCosts.push(estCost.usd);

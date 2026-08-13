@@ -47,12 +47,12 @@ describe("canonicalAgentFilterInput", () => {
 
     expect(
       canonicalAgentFilterInput({
-        model: " o4-mini ",
+        model: " gpt-5.6-terra ",
         agent: "",
         days: "1",
       }),
     ).toEqual({
-      model: "o4-mini",
+      model: "gpt-5.6-terra",
       from: oneDay.from,
       to: oneDay.to,
     });
@@ -76,14 +76,14 @@ describe("agentFilterInputWithPreset", () => {
     expect(
       agentFilterInputWithPreset(
         {
-          model: "o4-mini",
+          model: "gpt-5.6-terra",
           from: "2026-08-01",
           to: "2026-08-07",
         },
         1,
       ),
     ).toEqual({
-      model: "o4-mini",
+      model: "gpt-5.6-terra",
       from: oneDay.from,
       to: oneDay.to,
     });

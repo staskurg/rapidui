@@ -26,6 +26,7 @@ export type CollectedOperations = {
   embeddedActionTypes: string[];
   transitionTriggers: string[];
   dataPaths: DataPathRef[];
+  browseFilters: Array<{ operationId: string; field: string }>;
 };
 
 function addDataPath(paths: DataPathRef[], method: string, path: string): void {
@@ -43,6 +44,17 @@ function collectFromOperation(operation: Operation, collected: CollectedOperatio
   });
 
   collected.operationTypes.push(operation.type);
+
+  if (
+    operation.type === "browse" &&
+    "filter" in operation.presentation &&
+    operation.presentation.filter?.field
+  ) {
+    collected.browseFilters.push({
+      operationId: operation.id,
+      field: operation.presentation.filter.field,
+    });
+  }
 
   if (operation.data.mode === "api") {
     if (operation.data.read) {
@@ -94,6 +106,7 @@ export function collectFromRui(rui: Rui): CollectedOperations {
     embeddedActionTypes: [],
     transitionTriggers: [],
     dataPaths: [],
+    browseFilters: [],
   };
 
   for (const operation of rui.operations) {
@@ -111,6 +124,7 @@ export function collectFromRui(rui: Rui): CollectedOperations {
     embeddedActionTypes: [...new Set(collected.embeddedActionTypes)],
     transitionTriggers: [...new Set(collected.transitionTriggers)],
     dataPaths: collected.dataPaths,
+    browseFilters: collected.browseFilters,
   };
 }
 

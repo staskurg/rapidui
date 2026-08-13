@@ -28,17 +28,68 @@ describe("parseDriverResult", () => {
 });
 
 describe("eval:run case guards", () => {
-  it("loads UC1–UC3 without seedGolden", async () => {
+  it("all eval cases load with runnable scripts", async () => {
     const { loadCase } = await import("@/lib/eval/loadCase");
-    for (const caseId of [
-      "static-browse-v0.2",
-      "crud-admin-v0.2",
-      "ai-review-queue-v0.2",
-    ]) {
+    const { EVAL_RUN_CASES } = await import("@/lib/eval/runnerTypes");
+
+    for (const caseId of EVAL_RUN_CASES) {
       const evalCase = loadCase(caseId);
+      const scriptLen = evalCase.conversationScript?.length ?? 0;
       expect(evalCase.conversationScript?.length).toBeGreaterThan(0);
+      expect(evalCase.successCriteria.maxUserTurns).toBeGreaterThanOrEqual(scriptLen + 1);
       expect(evalCase.seedGolden).toBeUndefined();
     }
+
+    const uc3Cases = [
+      "ai-review-queue-v0.2",
+      "ai-review-queue-clarification-v0.2",
+      "ai-review-queue-negotiation-v0.2",
+    ] as const;
+    for (const caseId of uc3Cases) {
+      const evalCase = loadCase(caseId);
+      expect(
+        evalCase.successCriteria.assertions.some(
+          (assertion) => assertion.kind === "browseFilter",
+        ),
+      ).toBe(true);
+    }
+
+    const negotiation = loadCase("ai-review-queue-negotiation-v0.2");
+    expect(
+      negotiation.successCriteria.assertions.some(
+        (assertion) => assertion.kind === "forbiddenEmbeddedAction",
+      ),
+    ).toBe(true);
+  });
+
+  it("each case has distinct script turns and exactly one save intent", async () => {
+    const { loadCase } = await import("@/lib/eval/loadCase");
+    const { EVAL_RUN_CASES } = await import("@/lib/eval/runnerTypes");
+
+    for (const caseId of EVAL_RUN_CASES) {
+      const evalCase = loadCase(caseId);
+      const script = evalCase.conversationScript ?? [];
+      const contents = script.map((entry) => entry.content);
+      expect(new Set(contents).size).toBe(contents.length);
+
+      const conversation = [evalCase.prompt, ...contents].join("\n");
+      const saveMatches = conversation.match(/\bsave\b/gi) ?? [];
+      expect(saveMatches).toHaveLength(1);
+    }
+  });
+
+  it("UC2/UC3 cases deliver API contract in-band (no mockApi block)", async () => {
+    const { loadCase } = await import("@/lib/eval/loadCase");
+    const crud = loadCase("crud-admin-v0.2");
+    const review = loadCase("ai-review-queue-v0.2");
+
+    expect(crud.mockApi).toBeUndefined();
+    expect(review.mockApi).toBeUndefined();
+    expect(crud.conversationScript?.[0]?.content).toContain("/api/users");
+    expect(crud.conversationScript?.[0]?.content).toContain("{items:");
+    expect(review.prompt).toContain("/api/drafts");
+    expect(crud.conversationScript?.at(-1)?.content).toMatch(/save it/i);
+    expect(review.conversationScript?.at(-1)?.content).toMatch(/save it/i);
   });
 
   it("UC4 has seedGolden and is optional stretch", async () => {

@@ -3,54 +3,20 @@
   "title": "Use case 2 — Users CRUD admin",
   "mode": "guided",
   "prompt": "I need an admin UI for our Users API.",
-  "mockApi": {
-    "endpoints": [
-      {
-        "method": "GET",
-        "path": "/api/users",
-        "description": "List users; browse binding valuePath items; company scope via query param"
-      },
-      {
-        "method": "GET",
-        "path": "/api/users/{userId}",
-        "description": "Get one user for read/detail"
-      },
-      {
-        "method": "POST",
-        "path": "/api/users",
-        "description": "Create user"
-      },
-      {
-        "method": "PATCH",
-        "path": "/api/users/{userId}",
-        "description": "Update user"
-      },
-      {
-        "method": "DELETE",
-        "path": "/api/users/{userId}",
-        "description": "Delete user from detail screen"
-      },
-      {
-        "method": "GET",
-        "path": "/api/companies",
-        "description": "Company scope selector options"
-      }
-    ]
-  },
   "conversationScript": [
     {
       "trigger": "after_agent_reply",
-      "content": "Full CRUD. DELETE on detail. Company scope selector on the list — paths use {scope.companyId}."
+      "content": "Endpoints:\n- GET /api/users (list, supports ?companyId=)\n- GET /api/users/{userId}\n- POST /api/users\n- PATCH /api/users/{userId}\n- DELETE /api/users/{userId}\n- GET /api/companies (for a company picker)\n\nFull CRUD. Delete should live on the detail screen. List is scoped by company — use {scope.companyId} in the paths.\n\nUsers have id, email, role (admin or member), notes, and active (boolean).\n\nDropdown company picker on the users list, bound to GET /api/companies. List and companies responses wrap arrays in {items: [...]}."
     },
     {
       "trigger": "after_agent_reply",
-      "content": "Yes, build it."
+      "content": "Looks good — save it."
     }
   ],
   "successCriteria": {
     "mustValidate": true,
     "maxRetries": 5,
-    "maxUserTurns": 4,
+    "maxUserTurns": 5,
     "assertions": [
       { "id": "uc2-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
       { "id": "uc2-read", "kind": "operationCount", "type": "read", "minCount": 1 },

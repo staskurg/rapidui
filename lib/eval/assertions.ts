@@ -137,6 +137,19 @@ function evaluateAssertion(
         evidence: match ? `${match.method} ${match.path}` : undefined,
       };
     }
+
+    case "browseFilter": {
+      const match = collected.browseFilters.find(
+        (filter) => filter.field === assertion.field,
+      );
+      return {
+        id: assertion.id,
+        passed: match !== undefined,
+        expected: { type: assertion.type, field: assertion.field },
+        actual: collected.browseFilters,
+        evidence: match ? `${match.operationId}.filter.field=${match.field}` : undefined,
+      };
+    }
   }
 }
 

@@ -9,12 +9,33 @@ const MANUAL_DIR = path.join(process.cwd(), "eval/manual");
 function formatMockApi(evalCase: EvalCase): string {
   const endpoints = evalCase.mockApi?.endpoints ?? [];
   if (endpoints.length === 0) {
-    return "(none specified)";
+    return "(see Task and planned conversation below — endpoints are delivered in-band)";
   }
 
   return endpoints
     .map((endpoint) => `- ${endpoint.method} ${endpoint.path} — ${endpoint.description}`)
     .join("\n");
+}
+
+function formatConversationScriptForManual(
+  script: EvalCase["conversationScript"],
+): string {
+  if (!script?.length) {
+    return "";
+  }
+
+  const turns = script
+    .map(
+      (entry, index) =>
+        `Turn ${index + 2} (after agent reply):\n${entry.content.trim()}`,
+    )
+    .join("\n\n");
+
+  return `\n\n## Planned conversation (eval script)\n\n${turns}`;
+}
+
+function buildTaskPrompt(evalCase: EvalCase): string {
+  return `${evalCase.prompt.trim()}${formatConversationScriptForManual(evalCase.conversationScript)}`;
 }
 
 function loadWrapper(env: EvalEnv): string {
@@ -34,6 +55,6 @@ export function renderPrompt(evalCase: EvalCase, env: EvalEnv): string {
   return wrapper
     .replaceAll("{{BASE_URL}}", baseUrl)
     .replaceAll("{{CASE_ID}}", evalCase.id)
-    .replaceAll("{{TASK}}", evalCase.prompt)
+    .replaceAll("{{TASK}}", buildTaskPrompt(evalCase))
     .replaceAll("{{MOCK_API}}", formatMockApi(evalCase));
 }

@@ -47,7 +47,7 @@ Phase 0  Infra
 
 **Recommended sequence:** `0 → 1 → 2 → 4 → 5` in parallel with `3`; then **6 P0 → 6**; then **7.1** in parallel with **7.2 → 7.3 → 7.4 → 7.5 → 7.6 → 7.7**.
 
-**Build order within Phase 7 (locked):** Harden grader (**7.2**) before `eval:run` (**7.3**) or matrix (**7.7**). Ship default **`o4-mini` + `v1`** until **7.7** confirms or changes default via evidence.
+**Build order within Phase 7 (locked):** Harden grader (**7.2**) before `eval:run` (**7.3**) or matrix (**7.7**). Default agent: **`gpt-5.6-terra` + `v1.2`** (shipped 2026-08-12).
 
 **v0.3** (renderer, WorkOS auth, etc.) starts **after v0.2 ships** — see [Appendix D — v0.3 backlog](#appendix-d--industry-alignment--v03-backlog).
 
@@ -91,12 +91,12 @@ Full definitions: reference **§15**. **v0.2 ships when S1–S10 are verified** 
 
 ## Current project status
 
-**Last verified:** 2026-08-04
+**Last verified:** 2026-08-12
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0–6** | ✅ Complete | Observability (Phase 6 P0 + UI) shipped — see [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
-| **7** | 🔲 In progress | **7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **chat session persistence** ✅ ([plan](chat-session-persistence-plan.md)) · **chat agent v1.2** 🔲 ([plan](chat-agent-v1.2-plan.md) — gates **7.4 baselines**) · **7.4–7.7** remaining |
+| **7** | 🔲 In progress | **7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **chat session persistence** ✅ · **draft-first agent + eval cases** ✅ · **7.5 blockers** ✅ · **7.4** ← next · **7.6–7.7** remaining |
 | **v0.3** | ⏸ After v0.2 | Renderer, auth hardening — [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 
 **One-line gap:** Observe answers *what happened*; Phase **7** (7.1–7.7) answers *was the result correct, was the path reasonable, and which model/prompt should we ship?*
@@ -182,7 +182,7 @@ After cutover, v0.1 production data remains in the old database for archive/refe
 |----------|----------|
 | Migration tool / folder | Keep v0.1 pattern: SQL files in `lib/db/migrations/`, applied by `npm run db:migrate` (`scripts/migrate.ts`). Idempotent `CREATE TABLE IF NOT EXISTS`. |
 | Neon driver | `@neondatabase/serverless` — `neon(process.env.DATABASE_URL!)`. Wrap in `lib/db/client.ts` so `sql` tagged templates still return `{ rows }` (matches existing `specs.ts` / `evalRuns.ts`). Update `sql.query()` for raw migration files. |
-| `agent_runs` / `agent_turns` SQL | **Phase 0:** create tables with all columns from reference §4 + Phase 1 sketch (below). **Phase 1:** wire inserts + indexes tuning; **Chat session persistence:** `transcript_jsonb` on `agent_runs` (**009** — [plan](chat-session-persistence-plan.md)); **Phase 7.4:** `eval_trials` (**007**) + `eval_runs.session_id` (**008**). |
+| `agent_runs` / `agent_turns` SQL | **Phase 0:** create tables with all columns from reference §4 + Phase 1 sketch (below). **Phase 1:** wire inserts + indexes tuning; **Chat session persistence:** `transcript_jsonb` on `agent_runs` (**009** — [below](#chat-session-persistence)); **Phase 7.4:** `eval_trials` (**007**) + `eval_runs.session_id` (**008**). |
 | CORS on Render | FastAPI `CORSMiddleware`: `allow_origins=["https://rapidui.dev", "http://localhost:3000"]`, `allow_methods=["GET","POST","OPTIONS"]`, `allow_headers=["*"]`, `allow_credentials=False`. Preflight from browser before Phase 4 `/chat` exists — test with `OPTIONS` + dummy `POST` from localhost. |
 | Ingest auth | None (reference §3 #26). Stub route accepts JSON only; no API key. |
 | Monorepo ignore rules | No Turborepo. Vercel deploys repo root; Render sets root directory `agent/`. Optional: add `agent/.python-version` or `runtime.txt` for Render Python pin. |
@@ -586,9 +586,9 @@ Maps 1:1 to `api_events` (Phase 0 migration — no DDL change):
     "outcome": "saved",
     "spec_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
     "validate_attempts": 2,
-    "model": "o4-mini",
+    "model": "gpt-5.6-terra",
     "provider": "openai",
-    "prompt_version": "v1",
+    "prompt_version": "v1.2",
     "eval_case_id": "crud-admin-v0.2",
     "total_tokens": 4200,
     "latency_ms": 18500,
@@ -2039,11 +2039,11 @@ Phase 5 (main UI chat transport), Phase 6 (`agent_runs` / `agent_turns` data), m
 
 | Question | Decision |
 |----------|----------|
-| **Pydantic AI + o4-mini + reasoning for assistant-ui** | Model string **`openai:o4-mini`** (env `RAPIDUI_AGENT_MODEL`, default). Set **`OpenAIResponsesModelSettings(reasoning_effort='medium')`** on the Agent. **`POST /chat`** uses **`VercelAIAdapter.dispatch_request(..., sdk_version=6)`** — v6 wire format matches `@assistant-ui/react-ai-sdk` (Phase 5). Reasoning streams as Vercel AI **reasoning parts**; collapsible display is Phase 5 UI work. Pin **`pydantic-ai>=0.8`** (verify latest on install — need o4-mini + Vercel adapter reasoning support). If reasoning chunks are empty on o4-mini, ship anyway — tool calls + text still satisfy S5; fix visibility in Phase 5 integration. |
+| **Pydantic AI + model for assistant-ui** | **Default `openai:gpt-5.6-terra`** (env `RAPIDUI_AGENT_MODEL`). **Superseded:** early v0.2 used `o4-mini` + `reasoning_effort: medium` — dropped after unreliable evals. **`POST /chat`** uses **`VercelAIAdapter.dispatch_request(..., sdk_version=6)`** — v6 wire format matches `@assistant-ui/react-ai-sdk` (Phase 5). Pin **`pydantic-ai>=0.8`**. Per-model settings: `agent/model_profiles.py`. |
 | **When run completes vs per-turn ingest** | **Two POST cadences**, both from FastAPI handler — never from `@agent.tool`: (1) **After each assistant turn completes** (`on_complete` / post-stream handler): POST **`turns[]`** with `turn_index`, `latency_ms`, token counts from `result.usage`, `had_validate_call`, `had_save` flags for that turn. (2) **When outcome is known**: POST **`run`** fields — `outcome: 'saved'` + `spec_id` after successful `save_rui`; `error_summary` (and optionally `outcome: 'failed'`) when session ends without save; include `validate_attempts`, `total_tokens`, `latency_ms` (session wall time), `model`, `provider`, `prompt_version`, optional `eval_case_id` / `intent` from chat headers. **Same `session_id`** on every POST. **Non-blocking:** ingest failures log + continue — chat response must not fail. |
 | **`validate_attempts` source** | Increment **`SessionState.validate_attempts`** in the **`validate_rui` tool** (before/after HTTP call). Send cumulative count on every ingest `run` update and final outcome POST. Joins with `api_events` by `session_id` for Observe. |
 | **UC4 `load_spec`** | **Defer to stretch O1 (Phase 4 optional tail).** Required ship path is UC1–3. When added: tool wraps `GET /api/specs/:id` with session headers; same Deps. |
-| **Session id on `POST /chat`** | **Required header `X-RapidUI-Session-Id`** on chat requests (same name as API). Browser sends UUID from URL-canonical session at `/chat/{sessionId}`; `sessionStorage` mirrors for transport ([plan](chat-session-persistence-plan.md)). Agent **does not** mint a session id — missing header → **400**. |
+| **Session id on `POST /chat`** | **Required header `X-RapidUI-Session-Id`** on chat requests (same name as API). Browser sends UUID from URL-canonical session at `/chat/{sessionId}`; `sessionStorage` mirrors for transport ([Chat session persistence](#chat-session-persistence)). Agent **does not** mint a session id — missing header → **400**. |
 | **Forwarding eval headers** | Read `X-RapidUI-Eval-Case`, `X-RapidUI-Intent` from **`POST /chat`** request; store on `Deps`; forward to all RapidUI API calls and ingest `run` payload. |
 | **`fetch_docs` vs `llms.txt`** | **Two tools not required.** `fetch_docs` → `GET /api/docs`; `fetch_schema` → `GET /api/schema`. Both require session headers (Phase 3B). Agent workflow in system prompt: call tools before authoring JSON — do not curl `llms.txt` from tool unless we add a fifth tool later. |
 | **Tool return shapes** | **`validate_rui`:** return `{ valid, errors?, normalizedRui? }` — cap error list in tool message if huge. **`save_rui`:** return `{ specId, viewUrl, url }` from 201 response — agent should share `viewUrl` in chat. Use Pydantic models for tool outputs. |
@@ -2053,7 +2053,7 @@ Phase 5 (main UI chat transport), Phase 6 (`agent_runs` / `agent_turns` data), m
 | **Neon direct access** | **No** — agent POSTs ingest over HTTP only (reference §4). |
 | **Content in agent instructions** | **Personality + operations workflow only** — zero API URLs, schema excerpts, golden examples (reference §11). Version loaded from `prompts/{RAPIDUI_AGENT_PROMPT_VERSION}.txt` via `Agent(instructions=...)`. |
 | **Logfire** | Env-gated when `LOGFIRE_TOKEN` set: `logfire.configure(service_name='rapidui-agent')`, `instrument_pydantic_ai()`, `instrument_fastapi()`, `instrument_httpx()`. Custom span attributes: `session_id`, `prompt_version`. |
-| **Render env** | Required: `OPENAI_API_KEY`, `RAPIDUI_BASE_URL` (prod: `https://rapidui.dev`). Optional: `LOGFIRE_TOKEN`, `RAPIDUI_AGENT_MODEL`, `RAPIDUI_AGENT_PROMPT_VERSION` (default `v1`). |
+| **Render env** | Required: `OPENAI_API_KEY`, `RAPIDUI_BASE_URL` (prod: `https://rapidui.dev`). Optional: `LOGFIRE_TOKEN`, `RAPIDUI_AGENT_MODEL` (default `openai:gpt-5.6-terra`), `RAPIDUI_AGENT_PROMPT_VERSION` (default `v1.2`). |
 
 ---
 
@@ -2074,7 +2074,7 @@ FastAPI handler
         ├──► VercelAIAdapter.dispatch_request → SSE (Vercel AI Data Stream)
         │         │
         │         ▼
-        │    Pydantic AI Agent (openai:o4-mini)
+        │    Pydantic AI Agent (openai:gpt-5.6-terra)
         │         │
         │         ├── @agent.tool fetch_docs    ──GET──► rapidui.dev/api/docs
         │         ├── @agent.tool fetch_schema ──GET──► rapidui.dev/api/schema
@@ -2226,7 +2226,7 @@ Reference: **`lib/observe/INGEST.md`** — must match `agentIngestPayloadSchema`
 #### A — Dependencies + config
 
 1. **Update `agent/requirements.txt`** — add `pydantic-ai`, `httpx`, `pydantic-settings` (optional), `logfire` (optional extra or comment).
-2. **`agent/config.py`** — load env vars; defaults: `RAPIDUI_AGENT_MODEL=openai:o4-mini`, `RAPIDUI_AGENT_PROMPT_VERSION=v1`, `RAPIDUI_BASE_URL`.
+2. **`agent/config.py`** — load env vars; defaults: `RAPIDUI_AGENT_MODEL=openai:gpt-5.6-terra`, `RAPIDUI_AGENT_PROMPT_VERSION=v1.2`, `RAPIDUI_BASE_URL`.
 3. **Pin Python 3.12.13** — unchanged from Phase 0.
 
 #### B — Agent core
@@ -2234,7 +2234,7 @@ Reference: **`lib/observe/INGEST.md`** — must match `agentIngestPayloadSchema`
 4. **`agent/prompts/v1.txt`** — full agent instructions per outline above.
 5. **`agent/deps.py`** — `Deps`, `SessionState`, `build_deps_from_request(request)`. **Do not name a deps field `state`** — pydantic-ai UI adapters treat dataclasses with a `state` field as `StateHandler` and overwrite it from the client request.
 6. **`agent/tools/rapidui.py`** — four tools with Pydantic return models.
-7. **`agent/agent_factory.py`** — `create_agent(settings) -> Agent[Deps, str]`; `instructions=load_agent_instructions(...)`; register tools; OpenAIResponsesModelSettings for o4-mini.
+7. **`agent/agent_factory.py`** — `create_agent(settings) -> Agent[Deps, str]`; `instructions=load_agent_instructions(...)`; register tools; optional per-model settings via `model_profiles.py`.
 8. **`agent/telemetry.py`** — async ingest poster.
 
 #### C — FastAPI routes
@@ -2378,7 +2378,7 @@ Docs: [AI SDK transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport), [custom r
 - [x] Four tools call RapidUI API with correct headers on all requests
 - [x] `POST /chat` requires `X-RapidUI-Session-Id`; streams Vercel AI SSE
 - [x] `sdk_version=6` on `VercelAIAdapter`
-- [x] o4-mini default with `openai_reasoning_effort: medium`
+- [x] **`gpt-5.6-terra` default** (supersedes early o4-mini trial)
 - [x] Validate loop works against Phase 2 schema (manual UC1 — curl multi-turn, `validate_rui` + schema errors surfaced)
 - [x] Successful conversation saves spec; `viewUrl` loads `/specs/:id` (manual — `3f29e7a6-4a97-4c69-9a0b-f4196c96cbb9`, HTTP 200)
 - [x] Render redeployed with prod env vars (manual deploy step)
@@ -2570,7 +2570,7 @@ After confirm (New chat or chip): reset output panel to **empty**, rotate sessio
 |---------|----------|
 | **`viewUrl` / `/specs/` links** | Clickable in assistant markdown (new tab) |
 | **Tool results** | Collapsed by default except **`save_rui`** — expand briefly on success |
-| **Reasoning (o4-mini)** | **Visible but subtle** — muted typography, smaller text, light border/background. **Not hidden by default** in v0.2 (you are testing reasoning quality). Collapsible toggle optional; default **expanded** or **semi-expanded**. Tighten to collapsed-by-default in a later polish pass. |
+| **Reasoning parts (optional)** | If the model emits Vercel AI reasoning parts, show with **subtle** styling. **Default model (Terra)** is text + tools only — no reasoning stream expected. |
 | **User messages with pasted data** | Render in monospace block if message looks like JSON/CSV (simple heuristic: starts with `[`, `{`, or contains comma-separated header line) — improves readability only; full content still sent to agent. |
 
 #### Information architecture
@@ -2589,7 +2589,7 @@ After confirm (New chat or chip): reset output panel to **empty**, rotate sessio
 
 | Question | Decision |
 |----------|----------|
-| **Past chat sessions (ChatGPT sidebar)** | **No sidebar** — still single active thread in UI. **Amended 2026-08-07:** URL-driven replay at `/chat/{sessionId}` + DB transcript on `agent_runs` for exploration/demo ([chat-session-persistence-plan.md](chat-session-persistence-plan.md)). Observe + `/specs/:id` remain artifact/metrics surfaces. |
+| **Past chat sessions (ChatGPT sidebar)** | **No sidebar** — still single active thread in UI. **Amended 2026-08-07:** URL-driven replay at `/chat/{sessionId}` + DB transcript on `agent_runs` for exploration/demo ([chat session persistence](#chat-session-persistence)). Observe + `/specs/:id` remain artifact/metrics surfaces. |
 | **Session id in UI** | **Yes** — session bar on `/chat`. **Amended 2026-08-07:** URL is canonical (`/chat/{sessionId}`); `sessionStorage` mirrors URL for transport headers. New chat → new UUID + new URL. |
 | **How right panel learns `specId` after save** | **Primary:** `save_rui` tool-result → `{ specId, viewUrl }`. **Fallback:** markdown link parse. **No polling.** |
 | **Draft vs save-only panel** | **Draft on `validate_rui` success** (`normalizedRui` from tool result) + **Saved** after `save_rui`. See state machine in UX spec. |
@@ -2597,7 +2597,7 @@ After confirm (New chat or chip): reset output panel to **empty**, rotate sessio
 | **Output tabs / renderer future** | **`Preview \| Spec \| JSON`** tab bar. v0.2 default **Spec**; Preview disabled placeholder. v0.3 enables Preview as default. |
 | **Inspector UX for large specs (UC4)** | Entity-first grouping; scrollable transitions; embedded actions nested under `read`. JSON on separate tab. |
 | **Agent chat URL** | `NEXT_PUBLIC_RAPIDUI_AGENT_URL` — prod `https://agent.rapidui.dev/chat`; local `http://localhost:8000/chat`. |
-| **Session id lifecycle** | **Amended 2026-08-07:** URL-canonical `sessionId` at `/chat/{sessionId}`; `sessionStorage` `rapidui-session-id` synced for headers + spec GET. **New chat** → new UUID + navigate. Full transcript persisted to `agent_runs.transcript_jsonb` after each turn ([plan](chat-session-persistence-plan.md)). |
+| **Session id lifecycle** | **Amended 2026-08-07:** URL-canonical `sessionId` at `/chat/{sessionId}`; `sessionStorage` `rapidui-session-id` synced for headers + spec GET. **New chat** → new UUID + navigate. Full transcript persisted to `agent_runs.transcript_jsonb` after each turn ([Chat session persistence](#chat-session-persistence)). |
 | **Starter chips** | Eval case **`prompt`** only; **`X-RapidUI-Eval-Case`** = eval case `id` on next send. **Confirm + clear** if thread has messages. |
 | **Starter chip source** | `lib/demo/starter-prompts.ts` from eval case JSON. |
 | **Paste JSON / CSV data** | **In scope** — plain text in composer (F7). Not file attachments. Prompt note in `v1.txt`. |
@@ -2811,7 +2811,7 @@ agent/prompts/v1.txt
 | Failed validate | Agent validates invalid spec | Panel **unchanged**; errors visible in chat/tool steps |
 | Paste data | Paste JSON array + ask for dashboard | Agent builds static browse; draft panel shows records |
 | Tools visible | UC1 chip + follow-ups | Tool steps visible; `save_rui` highlighted on success |
-| Reasoning | Run chat with o4-mini | Reasoning visible with subtle styling (not hidden) |
+| Reasoning | Run chat with a reasoning-capable model (if added later) | Reasoning visible with subtle styling when present |
 | Save → saved | Complete until save | **Saved** badge; `GET /api/specs/:id` with session header |
 | Share link | Open `viewUrl` | `/specs/:id` matches panel |
 | UC2 / UC3 | Chips + follow-ups | CRUD + embedded actions patterns |
@@ -2975,7 +2975,7 @@ Lane B — agent_runs + agent_turns (RapidUI Agent only)
 2. **`api_events` is authoritative** for validate attempts, platform API call counts, and (after migration 006) **`http_status`** for transport vs semantic classification.
 3. **`agent_runs` is authoritative** for terminal outcome, tokens, run latency, model/prompt/eval metadata.
 4. **Path B external agents** (curl, Cursor) write `api_events` only — no `agent_runs` row; Agent dashboard shows RapidUI Agent sessions only.
-5. **Do not unify** API Observe `resolveSessionOutcome()` with Agent display resolvers — different views. *(Agent Observe: `resolveAgentRunOutcome()` as shipped Phase 6; superseded in UI by **`resolveAgentSessionState()`** — [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md). Both surfaces trust `api_events` for save/validate.)*
+5. **Do not unify** API Observe `resolveSessionOutcome()` with Agent display resolvers — different views. *(Agent Observe: `resolveAgentRunOutcome()` as shipped Phase 6; superseded in UI by **`resolveAgentSessionState()`** — [below](#agentsessionstate-observe). Both surfaces trust `api_events` for save/validate.)*
 
 #### Header propagation (session context on every row)
 
@@ -3038,7 +3038,7 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | Platform API call counts | ✅ | `countPlatformApiCalls()` from `api_events`; UI label “Platform API calls” |
 | Exact LLM tool-call counts | — | Out of scope — not stored; use platform API call count |
 | HTTP status on `api_events` | ✅ | Migration `006` + `recordApiEvent` / discovery default 200 |
-| Reasoning-token accounting (o4-mini) | ✅ | Documented in `agent/README.md` — directional only, not billing |
+| Token accounting | ✅ | Documented in `agent/README.md` — Terra pricing in Observe |
 | "New chat" abandon hook | ✅ | `lib/demo/abandon-session.ts` + `MainDemo.tsx` |
 | API vs Agent outcome heuristics | ✅ | Separate resolvers by design — not merged |
 
@@ -3051,14 +3051,14 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | **Terminal outcomes — required** | Emit **`saved`**, **`failed`**, **`abandoned`** from Agent ingest; **`in_progress`** when `outcome IS NULL` and session is recent. Phase 4 deferral reversed — not optional. |
 | **When `saved` fires** | Turn completes AND `SessionState.turn_had_save` AND `last_spec_id` set → `outcome: 'saved'`, `spec_id`, `total_tokens`, `latency_ms` (session wall clock), `finished_at`. *(Already implemented.)* |
 | **When `failed` fires** | Turn completes AND no save AND **unrecoverable failure** — see [outcome triggers](#outcome-triggers-locked-for-p0) below. **Not** on every failed validate (retries are normal). |
-| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** derived **abandoned** session state when idle (see [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md)). Eval runner (**7.3**) POSTs explicitly on timeout. |
-| **New chat abandon (Q1/Q2)** | On session rotate, **before** minting new id: fire-and-forget `POST /api/observe/ingest/agent` with `{ session_id: priorId, run: { outcome: "abandoned" } }`. Skip if thread empty or panel already saved. **Also:** PUT final transcript snapshot for prior session before abandon ([plan](chat-session-persistence-plan.md)). **No** new FastAPI route. |
-| **Stale-session inference (Q1)** | **Superseded (2026-08-10) by [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md):** single derived **`AgentSessionState`**; **`abandoned_inferred`** retired from UI. Was: **`AGENT_STALE_SESSION_MS = 30 minutes`** + transcript exemption (2026-08-07). |
+| **When `abandoned` fires** | See [outcome triggers](#outcome-triggers-locked-for-p0). **New chat:** client POSTs `abandoned` for **prior** `session_id` via existing ingest (no new endpoint). **Other exits:** derived **abandoned** session state when idle (see [AgentSessionState](#agentsessionstate-observe)). Eval runner (**7.3**) POSTs explicitly on timeout. |
+| **New chat abandon (Q1/Q2)** | On session rotate, **before** minting new id: fire-and-forget `POST /api/observe/ingest/agent` with `{ session_id: priorId, run: { outcome: "abandoned" } }`. Skip if thread empty or panel already saved. **Also:** PUT final transcript snapshot for prior session before abandon ([transcript API](../lib/chat/TRANSCRIPT.md)). **No** new FastAPI route. |
+| **Stale-session inference (Q1)** | **Superseded (2026-08-10) by [AgentSessionState](#agentsessionstate-observe):** single derived state model; **`abandoned_inferred`** retired from UI. Was: **`AGENT_STALE_SESSION_MS = 30 minutes`** + transcript exemption (2026-08-07). |
 | **`http_status` on `api_events` (Q3)** | **Ship in P0** — migration `006_api_events_http_status.sql`; wire `recordApiEvent` / `recordDiscoveryEvent`. |
 | **FastAPI disconnect (Q4)** | **Skip v0.2** — document as v0.3+ backlog; rely on New chat abandon + 30m inference. |
 | **Latency sample minimums (Q5)** | **p50:** show “—” if &lt; **3** saved runs; **p95:** show “—” if &lt; **10** saved runs. UI subtitle documents minimums. |
 | **Agent instance policy (v0.2)** | Pin **one Agent instance** for prod/demo; document restart collision on `(run_id, turn_index)` upsert. Derive durable counters from `api_events`. |
-| **API vs Agent outcome display** | API Observe: `resolveSessionOutcome()` (saved / failed / in_progress from events). Agent Observe: **`resolveAgentSessionState()`** (saved / draft / active / failed / abandoned) — [v1.2 plan](chat-agent-v1.2-plan.md). Both trust `api_events` for save/validate signals. |
+| **API vs Agent outcome display** | API Observe: `resolveSessionOutcome()` (saved / failed / in_progress from events). Agent Observe: **`resolveAgentSessionState()`** (saved / draft / active / failed / abandoned) — [AgentSessionState](#agentsessionstate-observe). Both trust `api_events` for save/validate signals. |
 | **External agents on Agent dashboard** | Agent dashboard lists **`agent_runs` rows only**. Path B sessions appear in `/observe/api` only — no synthetic agent rows. |
 | **Phase 4 deferral reversed** | Explicit `outcome: 'failed'` is **required** for Phase 6 — not optional hardening. |
 
@@ -3069,8 +3069,8 @@ FastAPI build_deps → Deps.eval_case_id, Deps.intent, Deps.agent_id
 | **`saved`** | Turn with successful `save_rui` | — |
 | **`failed`** | (1) Uncaught exception in `/chat` handler or tool that aborts the turn with no save; OR (2) pydantic-ai run ends in **error** state with `error_summary` set and no save; OR (3) explicit eval-runner timeout POST (**7.3**) | Failed validate alone (normal retry loop); user still chatting |
 | **`abandoned`** | (1) **New chat:** Main UI POSTs to existing `/api/observe/ingest/agent` for **prior** `session_id` when user rotates session; OR (2) eval runner script ends without save (**7.3**) | Thread empty (no messages); session already **`saved`**; during normal agent turns |
-| **`in_progress` (inferred)** | No DB write — UI/query only | *Superseded by v1.2 WS2A → **`active`***. Was: `outcome IS NULL` and (last activity within **30 minutes** OR **`transcript_jsonb` IS NOT NULL**) |
-| **`abandoned` (inferred)** | No DB write — UI/query only | *Superseded by v1.2 WS2A → derived **`abandoned`***. Was: `outcome IS NULL`, no transcript, idle **> 30m**; badge “Abandoned (inferred)” |
+| **`in_progress` (inferred)** | No DB write — UI/query only | *Superseded → **`active`***. Was: `outcome IS NULL` and (last activity within **30 minutes** OR **`transcript_jsonb` IS NOT NULL**) |
+| **`abandoned` (inferred)** | No DB write — UI/query only | *Superseded → derived **`abandoned`***. Was: `outcome IS NULL`, no transcript, idle **> 30m**; badge “Abandoned (inferred)” |
 
 **Ingest rule exception (locked):** Only FastAPI posts turn/run metrics during `/chat`. **Exception:** Main UI may POST terminal **`abandoned`** for the **previous** session id on explicit New chat only — not from LLM/tools.
 
@@ -3150,7 +3150,7 @@ User confirms New chat
 
 #### D — Audits + smoke
 
-18. **Token audit** — one o4-mini session; document reasoning tokens in README.
+18. **Token audit** — one Terra session; document token fields in README.
 19. **`scripts/smoke-observe-agent.ts`** + **`npm run smoke:observe-agent`** — terminal outcomes, validate parity, `http_status` persisted, New chat abandon (mock ingest).
 
 ### Files to create / modify (6 P0)
@@ -3190,7 +3190,7 @@ package.json
 | Platform calls | Full UC2 session | `countPlatformApiCalls` matches timeline |
 | http_status | POST validate invalid JSON | Row has `http_status = 400` |
 | Restart doc | Read agent README | Single-instance + disconnect deferred documented |
-| Token audit | One o4-mini session | Audit notes in README or smoke output |
+| Token audit | One Terra session | Audit notes in README or smoke output |
 
 ### Checklist (6 P0)
 
@@ -3205,7 +3205,7 @@ package.json
 - [x] Stale-session inference (30m) for non–New-chat exits
 - [x] FastAPI disconnect detection **skipped** and documented (v0.3 backlog)
 - [x] Single-instance / restart limitation documented
-- [x] Reasoning-token audit completed (o4-mini) — notes in `agent/README.md`
+- [x] Token audit completed — notes in `agent/README.md`
 - [x] `smoke:observe-agent` passes locally
 
 ---
@@ -3309,7 +3309,7 @@ package.json                                     # smoke:observe-agent
 ### Out of scope (Phase 6)
 
 - Eval lab comparison table, pass rates, baselines (Phase 7.6 / 7.7)
-- Graders or eval trial persistence
+- Graders or `eval_trials` persistence
 - Duplicating full eval transcript UI
 - Cost estimation / model-selection claims
 - **FastAPI disconnect / stream-cancel abandon** (v0.3 backlog — documented only)
@@ -3407,16 +3407,17 @@ Big-picture snapshot before Phase 7 implementation. **Observe is done; eval regr
 
 **Interview line:** *We can explain any demo session in under five minutes using Observe drill-down.*
 
-### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **7.4–7.7** remaining)
+### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **eval cases shipped** ✅ · **7.4–7.7** remaining)
 
 | Capability | Status | Risk if ignored |
 |------------|--------|-----------------|
 | Grader (`assertions[]`) | ✅ | — |
-| `eval:run` (Path A guided) | ✅ | — |
+| `eval:run` (Path A guided) | ✅ | 5 cases (3 canonical + 2 **7.5** blockers); concise CLI + `--json` |
+| `resolveRunState` / `no_save` → FAIL | ✅ | Abandoned without save = model failure (`failureStage: no_save`) |
 | `eval:matrix` | ❌ | No multi-config regression batch (**7.7**) |
 | `eval_trials` table | ❌ | No config snapshots, no baseline compare (**7.4**) |
-| Mutation / negative grader tests | ✅ | Vitest + `eval-grader.yml` CI |
-| Live agent eval baseline | ⚠️ | Runner live-tested 2026-08-03; UC2/UC3 pass-rate tuning ongoing |
+| Mutation / negative grader tests | ✅ | Vitest + `eval-grader.yml` CI; `browseFilter` + `forbiddenEmbeddedAction` |
+| Live agent eval baseline | ✅ | All 5 cases green locally on **prompt v1.2** + **gpt-5.6-terra** (2026-08-12) |
 | CI workflow | ✅ | `.github/workflows/eval-grader.yml` |
 
 ### Agent testing coverage (honest)
@@ -3428,7 +3429,7 @@ What was actually verified — **not** equivalent to regression coverage:
 | Phase 5 manual Path A | ✅ | UC1–UC3 from starter chips + paste-data variant (2026-07-22) |
 | Prod save smoke | ✅ | One prod UC3 save (`bfb1f049-00e5-482b-bfeb-0faf55ccb145`) |
 | `smoke:agent` | ⚠️ | Health + session gate; live chat only with `RUN_LIVE_CHAT=1` — no save assertion |
-| Automated multi-turn evals | ❌ | `conversationScript` defined in cases but no consumer |
+| Automated multi-turn evals | ✅ | `eval:run` + `eval_driver.py`; 5 cases with `conversationScript` (2026-08-12) |
 | External Path B systematic runs | ❌ | Workflow exists (`eval:prompt` → `eval:log`) but not batch-run |
 
 ### Known false-pass examples (fixed in **7.2** ✅)
@@ -3491,7 +3492,7 @@ Phase 6 tells you *what happened*; Phase 7 asks *was the result correct, and was
 | **7.1** | Portfolio polish | ✅ Required | Phase 6 P0 + 6 UI ✅ |
 | **7.2** | Grader hardening | ✅ Required | Phase 6 P0 ✅ |
 | **7.3** | Core guided runner (`eval:run`) | ✅ Required | **7.2** |
-| **7.4** | Trial persistence (`eval_trials`) | ✅ Required | **7.3** |
+| **7.4** | Eval trials (`eval_trials`) | ✅ Required | **7.3** |
 | **7.5** | Behavioral variants | ✅ Required | **7.3** |
 | **7.6** | Minimal eval UI | ✅ Required | **7.4** + Phase 6 UI ✅ |
 | **7.7** | Model/prompt comparison (**S10**) | ✅ Required | **7.2–7.5**; build last |
@@ -3761,9 +3762,9 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 
 **After v0.2 ship:** Review [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog).
 
-### Implementation readiness (2026-08-04)
+### Implementation readiness (2026-08-12)
 
-**Verdict:** **7.1–7.3** complete. **7.4 schema** may start in parallel; **7.4 baselines** wait for [chat agent v1.2](chat-agent-v1.2-plan.md) (prompt v1.2 → session state Observe → exploration re-run → eval case updates). **7.6** blocked on **7.4** data.
+**Verdict:** **7.1–7.3**, chat session persistence, draft-first agent work, and eval case updates are complete. **7.4** is next — wire `eval_trials` and run first baseline batch. **7.6** blocked on **7.4** data.
 
 | Phase | Readiness | Notes |
 |-------|-----------|-------|
@@ -3771,10 +3772,12 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 | **7.2** | ✅ Complete | Grader hardening + mutation CI (2026-08-03) |
 | **7.3** | ✅ Complete | `eval:run` + driver shipped (2026-08-03, `8a2f91e`) |
 | **Chat session persistence** | ✅ Complete | Migration **009**; exploration enabler (2026-08-08) |
-| **Chat agent v1.2** | 🔲 Planned | [chat-agent-v1.2-plan.md](chat-agent-v1.2-plan.md) — gates first **7.4** baselines |
-| **7.4** | Ready (schema) | `eval_trials` migration **007** — persist after v1.2 exit criteria |
-| **7.6** | Blocked on 7.4 | Links to `/observe/agent/sessions/[id]` only |
-| **7.5 / 7.7** | Not started | **7.7** build gate: **7.2–7.5** complete — see [Phase 7.7](#phase-77--modelprompt-comparison-o5) |
+| **Draft-first agent + eval cases** | ✅ Complete | Prompt, Observe session state, 5-case suite (2026-08-12) — [summary below](#agent-draft-first-and-eval-harness) |
+| **7.5 blockers** | ✅ Complete | Clarification + negotiation variant JSONs; green in `eval:run` suite |
+| **7.4** | 🔲 Next | Migrations **007**/**008**, `evalTrials.ts`, persist runner output |
+| **7.6** | Blocked on 7.4 | `/observe/evals` placeholder; teaser from legacy `eval_runs` only |
+| **7.7** | Not started | **`eval:matrix`** + `docs/model-selection-v0.2.md` — see [Phase 7.7](#phase-77--modelprompt-comparison-o5) |
+| **Terra default** | ✅ Shipped | **`gpt-5.6-terra` + `v1.2`** code defaults; o-series dropped (unreliable evals) |
 
 **Recommended pre-work (before 7.3 — not blocking 7.2):**
 
@@ -3993,7 +3996,7 @@ package.json                    # vitest devDependency + test script
 | Python `chat_cli.py` | ⚠️ | Drops tool parts — **not** eval driver |
 | `AGENT_ID_EVAL` | ✅ | `X-RapidUI-Agent: rapidui-agent-eval` |
 | UC4 `spec-update-v0.2` | ✅ excluded | Clear error until `load_spec` (stretch O1) |
-| Trial persistence | ⚠️ stub | JSON stdout only — **7.4** writes `eval_trials` |
+| Eval trials | ⚠️ stub | JSON stdout only — **7.4** writes `eval_trials` |
 
 ### Resolved decisions
 
@@ -4084,66 +4087,74 @@ agent/README.md
 - [x] UC4 excluded with clear error
 - [ ] *(Recommended)* Runner vs manual parity with baseline Path A batch — eval tuning follow-up, not blocking
 
-**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Chat session persistence ✅ (2026-08-08). Next: [chat agent v1.2](chat-agent-v1.2-plan.md), then **7.4** baselines. UC2/UC3 live pass rates are case tuning on top of this harness.
+**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Chat session persistence ✅ (2026-08-08). Eval case suite + runner updates ✅ (2026-08-12). **Next: Phase 7.4** — persist trials and run first baseline batch.
 
 ---
 
-## Chat session persistence (Phase 7.3½ — exploration enabler)
+## Chat session persistence
 
-**Status:** ✅ shipped (2026-08-08) — Phases A–E complete.  
-**Plan:** [`.cursor/chat-session-persistence-plan.md`](chat-session-persistence-plan.md)  
-**Prerequisite:** Phase 7.3 ✅, Phase 5 `/chat` UI ✅, Phase 6 Observe ✅.  
-**Blocks 7.4–7.7?** No — runs in parallel; unblocks manual UC1–UC3 exploration.
+**Status:** ✅ complete — shipped 2026-08-08 (Phases A–E). **Prerequisite:** Phase 5 `/chat` UI ✅, Phase 6 Observe ✅.
 
-### Goal
+**Goal:** Persist Vercel AI v6 `messages[]` on `agent_runs.transcript_jsonb`; restore at `/chat/{sessionId}`; Observe → “Open in chat”. API: **`GET/PUT /api/chat/sessions/{id}/transcript`** (not ingest). Contract: [lib/chat/TRANSCRIPT.md](../lib/chat/TRANSCRIPT.md).
 
-Persist full Vercel AI v6 `messages[]` per live `/chat` session on `agent_runs.transcript_jsonb`; restore at `/chat/{sessionId}`; link Observe agent session → chat replay. Separate **`GET/PUT /api/chat/sessions/{id}/transcript`** — not ingest.
+**Schema — migration `009`:** `transcript_jsonb`, `transcript_updated_at`, `transcript_turn_count`.
 
-### Schema — migration **`009_agent_runs_transcript.sql`**
+**UX:** URL-canonical session id; no multi-session sidebar; consent banner for demo storage.
 
-(`007`/`008` = Phase 7.4 eval lab — independent)
+**Checklist:** migration **009** + transcript API · `onFinish` persist · `/chat/{sessionId}` hydrate · Observe cross-link · exploration smoke.
 
-| Column | Purpose |
-|--------|---------|
-| `transcript_jsonb` | Full wire-format `messages[]` (same shape as `eval_driver.py`) |
-| `transcript_updated_at` | Last PUT timestamp |
-| `transcript_turn_count` | User message count (display) |
-
-### Does not change
-
-- FastAPI `/chat` handler or trust model (client still sends `messages[]` each turn)
-- `POST /api/observe/ingest/agent` contract
-- `eval:run` / Phase 7.4 `eval_trials` (separate table, shared Zod schema)
-
-### Amends Phase 5 UX (2026-08-07)
-
-- **No** multi-session sidebar
-- **Yes** URL-driven replay `/chat/{sessionId}`
-- URL-canonical session id ( `sessionStorage` synced for headers)
-
-### Amends Phase 6 Observe (2026-08-07)
-
-- **`abandoned_inferred`:** only when `outcome IS NULL`, **no** `transcript_jsonb`, idle **> 30m**
-- Sessions with transcript stay **`in_progress`** until explicit terminal outcome
-
-**Superseded (2026-08-10) by [chat agent v1.2 WS2A](chat-agent-v1.2-plan.md):** single **`AgentSessionState`**; stale without passing validate → **abandoned**; stale with passing validate → **draft**; `abandoned_inferred` retired from UI.
-
-### Task list
-
-See [persistence plan — Implementation phases](chat-session-persistence-plan.md#implementation-phases) and [Implement-time watch-outs](chat-session-persistence-plan.md#implement-time-watch-outs).
-
-### Checklist
-
-- [x] Migration **009** + `GET/PUT` transcript API
-- [x] `onFinish` persist + New chat final snapshot
-- [x] `/chat` → `/chat/{sessionId}` routing + hydrate via `useChatRuntime({ messages })`
-- [x] Observe “Open in chat” + stale inference fix
-- [x] Consent banner; exploration docs aligned
-- [x] Manual UC1-S1 restore smoke (refresh + continue + panel)
+**Superseded (2026-08-10):** stale-session rule that kept transcript sessions `in_progress` forever → replaced by **`AgentSessionState`** ([below](#agentsessionstate-observe)).
 
 ---
 
-## Phase 7.4 — Trial persistence
+## Agent draft-first and eval harness
+
+**Status:** ✅ complete — shipped 2026-08-12. **Prerequisite:** session persistence ✅, [exploration re-run](chat-exploration-findings.md) ✅.
+
+**Headline behavior:** validated **draft** first; **`save_rui` only on user save intent** (escape hatch when opener says “validate and save”). Evidence: [findings summary](chat-exploration-findings.md) (66 base runs; zero `saved-unconfirmed`).
+
+### Shipped
+
+| Area | Deliverable |
+|------|-------------|
+| **Prompt** | `agent/prompts/v1.2.txt` — draft-first gate, plan-only mode, valuePath / messy-data / HITL rules |
+| **Observe** | **`AgentSessionState`** — Draft funnel; **`env`**, est. cost; retired `AgentRunOutcome` / `abandoned_inferred` |
+| **Exploration** | [Scenarios](chat-exploration-scenarios.md) + [findings](chat-exploration-findings.md); D1–D3 + full base re-run |
+| **Eval** | 5 cases (3 canonical + 2 **7.5** blockers); `resolveRunState` (`no_save` → FAIL); concise `eval:run` CLI |
+
+### AgentSessionState (Observe)
+
+| State | Meaning |
+|-------|---------|
+| **`saved`** | ≥1 successful `POST /api/specs` |
+| **`draft`** | Passing validate, no save — primary funnel metric |
+| **`active`** | Recent activity, no passing validate yet |
+| **`failed`** | Explicit terminal ingest only — not failed validate retries |
+| **`abandoned`** | Idle/closed without passing validate |
+
+Precedence: `saved` → `failed` (above draft) → `draft` → `dbAbandoned` → `active` → `abandoned`. Code: `lib/observe/queries.ts` · `resolveAgentSessionState()`.
+
+### Eval harness (as-built)
+
+| Area | Shipped |
+|------|---------|
+| **Cases** | `static-browse`, `crud-admin`, `ai-review-queue` + clarification + negotiation variants |
+| **Runner** | `resolveRunState()`, `formatEvalRunOutput()`, `--json`; `browseFilter` + `forbiddenEmbeddedAction` assertions |
+| **Verified** | All 5 cases green locally on **prompt v1.2** + **gpt-5.6-terra** |
+
+**Case notes:** `static-browse` uses draft path (not one-shot opener); `crud-admin` keeps UC2-S1 shape (vague opener + contract in script).
+
+**Debugging (pre-7.4):** `sessionId` → Observe + `/chat/{sessionId}`; `npm run eval:run -- --json`. Phase **7.4** persists to **`eval_trials`**.
+
+### Optional follow-ups
+
+- Prompt tweaks — UC1-S4 messy-data, UC3-S6 interview-before-draft, escape-hatch consistency
+- D1 / D3 eval variant JSONs; S+1 UC1 + UC3 runs
+- **Terra default flip** — after **7.7** matrix (local prep: `model_profiles.py`, Terra pricing, 60s chat timeout)
+
+---
+
+## Phase 7.4 — Eval trials
 
 **Prerequisite:** **7.3** complete.
 
@@ -4218,9 +4229,10 @@ UC4 until `load_spec` · save-timeout without fault injection · LLM user simula
 
 ### Checklist (7.5)
 
-- [ ] At least one clarification variant case JSON + scoring rules
-- [ ] At least one contradiction variant with forbidden assertions
-- [ ] Variants pass grader mutation tests (negative fixtures fail correctly)
+- [x] At least one clarification variant case JSON + scoring rules — `ai-review-queue-clarification-v0.2`
+- [x] At least one contradiction variant with forbidden assertions — `ai-review-queue-negotiation-v0.2` (`forbiddenEmbeddedAction`)
+- [x] Variants pass grader mutation tests (negative fixtures fail correctly) — `smoke:eval` + Vitest
+- [ ] *(Optional)* D1 one-shot and D3 iterate variant JSONs
 
 ---
 
@@ -4332,10 +4344,10 @@ app/observe/page.tsx
 
 ### Do not start until (7.7 build gate)
 
-- [ ] **7.2** mutation tests green in CI
+- [x] **7.2** mutation tests green in CI
 - [x] **7.3** runner shipped and live-tested (`eval:run`, 2026-08-03)
 - [ ] *(Recommended)* **7.3** manual parity check vs Path A baseline batch
-- [ ] At least one **7.5** behavioral case passing/failing as expected
+- [x] At least one **7.5** behavioral case passing/failing as expected — clarification + negotiation green locally (2026-08-12)
 - [ ] Transcripts reviewed for every automated failure
 
 ### Resolved decisions
@@ -4416,7 +4428,7 @@ When an agent expands a phase, produce:
 
 **Applies to:** Phases **4–7** — from first agent ship through eval lab and **v0.2 ship**. Use this as the **improvement playbook** after the agent loop is live: trace → measure → eval → iterate.
 
-> **As of 2026-08-04:** Closed loop is **partial** — Observe + manual `eval:log` + **`eval:run`** (7.3 ✅). Full automated loop completes when **7.4–7.7** ship (`eval_trials` → behavioral variants → `/observe/evals` → `eval:matrix`). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
+> **As of 2026-08-12:** Closed loop is **partial** — Observe + manual `eval:log` + **`eval:run`** (7.3 ✅) + 5-case eval suite green locally. Full automated loop completes when **7.4–7.7** ship (`eval_trials` → `/observe/evals` UI → `eval:matrix`). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
 
 **Interview line:** *“Outcome is Pass or Fail on the saved UI spec — one meaning for `passed`. Process is how expensive the path was: validates, turns, latency — numbers, not a second pass/fail. Conversation we sample by hand. In evals, a script plays the human so we compare models fairly.”*
 
@@ -4476,7 +4488,7 @@ Change the right lever (see order below)
         └──► re-run evals → compare on /observe/evals → update model-selection doc
 ```
 
-Eval lab (**7.7** / **S10**) is part of **v0.2** — build after **7.2–7.5** (grader, runner, persistence, behavioral variants). Default **`o4-mini` + `v1`** until matrix confirms or changes default.
+Eval lab (**7.7** / **S10**) is part of **v0.2** — build after **7.2–7.5** (grader, runner, persistence, behavioral variants). Default **`gpt-5.6-terra` + `v1.2`** shipped 2026-08-12; matrix compares future candidates.
 
 ---
 
@@ -4850,7 +4862,7 @@ Separate from artifact grader pass/fail.
 
 ## Appendix F — Phase 7 document map
 
-**Added:** 2026-07-31 · **Updated:** 2026-08-03 (eval semantics locked; sub-phases **7.1–7.7**)  
+**Added:** 2026-07-31 · **Updated:** 2026-08-12 (eval cases shipped; **7.4** next)  
 **Purpose:** Entry point for Phase 7 — start here before reading sub-phase specs.
 
 ### Sub-phase quick reference
@@ -4860,7 +4872,7 @@ Separate from artifact grader pass/fail.
 | **7.1** | Portfolio polish | ✅ Required |
 | **7.2** | Grader hardening | ✅ Required |
 | **7.3** | Core guided runner | ✅ Required |
-| **7.4** | Trial persistence | ✅ Required |
+| **7.4** | Eval trials | ✅ Required |
 | **7.5** | Behavioral variants | ✅ Required |
 | **7.6** | Minimal eval UI | ✅ Required |
 | **7.7** | Model/prompt comparison (**S10**) | ✅ Required |
@@ -4888,6 +4900,8 @@ Separate from artifact grader pass/fail.
 | Observability vs evals? | Phase 6 = *what happened*; Phase 7 = *was the UI spec correct* + *process numbers for tuning* |
 | Industry context? | [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 | Latency / process caps? | [Appendix E](#appendix-e--agent-latency-metrics-phase-6) |
+| Chat session persistence / transcript API? | [Chat session persistence](#chat-session-persistence) · [lib/chat/TRANSCRIPT.md](../lib/chat/TRANSCRIPT.md) |
+| Draft-first agent + eval harness? | [Agent draft-first and eval harness](#agent-draft-first-and-eval-harness) · [findings summary](chat-exploration-findings.md) |
 
 ---
 

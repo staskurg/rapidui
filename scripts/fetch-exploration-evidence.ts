@@ -13,7 +13,7 @@ import { getAgentRunDetail } from "../lib/observe/queries";
 
 const BASE_URL = (process.env.RAPIDUI_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
-/** Keep in sync with .cursor/chat-exploration-scenarios.md#save-intent-classification-v12 */
+/** Scenario save-intent expectations — canonical source is SAVE_INTENT below. */
 type SaveIntentShape = "one-shot (escape hatch)" | "draft → confirm";
 
 type SaveIntentEntry = {
@@ -159,7 +159,7 @@ function uniqueErrorCodes(
 function formatSaveIntentExpected(runId: string): string {
   const scenarioId = parseScenarioIdFromRunId(runId);
   if (!scenarioId) {
-    return "? — unknown run id; see save-intent table in chat-exploration-scenarios.md";
+    return "? — unknown run id; see SAVE_INTENT in scripts/fetch-exploration-evidence.ts";
   }
   const entry = SAVE_INTENT[scenarioId];
   if (!entry) {

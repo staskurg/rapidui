@@ -47,6 +47,12 @@ export const DataPathAssertionSchema = assertionBase.extend({
   path: z.string().min(1),
 });
 
+export const BrowseFilterAssertionSchema = assertionBase.extend({
+  kind: z.literal("browseFilter"),
+  type: z.literal("browse"),
+  field: z.string().min(1),
+});
+
 export const AssertionSchema = z.discriminatedUnion("kind", [
   OperationCountAssertionSchema,
   OperationRouteAssertionSchema,
@@ -55,6 +61,7 @@ export const AssertionSchema = z.discriminatedUnion("kind", [
   ForbiddenEmbeddedActionAssertionSchema,
   TransitionTriggersAssertionSchema,
   DataPathAssertionSchema,
+  BrowseFilterAssertionSchema,
 ]);
 
 export type Assertion = z.infer<typeof AssertionSchema>;

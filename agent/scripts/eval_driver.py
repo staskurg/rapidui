@@ -301,6 +301,7 @@ def run_guided_eval(config: dict[str, Any]) -> dict[str, Any]:
 
             if script_index >= len(script):
                 status = "abandoned"
+                terminal_error = "conversationScript exhausted without save"
                 break
 
             entry = script[script_index]

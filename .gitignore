@@ -33,15 +33,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*.local
+# env files — ignore secrets; keep *.example templates tracked
+.env
 .env.local
+.env*.local
+agent/.env
 !.env.example
+!agent/.env.example
+
+# typescript (generated — do not commit tsbuildinfo)
+*.tsbuildinfo
 
 # vercel
 .vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-.env*

@@ -29,7 +29,7 @@ Verify:
 
 ```bash
 curl http://localhost:8000/health
-# {"status":"ok"}
+# {"status":"ok","model":"gpt-5.6-terra"}
 
 python scripts/smoke_chat.py
 ```
@@ -66,12 +66,34 @@ Automated Path A runs use `scripts/eval_driver.py` — **not** `chat_cli.py`. Th
 Example (repo root, agent + platform running):
 
 ```bash
+npm run eval:run
 npm run eval:run -- --case=static-browse-v0.2
-npm run eval:run -- --all-cases
-npm run eval:run -- --case=static-browse-v0.2 --dry-run   # validate case only
+npm run eval:run -- --dry-run   # validate cases only
+npm run eval:run -- --json      # full trial JSON (verbose; for debugging)
 ```
 
+Default output is a concise pass/fail summary per case (no transcript dump). Exit code 0 when all cases pass.
+
 Requires `OPENAI_API_KEY`, local agent (`uvicorn`), and platform (`npm run dev`) with `DATABASE_URL` in `.env.local`.
+
+### Models
+
+Default in code is **`openai:gpt-5.6-terra`** with prompt **`v1.2`**. Override via env when comparing alternatives in the eval lab (Phase 7.7):
+
+```bash
+cd agent
+RAPIDUI_AGENT_MODEL=openai:gpt-5.6-terra RAPIDUI_AGENT_PROMPT_VERSION=v1.2 uvicorn main:app --reload --port 8000
+```
+
+Confirm via `GET /health` — response includes `"model": "gpt-5.6-terra"`.
+
+Supported models (extend `agent/model_profiles.py` when adding more):
+
+| Model | Provider | Notes |
+|-------|----------|-------|
+| `openai:gpt-5.6-terra` | OpenAI | **Default** — text + tools; validated on `eval:run` (prompt v1.2) |
+
+OpenAI o-series models (`o4-mini`, etc.) were evaluated early in v0.2 but dropped — eval runs were unreliable. Do not re-enable without fresh matrix evidence.
 
 ## POST /chat
 
@@ -205,19 +227,19 @@ On each completed turn the handler POSTs `turns[]` plus partial `run` fields. Te
 
 Failed validate retries alone do **not** emit `failed` — the agent is expected to fix and retry.
 
-**Observe session state (2026-08-10):** Agent Observe uses a single derived **`AgentSessionState`** (`saved` · `draft` · `active` · `failed` · `abandoned`) — see [chat-agent-v1.2-plan.md](../.cursor/chat-agent-v1.2-plan.md#observe-session-state-reference--locked). **`failed`** = explicit terminal ingest only, not failed validate retries. **`draft`** = passing validate, no save (v1.2 funnel). Ingest still writes `saved` / `failed` / `abandoned` to `agent_runs.outcome`; save signal authoritative from `api_events`.
+**Observe session state (2026-08-10):** Agent Observe uses a single derived **`AgentSessionState`** (`saved` · `draft` · `active` · `failed` · `abandoned`) — see `resolveAgentSessionState` in `lib/observe/queries.ts`. **`failed`** = explicit terminal ingest only, not failed validate retries. **`draft`** = passing validate, no save. Ingest still writes `saved` / `failed` / `abandoned` to `agent_runs.outcome`; save signal authoritative from `api_events`.
 
-**Legacy (superseded when WS2A ships):** sessions with no DB outcome and last activity **> 30 minutes** ago were shown as **Abandoned (inferred)** — only when no chat transcript was stored. Sessions with `transcript_jsonb` stayed **In progress** until explicit terminal outcome. That model is replaced by session state above.
+**Legacy (superseded 2026-08-10):** sessions with no DB outcome and last activity **> 30 minutes** ago were shown as **Abandoned (inferred)** — only when no chat transcript was stored. Sessions with `transcript_jsonb` stayed **In progress** until explicit terminal outcome. That model is replaced by session state above.
 
-FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + derived session state (WS2A).
+FastAPI disconnect detection is deferred to v0.3 — rely on New chat abandon + derived session state.
 
 ### Chat transcript API (Next.js)
 
 Full conversation replay for live `/chat` sessions is stored separately from agent ingest — **`GET/PUT /api/chat/sessions/{sessionId}/transcript`** on the Next.js app. See [lib/chat/TRANSCRIPT.md](../lib/chat/TRANSCRIPT.md) for the contract, message shape, and client persistence rules.
 
-### o4-mini token accounting
+### Token accounting
 
-`result.usage.input_tokens`, `output_tokens`, and `cache_read_tokens` from pydantic-ai are ingested per turn. Observe prices cached input at $0.275/1M (o4-mini); legacy turns without `cache_read_tokens` show list-price estimates (~ prefix, upper bound). For o4-mini, reasoning tokens may be included in output counts depending on provider reporting.
+`result.usage.input_tokens`, `output_tokens`, and `cache_read_tokens` from pydantic-ai are ingested per turn. Observe est. cost uses the model price table in `lib/observe/modelPricing.ts` (currently **gpt-5.6-terra** only). Legacy turns without `cache_read_tokens` show list-price estimates (`~` prefix, upper bound).
 
 ### Single-instance policy (v0.2)
 
@@ -244,10 +266,10 @@ Custom attributes on chat requests: `session_id`, `prompt_version` (correlate wi
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | Yes | — | OpenAI API key (powers `o4-mini` via Pydantic AI) |
+| `OPENAI_API_KEY` | Yes | — | OpenAI API key |
 | `RAPIDUI_BASE_URL` | Yes | `http://localhost:3000` | Platform base URL |
-| `RAPIDUI_AGENT_MODEL` | No | `openai:o4-mini` | Pydantic AI model string |
-| `RAPIDUI_AGENT_PROMPT_VERSION` | No | `v1` | Loads `prompts/{version}.txt` into `Agent(instructions=...)` |
+| `RAPIDUI_AGENT_MODEL` | No | `openai:gpt-5.6-terra` | Pydantic AI model string |
+| `RAPIDUI_AGENT_PROMPT_VERSION` | No | `v1.2` | Loads `prompts/{version}.txt` into `Agent(instructions=...)` |
 | `RAPIDUI_ENV` | No | `local` | Ingest env tag on `agent_runs` (`local` \| `prod`) — set `prod` on Render |
 | `LOGFIRE_TOKEN` | No | — | Enables Logfire OTel instrumentation |
 
@@ -284,7 +306,8 @@ agent/
   main.py           FastAPI app, /health, /chat
   config.py         Env settings + prompt loader
   deps.py           Session deps + in-memory session state
-  agent_factory.py  Pydantic AI agent + o4-mini settings
+  agent_factory.py  Pydantic AI agent factory
+  model_profiles.py Model registry + optional per-model settings
   tools/rapidui.py  fetch_docs, fetch_schema, validate_rui, save_rui
   telemetry.py      Ingest POST after each turn
   prompts/v1.txt    Agent instructions (workflow only — no schema URLs)

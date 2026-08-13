@@ -1,9 +1,12 @@
 import type { AssertionResult } from "../../eval/types";
 
+/** All automated guided eval cases — default `npm run eval:run` batch. */
 export const EVAL_RUN_CASES = [
   "static-browse-v0.2",
   "crud-admin-v0.2",
   "ai-review-queue-v0.2",
+  "ai-review-queue-clarification-v0.2",
+  "ai-review-queue-negotiation-v0.2",
 ] as const;
 
 export type EvalRunCaseId = (typeof EVAL_RUN_CASES)[number];

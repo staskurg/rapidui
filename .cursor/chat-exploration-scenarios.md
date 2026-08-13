@@ -1,6 +1,6 @@
 # Chat exploration scenarios — UC1 / UC2 / UC3
 
-**Status:** v1.1 exploration complete (see [v1.1 findings](chat-exploration-findings.md)). **Next:** prompt v1.2 draft-first re-run — log in [v1.2 findings](chat-exploration-findings-v1.2.md) per [implementation plan](chat-agent-v1.2-plan.md). **Infra:** chat session persistence ✅ shipped — [plan](chat-session-persistence-plan.md).
+**Status:** Exploration complete (see [findings](chat-exploration-findings.md)). **Next:** Phase **7.4** ([implementation plan](rapidui-v0.2-implementation.md#phase-74--eval-trials)).
 **Purpose:** manually walk the agent to a saved RUI spec through *human-realistic* conversations, so we learn which paths reliably reach `save_rui` and which stall. What we learn here becomes the raw material for stronger `conversationScript`s in `eval/cases/` — but this doc itself is not an eval plan. It's a script for a human sitting in `/chat`.
 
 **Definition of done for every scenario:** the agent validates (≤5 attempts), calls `save_rui`, and shares a `viewUrl`. Two valid terminal shapes under prompt v1.2:
@@ -16,16 +16,16 @@ Saving without either shape — agent calls `save_rui` before the user's save-in
 
 ## How to run
 
-1. Start the agent service and the Next.js app (README, Path A), then open `/chat`. After the first message, the URL updates to `/chat/{sessionId}` ([chat-session-persistence-plan.md](chat-session-persistence-plan.md)).
+1. Start the agent service and the Next.js app (README, Path A), then open `/chat`. After the first message, the URL updates to `/chat/{sessionId}`.
 2. **Fresh chat session per scenario run** — use **New chat** (new URL/session id). Never reuse a session; it contaminates the next run.
-3. **Repeat each scenario 3 times** before moving on (`UC1-S1.1`, `.2`, `.3`, then UC1-S2, …). An `error` run (infra failure) does not count — rerun until you have 3 countable results. See [v1.2 findings — run protocol](chat-exploration-findings-v1.2.md#instructions-for-the-assisting-agent).
+3. **Repeat each scenario 3 times** before moving on (`UC1-S1.1`, `.2`, `.3`, then UC1-S2, …). An `error` run (infra failure) does not count — rerun until you have 3 countable results.
 4. Paste user turns verbatim, including the code blocks. Wait for the agent to finish each reply before the next turn.
 5. Where the evidence lives afterward:
    - **Full conversation (restore):** `/chat/{sessionId}` — same UI as the live run
    - **Transcript API:** `GET /api/chat/sessions/{sessionId}/transcript`
    - **Validate attempts, tool calls, errors:** `/observe/agent/sessions/{sessionId}` (human UI) or `npm run fetch:exploration-evidence -- {sessionId} {runId}` (assisting agent)
    - **The saved artifact:** the `viewUrl` the agent returns (`/specs/{id}`), or `GET /api/specs/{id}` with `X-RapidUI-Session-Id: {sessionId}` for JSON
-6. **Log each run** in `.cursor/chat-exploration-findings-v1.2.md` before starting the next run. Include the chat URL in each run entry. (v1.1 runs remain in [chat-exploration-findings.md](chat-exploration-findings.md).)
+6. **Evidence:** use `npm run fetch:exploration-evidence -- {sessionId} {runId}` or Observe + `/chat/{sessionId}`. Key outcomes are summarized in [chat-exploration-findings.md](chat-exploration-findings.md).
 7. **S+1 (post-save iteration):** run as an extra turn in the **same session** after a successful save. Log the parent scenario run **first**, then send the S+1 turn and log S+1 separately. Do not extract parent metrics after S+1 — they will include the follow-up turn.
 
 **Workload:** 22 scenarios × 3 runs ≈ **66 base runs** (19 original + D1–D3), plus S+1 at least once per use case (3+), plus optional UC1-S2 riders. Budget accordingly.
@@ -143,7 +143,7 @@ The interesting variable is **form and timing**: everything up front vs. drip-fe
 
 ## Logging
 
-All run logging lives in the companion doc: **`.cursor/chat-exploration-findings-v1.2.md`** (v1.2 re-run) — agent instructions, [transcript extraction checklist](chat-exploration-findings-v1.2.md#transcript-extraction-checklist), run-entry template, dashboard, per-use-case findings, and the final "changes to make" section. v1.1 baseline: [chat-exploration-findings.md](chat-exploration-findings.md). Log **every run** (3× per scenario) before starting the next run. Assisting agent: `npm run fetch:exploration-evidence -- {sessionId} {runId}`.
+Exploration is complete. Summary of issues and shipped fixes: [chat-exploration-findings.md](chat-exploration-findings.md). For new runs, use `npm run fetch:exploration-evidence -- {sessionId} {runId}`.
 
 ---
 

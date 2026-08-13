@@ -14,20 +14,20 @@ import {
   parseCliArgs,
   parseCommaList,
   parseOptionalInt,
-  requireArg,
 } from "../lib/eval/parseCliArgs";
 import { collectProcessMetrics } from "../lib/eval/processMetrics";
 import { parseDriverResult } from "../lib/eval/parseDriverResult";
+import { printEvalRunSummary, printTrialResult } from "../lib/eval/formatEvalRunOutput";
+import { resolveRunState } from "../lib/eval/resolveRunState";
 import {
   EVAL_RUN_CASES,
   type DriverResult,
   type EvalRunCaseId,
   type EvalRunSummary,
-  type FailureOwner,
-  type RunState,
   type TrialResult,
 } from "../lib/eval/runnerTypes";
 import { scoreRun } from "../lib/eval/scoreRun";
+import { evaluateAssertionsSpecNotFound } from "../lib/eval/assertions";
 import type { AssertionResult } from "../eval/types";
 
 const DRIVER_PATH = path.join(process.cwd(), "agent/scripts/eval_driver.py");
@@ -74,6 +74,7 @@ async function spawnEvalDriver(config: {
   agentUrl: string;
   maxUserTurns?: number;
   timeoutS: number;
+  quiet?: boolean;
 }): Promise<DriverResult> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "rapidui-eval-"));
   const configPath = path.join(tempDir, "driver-config.json");
@@ -108,14 +109,13 @@ async function spawnEvalDriver(config: {
       let err = "";
 
       child.stdout.on("data", (chunk: Buffer) => {
-        const text = chunk.toString("utf8");
-        out += text;
-        process.stdout.write(text);
+        out += chunk.toString("utf8");
       });
       child.stderr.on("data", (chunk: Buffer) => {
-        const text = chunk.toString("utf8");
-        err += text;
-        process.stderr.write(text);
+        err += chunk.toString("utf8");
+        if (!config.quiet) {
+          process.stderr.write(chunk);
+        }
       });
 
       child.on("error", reject);
@@ -151,49 +151,9 @@ function assertRunnableCase(evalCase: EvalCase): void {
 
   if (!EVAL_RUN_CASES.includes(evalCase.id as EvalRunCaseId)) {
     throw new Error(
-      `${evalCase.id} is not in the automated UC1–UC3 suite (${EVAL_RUN_CASES.join(", ")})`,
+      `${evalCase.id} is not in the automated eval suite (${EVAL_RUN_CASES.join(", ")})`,
     );
   }
-}
-
-function resolveRunState(
-  driver: DriverResult,
-  process: Awaited<ReturnType<typeof collectProcessMetrics>>,
-  passed: boolean | null,
-): { runState: RunState; failureOwner: FailureOwner; failureStage: string | null } {
-  if (process.infraFailureCount > 0) {
-    return {
-      runState: "error",
-      failureOwner: "infra",
-      failureStage: "platform_api",
-    };
-  }
-
-  if (driver.status === "error") {
-    return {
-      runState: "error",
-      failureOwner: "runner",
-      failureStage: "driver",
-    };
-  }
-
-  if (driver.status === "failed") {
-    return {
-      runState: "error",
-      failureOwner: "runner",
-      failureStage: "agent_chat",
-    };
-  }
-
-  if (driver.status === "saved" && passed === true) {
-    return { runState: "complete", failureOwner: null, failureStage: null };
-  }
-
-  if (driver.status === "saved" && passed === false) {
-    return { runState: "complete", failureOwner: "model", failureStage: "artifact" };
-  }
-
-  return { runState: "incomplete", failureOwner: null, failureStage: null };
 }
 
 async function postTerminalOutcome(
@@ -235,6 +195,7 @@ async function runTrial(input: {
     agentUrl: input.agentUrl,
     maxUserTurns: criteria.maxUserTurns,
     timeoutS: input.timeoutS,
+    quiet: true,
   });
 
   await waitForAgentRun(sessionId);
@@ -254,9 +215,14 @@ async function runTrial(input: {
     passed = score.passed;
     assertionResults = score.assertions;
     finalSpecId = driver.specId;
-  } else if (driver.status !== "saved") {
-    const outcome = driver.status === "failed" ? "failed" : "abandoned";
-    await postTerminalOutcome(sessionId, evalCase.id, outcome, driver.error ?? undefined);
+  } else {
+    if (driver.status !== "saved") {
+      const outcome =
+        driver.status === "failed" || driver.status === "error" ? "failed" : "abandoned";
+      await postTerminalOutcome(sessionId, evalCase.id, outcome, driver.error ?? undefined);
+    }
+    passed = false;
+    assertionResults = evaluateAssertionsSpecNotFound(criteria.assertions);
   }
 
   const mustValidateMet =
@@ -331,20 +297,20 @@ async function main(): Promise<void> {
 
   if (args.help) {
     console.log(`Usage:
+  npm run eval:run
   npm run eval:run -- --case static-browse-v0.2
-  npm run eval:run -- --all-cases
-  npm run eval:run -- --case static-browse-v0.2,crud-admin-v0.2
 
 Options:
-  --case=<id>         Eval case id (UC1–UC3)
-  --all-cases         Run static-browse, crud-admin, ai-review-queue
+  --case=<id>         Run one case (comma-separated ok); default: all eval cases
   --agent-url=<url>   Agent base URL (default http://localhost:8000)
   --timeout=<sec>     Per-turn chat timeout (default 300)
+  --json              Print full trial JSON (includes transcript; very verbose)
   --dry-run           Validate cases without calling the agent`);
     return;
   }
 
   const dryRun = args["dry-run"] === true;
+  const jsonOutput = args.json === true;
   const agentUrl =
     optionalArg(args, "agent-url") ??
     process.env.AGENT_URL ??
@@ -352,11 +318,11 @@ Options:
   const timeoutS = parseOptionalInt(optionalArg(args, "timeout")) ?? 300;
 
   let caseIds: EvalRunCaseId[];
-  if (args["all-cases"]) {
-    caseIds = [...EVAL_RUN_CASES];
-  } else {
-    const caseArg = requireArg(args, "case");
+  const caseArg = optionalArg(args, "case");
+  if (caseArg) {
     caseIds = parseCommaList(caseArg) as EvalRunCaseId[];
+  } else {
+    caseIds = [...EVAL_RUN_CASES];
   }
 
   for (const caseId of caseIds) {
@@ -383,8 +349,12 @@ Options:
   const experimentId = randomUUID();
   const trials: TrialResult[] = [];
 
+  if (!jsonOutput) {
+    console.log(`\neval:run experiment ${experimentId}\n`);
+  }
+
   for (const [index, caseId] of caseIds.entries()) {
-    console.log(`\n=== eval:run ${caseId} (trial ${index + 1}/${caseIds.length}) ===`);
+    console.log(`Running ${caseId} (${index + 1}/${caseIds.length})…`);
     const trial = await runTrial({
       evalCaseId: caseId,
       experimentId,
@@ -393,12 +363,18 @@ Options:
       timeoutS,
     });
     trials.push(trial);
-    console.log(JSON.stringify(trial, null, 2));
+    if (jsonOutput) {
+      console.log(JSON.stringify(trial, null, 2));
+    } else {
+      printTrialResult(trial);
+    }
   }
 
-  const summary = summarizeTrials(experimentId, trials);
-  console.log("\n=== eval:run summary ===");
-  console.log(JSON.stringify(summary, null, 2));
+  if (jsonOutput) {
+    console.log(JSON.stringify(summarizeTrials(experimentId, trials), null, 2));
+  } else {
+    printEvalRunSummary(trials);
+  }
 
   const allSucceeded = trials.every(trialSucceeded);
   if (!allSucceeded) {

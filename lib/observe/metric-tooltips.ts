@@ -1,4 +1,4 @@
-/** Observe metric copy — sourced from `.cursor/rapidui-v0.2-implementation.md`. */
+/** Observe metric copy for dashboard tooltips. */
 
 export const agentMetricTooltips = {
   p50Latency:

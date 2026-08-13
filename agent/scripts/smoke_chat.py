@@ -42,6 +42,13 @@ def main() -> int:
         failures += 1
     else:
         print("OK  GET /health")
+        try:
+            payload = json.loads(body)
+            model = payload.get("model")
+            if model:
+                print(f"    model={model}")
+        except json.JSONDecodeError:
+            pass
 
     status, body = http(
         "POST",

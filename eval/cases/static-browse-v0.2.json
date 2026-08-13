@@ -2,7 +2,7 @@
   "id": "static-browse-v0.2",
   "title": "Use case 1 — Static browse dashboard",
   "mode": "guided",
-  "prompt": "Build a static ops dashboard with two browse screens: (1) Incidents — table with severity, status, and owner, plus header metrics for open count and resolved today; (2) Teams — table with team name, lead, headcount, and region. Use data.mode static with realistic invented sample records (about 3 incidents and 3 teams). No API wiring. Validate and save when the spec passes.",
+  "prompt": "Build a static ops dashboard with two browse screens: (1) Incidents — table with severity, status, and owner, plus header metrics for open count and resolved today; (2) Teams — table with team name, lead, headcount, and region. Use data.mode static with realistic invented sample records (about 3 incidents and 3 teams). No API wiring.",
   "conversationScript": [
     {
       "trigger": "after_agent_reply",
@@ -10,7 +10,7 @@
     },
     {
       "trigger": "after_agent_reply",
-      "content": "Yes, proceed and save."
+      "content": "Looks good — save it."
     }
   ],
   "successCriteria": {

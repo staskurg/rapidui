@@ -2,12 +2,12 @@
 
 FastAPI on Render posts agent run/turn summaries to the platform ingest API. The LLM and tools never call this endpoint — only the FastAPI handler layer (Phase 4).
 
+This endpoint accepts **run metadata and per-turn metrics only** — not message content or conversation history. Live `/chat` transcripts use **`GET/PUT /api/chat/sessions/{sessionId}/transcript`** → `agent_runs.transcript_jsonb` — see [lib/chat/TRANSCRIPT.md](../lib/chat/TRANSCRIPT.md).
+
 **Endpoint:** `POST /api/observe/ingest/agent`  
 **Base URL:** `https://rapidui.dev` (or local dev server)  
 **Auth:** none in v0.2  
 **Content-Type:** `application/json`
-
-> **Chat transcripts:** full conversation text is **not** stored via this ingest endpoint. Live `/chat` sessions use a separate application API: `GET/PUT /api/chat/sessions/{sessionId}/transcript` → `agent_runs.transcript_jsonb`. See `.cursor/chat-session-persistence-plan.md`.
 
 ## Success response
 
@@ -34,7 +34,7 @@ At least one of `run` or `turns` should be present on each POST (empty `{}` with
 | `outcome` | `"saved"` \| `"failed"` \| `"abandoned"` | Set when session ends |
 | `spec_id` | UUID | Final saved spec — must exist in `specs` table (FK) |
 | `validate_attempts` | int | Count of validate API calls in session |
-| `model` | string | e.g. `o4-mini` |
+| `model` | string | e.g. `gpt-5.6-terra` |
 | `provider` | string | e.g. `openai` |
 | `prompt_version` | string | e.g. `v1` |
 | `eval_case_id` | string | When run is part of eval matrix |
@@ -97,7 +97,7 @@ When `outcome` is set without `finished_at`, the platform sets `finished_at` to 
     "outcome": "saved",
     "spec_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
     "validate_attempts": 2,
-    "model": "o4-mini",
+    "model": "gpt-5.6-terra",
     "provider": "openai",
     "prompt_version": "v1",
     "total_tokens": 4200,

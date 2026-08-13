@@ -1,8 +1,12 @@
 # Chat transcript API
 
-Persist and restore full Vercel AI SDK wire-format `messages[]` for live `/chat` sessions. Stored on `agent_runs.transcript_jsonb` (migration `009`).
+Persist and restore the full Vercel AI SDK wire-format `messages[]` for live `/chat` sessions so a session survives refresh, bookmark, and Observe deep-links.
 
-**Related:** [chat-session-persistence-plan.md](../../.cursor/chat-session-persistence-plan.md) · `lib/chat/transcriptSchema.ts` · `lib/chat/transcriptWrites.ts`
+Storage: `agent_runs.transcript_jsonb` (migration `009`), keyed by the same `session_id` as agent ingest and validate/save telemetry.
+
+**Scope:** message history only. Run outcomes, turn metrics, and token counts are written by `POST /api/observe/ingest/agent`, not this API. Either path may create the `agent_runs` row first; the other merges onto it.
+
+**Implementation:** `lib/chat/transcriptSchema.ts` · `lib/chat/transcriptWrites.ts` · `app/api/chat/sessions/[sessionId]/transcript/route.ts`
 
 ---
 
@@ -29,7 +33,7 @@ Base path: `/api/chat/sessions/{sessionId}/transcript`
 }
 ```
 
-- `outcome` is `saved` | `failed` | `abandoned` | `null`
+- `outcome` is `saved` | `failed` | `abandoned` | `null` (from `agent_runs.outcome`, set by ingest)
 - `messages` may be `[]` when a row exists but no transcript has been PUT yet (e.g. agent ingest created the row first)
 - `turnCount` is the stored user-message count (derived from `messages` when unset)
 
@@ -63,7 +67,7 @@ Behavior:
 - Replaces `transcript_jsonb` atomically (full snapshot, not append-only)
 - Sets `transcript_updated_at` and `transcript_turn_count` (user role count)
 
-**400** — invalid JSON, empty `messages`, or Zod validation failure (`INVALID_TRANSCRIPT`).
+**400** — invalid JSON, wrong content type, empty `messages`, or Zod validation failure (`INVALID_TRANSCRIPT`).
 
 **413** — serialized body exceeds **512 KB** (`PAYLOAD_TOO_LARGE`).
 
@@ -73,7 +77,7 @@ Behavior:
 
 ## Message shape
 
-Same wire format as `agent/scripts/eval_driver.py` and Phase 7.4 `eval_trials.transcript_jsonb`:
+Vercel AI SDK v6 wire format (`UIMessage[]` with `parts[]`):
 
 ```json
 {
@@ -92,7 +96,7 @@ Same wire format as `agent/scripts/eval_driver.py` and Phase 7.4 `eval_trials.tr
 }
 ```
 
-Validation (`transcriptPutBodySchema`):
+Validation (`transcriptPutBodySchema` in `transcriptSchema.ts`):
 
 - Each message: `id` (non-empty), `role`, `parts` (min 1)
 - Each part: `type` (non-empty string); extra fields allowed (`.loose()` — supports `step-start`, `dynamic-tool`, `reasoning`, etc.)
@@ -102,14 +106,14 @@ Validation (`transcriptPutBodySchema`):
 
 ## Client persistence
 
-Live chat uses `usePersistChatTranscript` → `putChatTranscript()` after each `onFinish`:
+Live chat uses `usePersistChatTranscript` → `putChatTranscript()` after each AI SDK `onFinish`:
 
 | Event | Persist? |
 |-------|----------|
 | Normal completion | yes |
 | Abort / disconnect | yes (keeps user message) |
 | Pure error (`isError`) | no |
-| New chat (prior session) | yes — flush before abandon |
+| New chat (prior session) | yes — `flushTranscript()` before abandon |
 
 Fire-and-forget PUT; failures log to console only.
 
@@ -117,7 +121,7 @@ Fire-and-forget PUT; failures log to console only.
 
 ## Auth & trust (v0.2)
 
-- **No auth** on GET/PUT — UUID obscurity only; acceptable for internal exploration
+- **No auth** on GET/PUT — session id is the only gate
 - Client can forge transcripts — same trust model as `POST /chat` message history
 - v0.3+: gate with auth and/or server-owned history
 
@@ -131,7 +135,7 @@ Fire-and-forget PUT; failures log to console only.
 | `/chat/{sessionId}` | GET → hydrate via `useChatRuntime({ messages })` |
 | Observe agent detail | Summary grid: transcript turns, updated, **Open in chat** link |
 
-Session id is minted on **first user message** (ChatGPT-style), then URL becomes canonical.
+Session id is minted on **first user message**, then the URL becomes canonical.
 
 ---
 
@@ -142,4 +146,9 @@ npm run smoke:chat-transcript   # DB round-trip
 npm run test:eval -- lib/chat    # schema + persist logic
 ```
 
-Manual: run UC1-S1 from `.cursor/chat-exploration-scenarios.md`, refresh `/chat/{sessionId}`, confirm thread + spec panel restore and Observe cross-link.
+Manual restore check:
+
+1. Open `/chat`, send several turns until the spec panel shows a validated draft.
+2. Confirm the URL is `/chat/{sessionId}`.
+3. Hard refresh — thread and draft panel should restore.
+4. Open the session in Observe agent detail — transcript turn count and **Open in chat** should match.

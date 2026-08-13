@@ -14,7 +14,7 @@ from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 from starlette.responses import Response
 
 from agent_factory import create_agent
-from config import apply_settings_env, get_settings, require_openai_api_key
+from config import apply_settings_env, get_settings, parse_model, require_openai_api_key
 from deps import build_deps
 from telemetry import handle_turn_complete, post_terminal_outcome
 
@@ -74,7 +74,8 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    _, model_name = parse_model(get_settings().rapidui_agent_model)
+    return {"status": "ok", "model": model_name}
 
 
 @app.post("/chat")

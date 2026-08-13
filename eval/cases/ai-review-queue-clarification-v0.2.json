@@ -1,22 +1,30 @@
 {
-  "id": "ai-review-queue-v0.2",
-  "title": "Use case 3 — AI draft review queue",
+  "id": "ai-review-queue-clarification-v0.2",
+  "title": "Use case 3 — AI review queue (vague opener / discovery)",
   "mode": "guided",
-  "prompt": "Build an internal UI for reviewing AI-drafted support replies before they send. Queue shows pending drafts with confidence, model, and source ticket. Reviewer opens a draft and approves or rejects it from the detail screen.\n\nAPI: GET /api/drafts (inbox), GET /api/drafts/{draftId}, POST /api/drafts/{draftId}/approve, POST /api/drafts/{draftId}/reject.",
+  "prompt": "Our support bot writes reply drafts and right now they just… send. I want a human checkpoint in between. Can you build something for that?",
   "conversationScript": [
     {
       "trigger": "after_agent_reply",
-      "content": "Approve and reject must be embedded actions on the detail screen, not row actions. Add a status filter on the inbox. List response uses {items: [...]} envelope."
+      "content": "Reviewers need the draft text, which ticket it's for, and the model's confidence. Drafts come from GET /api/drafts, single one is GET /api/drafts/{draftId}."
     },
     {
       "trigger": "after_agent_reply",
-      "content": "Looks good — save it."
+      "content": "Approving is POST /api/drafts/{draftId}/approve, rejecting is POST /api/drafts/{draftId}/reject. After either one, back to the list."
+    },
+    {
+      "trigger": "after_agent_reply",
+      "content": "List response uses {items: [...]} envelope. Approve and reject are buttons on the detail screen, not on rows. Add a status filter on the inbox."
+    },
+    {
+      "trigger": "after_agent_reply",
+      "content": "That plan works — save it."
     }
   ],
   "successCriteria": {
     "mustValidate": true,
     "maxRetries": 5,
-    "maxUserTurns": 5,
+    "maxUserTurns": 6,
     "assertions": [
       { "id": "uc3-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
       { "id": "uc3-read", "kind": "operationCount", "type": "read", "minCount": 1 },

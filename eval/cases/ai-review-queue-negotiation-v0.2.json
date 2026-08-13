@@ -1,12 +1,12 @@
 {
-  "id": "ai-review-queue-v0.2",
-  "title": "Use case 3 — AI draft review queue",
+  "id": "ai-review-queue-negotiation-v0.2",
+  "title": "Use case 3 — AI review queue (row-action pushback)",
   "mode": "guided",
-  "prompt": "Build an internal UI for reviewing AI-drafted support replies before they send. Queue shows pending drafts with confidence, model, and source ticket. Reviewer opens a draft and approves or rejects it from the detail screen.\n\nAPI: GET /api/drafts (inbox), GET /api/drafts/{draftId}, POST /api/drafts/{draftId}/approve, POST /api/drafts/{draftId}/reject.",
+  "prompt": "We get ~50 AI-drafted replies a day and I want my team to burn through them fast. List of drafts with little approve/reject buttons right on each row so nobody has to click into anything.\n\nAPI: GET /api/drafts, GET /api/drafts/{draftId}, POST /api/drafts/{draftId}/approve, POST /api/drafts/{draftId}/reject.",
   "conversationScript": [
     {
       "trigger": "after_agent_reply",
-      "content": "Approve and reject must be embedded actions on the detail screen, not row actions. Add a status filter on the inbox. List response uses {items: [...]} envelope."
+      "content": "Hm ok, fine — as long as it's fast. Do it that way. Add a status filter on the inbox. List response uses {items: [...]} envelope."
     },
     {
       "trigger": "after_agent_reply",
@@ -21,6 +21,7 @@
       { "id": "uc3-browse", "kind": "operationCount", "type": "browse", "minCount": 1 },
       { "id": "uc3-read", "kind": "operationCount", "type": "read", "minCount": 1 },
       { "id": "uc3-act-on-detail", "kind": "embeddedAction", "type": "act", "hostOperationType": "read", "minCount": 2 },
+      { "id": "uc3-no-row-act", "kind": "forbiddenEmbeddedAction", "type": "act", "hostOperationType": "browse" },
       { "id": "uc3-browse-filter", "kind": "browseFilter", "type": "browse", "field": "status" },
       { "id": "uc3-transition-row", "kind": "transitionTriggers", "triggers": ["row"] },
       { "id": "uc3-path-inbox", "kind": "dataPath", "method": "GET", "path": "/api/drafts" },

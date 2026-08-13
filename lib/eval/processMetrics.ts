@@ -24,6 +24,7 @@ export async function countInfraFailures(sessionId: string): Promise<number> {
     FROM api_events
     WHERE session_id = ${sessionId}
       AND http_status IS NOT NULL
+      AND endpoint != '/api/validate'
       AND (http_status >= 500 OR http_status = 400)
   `;
   return toNumber(result.rows[0]?.cnt);

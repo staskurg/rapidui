@@ -56,8 +56,8 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 10 | **External agents** | Supported via public API + **required session identity** (see #37); **demo Path B** — terminal Claude run → Observe session. Main page centers on RapidUI Agent |
 | 11 | **Database** | **Neon Postgres** — shared DB for specs, events, agent runs. Observe dashboards read Neon directly from Next.js |
 | 12 | **Repo layout** | **Monorepo** — one GitHub repo; Next.js at root (Vercel), Python agent in `/agent` (Render). See §4 monorepo rationale |
-| 13 | **LLM model** | **Default `o4-mini`** via `OPENAI_API_KEY` — Responses API (`openai:o4-mini`); `reasoning_effort: medium`. Ship with this default; **confirm or change** via eval lab (**Phase 7.7**, required for v0.2). Override via `RAPIDUI_AGENT_MODEL` |
-| 14 | **Chat UI** | **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown` — custom transport → `agent.rapidui.dev/chat`; **o4-mini reasoning visible but subtle** (muted styling; not hidden by default in v0.2) + **tool calls** (`ToolFallback`). **No** past-session sidebar — single thread + **New chat** |
+| 13 | **LLM model** | **Default `gpt-5.6-terra`** via `OPENAI_API_KEY` — Responses API (`openai:gpt-5.6-terra`). Validated on `eval:run` with prompt **v1.2** (2026-08-12). Override via `RAPIDUI_AGENT_MODEL`. Add models via `agent/model_profiles.py` + Observe pricing table |
+| 14 | **Chat UI** | **assistant-ui** + `@assistant-ui/react-ai-sdk` + `@assistant-ui/react-markdown` — custom transport → `agent.rapidui.dev/chat`; **tool calls** (`ToolFallback`) + text replies. **No** past-session sidebar — single thread + **New chat** |
 | 15 | **Telemetry write path** | **Unified ingest contract** — shared insert logic in Next.js; middleware in-process; FastAPI POSTs to `/api/observe/ingest/*` (see §4) |
 | 16 | **API auth (v0.2)** | **Mock session identity** — not OAuth. **`X-RapidUI-Session-Id` required** on all agent API calls except **`GET /llms.txt`**. Missing session → **400** `MISSING_SESSION_ID`. Real agent auth (WorkOS / OAuth OBO) deferred to **v0.3+** (see §13). Observe + human UI remain open |
 | 17 | **Logfire** | Env-gated on dev + Render; Observe for product dashboards — see §8 |
@@ -77,7 +77,7 @@ v0.2 shifts from *“agents can speak RUI”* to *“you can operate an agent-fi
 | 31 | **Outcomes required** | Every **mutating** operation and embedded action declares **`outcomes`** — success, error, cancel paths (explicit `transition.to` or `stay`) |
 | 32 | **Explicit transitions** | **All** navigation is `transitions[]` — row, link, **cta** (e.g. browse → create). No renderer pairing heuristics |
 | 33 | **Eval lab** | **`/observe/evals`** — model × prompt × use-case matrix; pass rate, cost, latency comparison. Script-driven (`npm run eval:matrix`); not a live playground in v0.2 |
-| 34 | **Model shortlist** | **2 models max** per **7.7** matrix slice (e.g. `o4-mini` + one baseline/ceiling). Full 3–4 model exploration is post-v0.2 unless evidence requires |
+| 34 | **Model shortlist** | **Terra only** for v0.2 ship default. **7.7** matrix adds comparison candidates when needed — o-series models were dropped (unreliable evals). Extend `SUPPORTED_MODELS` when adding providers |
 | 35 | **Prompt variants** | Versioned in `agent/prompts/` (`v1`, `v2`, …) — test workflow emphasis vs validate-loop emphasis in eval lab |
 | 36 | **Chat eval modes** | **`guided`** (scripted multi-turn, default for RapidUI Agent) + **`single-shot`** (one message, autonomy benchmark). External agents stay single-shot. See §14 |
 | 37 | **Session identity (mock auth)** | **`X-RapidUI-Session-Id` required** on every agent API request **except** `GET /llms.txt`. Agent generates UUID once per session (or asks user). Same id on docs → schema → validate → save. **`X-RapidUI-Agent`** recommended, not required. This is **identification for Observe**, not cryptographic auth — v0.3 replaces with WorkOS-style agent tokens |
@@ -315,7 +315,7 @@ Recorded by the **FastAPI service layer** after each chat turn and when a genera
 | `outcome` | `saved` \| `failed` \| `abandoned` |
 | `spec_id` | Final saved spec UUID, if any |
 | `validate_attempts` | Count of `POST /api/validate` in this run |
-| `model` / `provider` | e.g. `o4-mini` / `openai` |
+| `model` / `provider` | e.g. `gpt-5.6-terra` / `openai` |
 | `prompt_version` | e.g. `v1` — for eval lab joins |
 | `eval_case_id` | When run is part of eval matrix |
 | `total_tokens` | Input + output if SDK exposes it |
@@ -1399,7 +1399,7 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 
 **Location:** `agent/` in monorepo — Render deploy with root directory `agent/`.
 
-**Stack:** FastAPI + Pydantic AI + Logfire; default **`o4-mini`** (Responses API, `reasoning_effort: medium`, reasoning summaries for chat UI). Model swappable via `RAPIDUI_AGENT_MODEL`.
+**Stack:** FastAPI + Pydantic AI + Logfire; default **`gpt-5.6-terra`**. Model swappable via `RAPIDUI_AGENT_MODEL` (`agent/model_profiles.py` registry).
 
 **Behavior:**
 
@@ -1417,7 +1417,7 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 - **Logfire:** `instrument_pydantic_ai`, `instrument_fastapi`, `instrument_httpx` (dev learning)
 - **Observe:** FastAPI handler → `POST rapidui.dev/api/observe/ingest/agent` with `result.usage()`, turn metadata
 
-**Deployment:** Render at `agent.rapidui.dev`; env: `OPENAI_API_KEY`, `RAPIDUI_BASE_URL`, optional `LOGFIRE_TOKEN`, optional `RAPIDUI_AGENT_MODEL` (default `openai:o4-mini`), optional `RAPIDUI_AGENT_PROMPT_VERSION` (default `v1`)
+**Deployment:** Render at `agent.rapidui.dev`; env: `OPENAI_API_KEY`, `RAPIDUI_BASE_URL`, optional `LOGFIRE_TOKEN`, optional `RAPIDUI_AGENT_MODEL` (default `openai:gpt-5.6-terra`), optional `RAPIDUI_AGENT_PROMPT_VERSION` (default `v1.2`)
 
 **Depends on:** Area 1 (telemetry + **agent ingest route**), Area 2 (operations schema + docs)
 
@@ -1464,7 +1464,7 @@ Area 0  Infra (Neon, agent/, ingest scaffold, CORS)
 | UI components | **assistant-ui** (`@assistant-ui/react`) |
 | Runtime | **`useChatRuntime`** from `@assistant-ui/react-ai-sdk` — `DefaultChatTransport` → `agent.rapidui.dev/chat` (no Next.js proxy). Headers: `X-RapidUI-Session-Id`, `X-RapidUI-Agent: rapidui-agent-chat` |
 | Markdown | **`@assistant-ui/react-markdown`** — streaming message rendering |
-| Reasoning | **Visible but subtle** — muted typography; not hidden by default in v0.2 (collapsible polish later). o4-mini via Vercel AI reasoning parts |
+| Reasoning | Optional Vercel AI **reasoning parts** if the model emits them — not required for v0.2 default (Terra is text + tools) |
 | Tool calls | **ToolFallback** — `fetch_docs`, `fetch_schema`, `validate_rui`, `save_rui` |
 | Stream protocol | **Vercel AI Data Stream v6** — Pydantic AI `VercelAIAdapter` on FastAPI |
 | Session id | `sessionStorage` `rapidui-session-id`; same id for chat + client `GET /api/specs/:id` |
@@ -1721,7 +1721,7 @@ Run evidence-driven slices first — not a full Cartesian product. Reference dec
 
 | Model | Role |
 |-------|------|
-| `o4-mini` | Default candidate — reasoning + cost |
+| `gpt-5.6-terra` | **v0.2 default** — validated on eval:run (prompt v1.2) |
 | `gpt-4.1-mini` (or equivalent) | Non-reasoning cost baseline |
 | One quality-tier model | Ceiling comparison — not expected production winner |
 
@@ -1743,7 +1743,7 @@ Run evidence-driven slices first — not a full Cartesian product. Reference dec
 
 **Deliverable:** `docs/model-selection-v0.2.md` — matrix results, chosen default, tradeoffs (philosophy lives in §14 above).
 
-**Build timing:** Area 7, after agent + Observe live. Ship S5 with `o4-mini` default; update default only if matrix says otherwise before portfolio freeze.
+**Build timing:** Area 7, after agent + Observe live. Default **`gpt-5.6-terra` + `v1.2`** shipped 2026-08-12; **7.7** matrix compares future candidates.
 
 ---
 
@@ -1899,7 +1899,7 @@ Path B manual runs stay on **`eval_runs`**. Eval lab columns (model, prompt, tok
 | S2 | **Operations schema 0.2** — `entities[]`, `operations` + `route` + `outcomes`, `transitions` (incl. `cta`), embedded `actions` |
 | S3 | **API telemetry** — `api_events` on validate/save + discovery (3B); **required session id** on guarded routes; documented in llms.txt + `/api/docs` |
 | S4 | **Observe** — `/observe/api` + `/observe/agent` dashboards working |
-| S5 | **RapidUI Agent** — `agent.rapidui.dev` chat → validate → save; default **o4-mini** + optional Logfire |
+| S5 | **RapidUI Agent** — `agent.rapidui.dev` chat → validate → save; default **gpt-5.6-terra** + optional Logfire |
 | S6 | **Main UI** — **assistant-ui** chat (subtle visible reasoning + tools) + **tabbed output** (Spec inspector + JSON; Preview placeholder); **session bar** + **starter chips** for UC1–3; draft panel on validate |
 | S7 | **Use cases 1–3** demonstrable end-to-end (agent → spec → Observe) |
 | S8 | **Path B** — external agent run with **session id** visible in `/observe/api` (full funnel after 3B) |
@@ -1951,7 +1951,7 @@ Detail intentionally **not** specified in this reference doc — resolve in **[r
 1. **Product engineering:** Operations-first specs beat component trees; validate → correct → save loop
 2. **Frontend:** Main demo UI (**assistant-ui** chat, session bar, tabbed output, subtle reasoning + tools), operations inspector, Observe dashboards
 3. **Backend:** Next.js API, Postgres schema, telemetry middleware, ingest pattern
-4. **Python / agents:** Pydantic AI + default **o4-mini** (eval-lab validated), same discovery path as external agents; operations planning workflow
+4. **Python / agents:** Pydantic AI + default **gpt-5.6-terra** (eval-lab validated), same discovery path as external agents; operations planning workflow
 5. **Data:** Neon + unified ingest; Logfire for traces, Observe for pass rates and retry analytics
 6. **Eval lab & philosophy:** Outcome / process / conversation layers (§14); model × prompt matrix; scripted user for reproducible HITL
 7. **Demo:** Use cases 1–3 (+ optional 4); Path A agent + Path B external + Observe on same domain
