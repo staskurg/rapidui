@@ -83,12 +83,13 @@ export default async function SessionDetailPage({
     <div className="space-y-8">
       <header className="space-y-3">
         <Link href={backHref} className="text-ui font-medium text-violet-700 dark:text-violet-400">
-          ← Back to API dashboard
+          ← Back to API telemetry
         </Link>
-        <div>
-          <p className="text-ui text-zinc-500">Session detail</p>
-          <h1 className="mt-1 font-mono text-subhead font-semibold">{sessionId}</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-title font-semibold tracking-tight">API session details</h1>
+          <SessionOutcomeBadge outcome={summary.outcome} />
         </div>
+        <p className="font-mono text-caption text-zinc-500">{sessionId}</p>
       </header>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -106,12 +107,6 @@ export default async function SessionDetailPage({
           <div>
             <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Intent</dt>
             <dd className="mt-1 text-ui">{summary.intent ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Outcome</dt>
-            <dd className="mt-1">
-              <SessionOutcomeBadge outcome={summary.outcome} />
-            </dd>
           </div>
           <div>
             <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">

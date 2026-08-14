@@ -15,6 +15,7 @@ export type InsertEvalRunInput = {
   blocksFound: string[];
   scoreDetails?: ScoreDetails;
   notes?: string | null;
+  sessionId?: string | null;
 };
 
 /** Format string[] for Postgres TEXT[] — sql`` only accepts Primitive params. */
@@ -46,6 +47,7 @@ export type EvalRunRecord = {
   blocks_found: string[];
   score_details: ScoreDetails | null;
   notes: string | null;
+  session_id: string | null;
 };
 
 function rowToRecord(row: Record<string, unknown>): EvalRunRecord {
@@ -75,6 +77,7 @@ function rowToRecord(row: Record<string, unknown>): EvalRunRecord {
       : [],
     score_details: (row.score_details as ScoreDetails | null) ?? null,
     notes: row.notes ? String(row.notes) : null,
+    session_id: row.session_id ? String(row.session_id) : null,
   };
 }
 
@@ -96,7 +99,8 @@ export async function insertEvalRun(
       view_url,
       blocks_found,
       score_details,
-      notes
+      notes,
+      session_id
     )
     VALUES (
       ${id},
@@ -110,7 +114,8 @@ export async function insertEvalRun(
       ${input.viewUrl ?? null},
       ${toPgTextArray(input.blocksFound)}::text[],
       ${input.scoreDetails ? JSON.stringify(input.scoreDetails) : null}::jsonb,
-      ${input.notes ?? null}
+      ${input.notes ?? null},
+      ${input.sessionId ?? null}
     )
     RETURNING *
   `;

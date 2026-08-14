@@ -33,3 +33,22 @@ export const apiMetricTooltips = {
   avgTriesBeforeSave:
     "Among sessions that saved a spec, the mean number of /api/validate calls before the first successful save.",
 } as const;
+
+export const evalMetricTooltips = {
+  overProcessCap:
+    "Show trials that exceeded process limits from the eval case (maxRetries, maxUserTurns, or maxLatencyMs). These are tuning signals — not pass/fail. A trial can Pass on assertions and still appear here.",
+  experimentSearch:
+    "Search by experiment UUID printed by npm run eval:run. Prefix or substring match — paste the full id or the first few characters.",
+  casePassRate:
+    "Share of eval case runs that passed assertions in the selected period (and current filters). One experiment can include many cases.",
+  avgLatency:
+    "Average wall-clock latency per eval case run — from first turn through assertion scoring.",
+  p50Latency:
+    "Median case-run latency in the window. Shows — until at least 3 completed trials with latency recorded.",
+  avgValidateAttempts:
+    "Average POST /api/validate calls per case run (includes retries before pass or final fail).",
+  avgUserTurns:
+    "Average guided user turns per case run before the agent finished or hit limits.",
+  overCapTrials:
+    "Case runs that exceeded maxRetries or maxUserTurns from the eval case definition — tuning signals, not pass/fail.",
+} as const;

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { StatCard } from "@/components/observe/StatCard";
 import { getAgentObserveSummary, getEvalTeaser, getObserveHubSummary } from "@/lib/observe/queries";
+import { getEvalTrialsTeaser } from "@/lib/eval/queryEvalTrials";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,10 @@ function formatPercent(value: number | null): string {
 }
 
 export default async function ObserveHubPage() {
-  const [summary, agentSummary, evalTeaser] = await Promise.all([
+  const [summary, agentSummary, evalTrialsTeaser, pathBTeaser] = await Promise.all([
     getObserveHubSummary(),
     getAgentObserveSummary(),
+    getEvalTrialsTeaser(),
     getEvalTeaser(),
   ]);
 
@@ -116,36 +118,69 @@ export default async function ObserveHubPage() {
           </dl>
         </section>
 
-        <section className="rounded-xl border border-dashed border-zinc-300 bg-zinc-100/60 p-5 dark:border-zinc-700 dark:bg-zinc-900/40">
+        <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-ui font-semibold uppercase tracking-wide text-zinc-500">
                 Evals
               </h2>
-              <p className="mt-1 text-ui text-zinc-600 dark:text-zinc-400">Phase 7</p>
+              <p className="mt-1 text-ui text-zinc-600 dark:text-zinc-400">
+                Automated guided trials and manual Path B runs
+              </p>
             </div>
             <Link
               href="/observe/evals"
-              className="text-ui font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+              className="text-ui font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
             >
               View Evals →
             </Link>
           </div>
-          {evalTeaser.totalRuns > 0 ? (
+          {evalTrialsTeaser.totalTrials > 0 ? (
+            <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+                  Automated trials
+                </dt>
+                <dd className="mt-1 text-title font-semibold">{evalTrialsTeaser.totalTrials}</dd>
+              </div>
+              <div>
+                <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+                  Pass rate
+                </dt>
+                <dd className="mt-1 text-title font-semibold">
+                  {evalTrialsTeaser.passRate === null
+                    ? "—"
+                    : `${evalTrialsTeaser.passRate}%`}
+                </dd>
+              </div>
+              {pathBTeaser.totalRuns > 0 ? (
+                <div>
+                  <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+                    Path B runs
+                  </dt>
+                  <dd className="mt-1 text-title font-semibold">{pathBTeaser.totalRuns}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : pathBTeaser.totalRuns > 0 ? (
             <div className="mt-5">
               <StatCard
-                label="Overall pass rate"
+                label="Path B pass rate"
                 value={
-                  evalTeaser.overallPassRate === null
+                  pathBTeaser.overallPassRate === null
                     ? "—"
-                    : `${evalTeaser.overallPassRate}%`
+                    : `${pathBTeaser.overallPassRate}%`
                 }
-                hint={`${evalTeaser.totalRuns} eval runs in window`}
+                hint={`${pathBTeaser.totalRuns} manual eval runs`}
               />
             </div>
           ) : (
-            <p className="mt-5 text-ui font-medium text-zinc-500">
-              Model × prompt matrix ships in Phase 7
+            <p className="mt-5 text-ui text-zinc-500">
+              Run{" "}
+              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-caption dark:bg-zinc-800">
+                npm run eval:run
+              </code>{" "}
+              to populate trials.
             </p>
           )}
         </section>

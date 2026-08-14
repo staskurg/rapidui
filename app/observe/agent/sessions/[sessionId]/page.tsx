@@ -61,22 +61,17 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
           href="/observe/agent"
           className="text-ui font-medium text-violet-700 dark:text-violet-400"
         >
-          ← Back to Agent dashboard
+          ← Back to Agent telemetry
         </Link>
-        <div>
-          <p className="text-ui text-zinc-500">Agent run detail</p>
-          <h1 className="mt-1 font-mono text-subhead font-semibold">{sessionId}</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-title font-semibold tracking-tight">Agent session details</h1>
+          <AgentSessionStateBadge state={run.state} />
         </div>
+        <p className="font-mono text-caption text-zinc-500">{sessionId}</p>
       </header>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">State</dt>
-            <dd className="mt-1">
-              <AgentSessionStateBadge state={run.state} />
-            </dd>
-          </div>
           <div>
             <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Model</dt>
             <dd className="mt-1 font-mono text-ui">{run.model ?? "—"}</dd>
@@ -158,6 +153,19 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
             </dd>
           </div>
           <div>
+            <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">
+              API session
+            </dt>
+            <dd className="mt-1 text-ui">
+              <Link
+                href={`/observe/api/sessions/${encodeURIComponent(sessionId)}`}
+                className="font-mono text-violet-700 hover:underline dark:text-violet-400"
+              >
+                {truncateSessionId(sessionId, 6)}
+              </Link>
+            </dd>
+          </div>
+          <div>
             <dt className="text-caption font-medium uppercase tracking-wide text-zinc-500">Started</dt>
             <dd className="mt-1 text-ui">{formatRelativeTime(run.startedAt)}</dd>
           </div>
@@ -201,12 +209,6 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
             </dd>
           </div>
         </dl>
-        {run.evalCaseId ? (
-          <p className="mt-4 text-caption text-zinc-500">
-            Eval case:{" "}
-            <span className="font-mono text-zinc-600 dark:text-zinc-400">{run.evalCaseId}</span>
-          </p>
-        ) : null}
         {run.errorSummary ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-ui text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
             {run.errorSummary}
@@ -310,15 +312,6 @@ export default async function AgentSessionDetailPage({ params }: AgentSessionDet
           </ol>
         )}
       </section>
-
-      <footer className="border-t border-zinc-200 pt-6 text-ui dark:border-zinc-800">
-        <Link
-          href={`/observe/api/sessions/${encodeURIComponent(sessionId)}`}
-          className="font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
-        >
-          View API session timeline →
-        </Link>
-      </footer>
     </div>
   );
 }

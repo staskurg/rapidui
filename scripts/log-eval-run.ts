@@ -41,6 +41,7 @@ async function main(): Promise<void> {
   let viewUrl: string | null;
   let notes: string | undefined;
   let userTurns: number | undefined;
+  let sessionId: string | undefined;
 
   if (args.stdin) {
     const pasted = await readStdin();
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
     errorCodes = parsed.errorCodes;
     baseUrl = parsed.baseUrl;
     viewUrl = parsed.viewUrl;
+    sessionId = parsed.sessionId ?? undefined;
   } else {
     specId = requireArg(args, "specId");
     caseId = requireArg(args, "case");
@@ -73,6 +75,8 @@ async function main(): Promise<void> {
     userTurns = parseOptionalInt(
       typeof args["user-turns"] === "string" ? args["user-turns"] : undefined,
     );
+    sessionId =
+      typeof args["session-id"] === "string" ? args["session-id"].trim() : undefined;
 
     viewUrl =
       typeof args["view-url"] === "string"
@@ -103,6 +107,7 @@ async function main(): Promise<void> {
     blocksFound: score.operationsFound,
     scoreDetails: toScoreDetails(score),
     notes: notes ?? null,
+    sessionId: sessionId ?? null,
   });
 
   console.log("\nLogged eval run:");

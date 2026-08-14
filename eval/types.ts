@@ -138,6 +138,7 @@ export type EvalResultBlock = {
   finalSpecId: string | null;
   viewUrl: string | null;
   operationsFound: string[];
+  sessionId: string | null;
 };
 
 export type AgentKind = "cursor" | "claude" | "codex";

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ObserveNoticeBanner } from "@/components/observe/ObserveNoticeBanner";
@@ -105,13 +104,6 @@ export default async function AgentObservePage({ searchParams }: AgentObservePag
           preserveDateRange={preserveDateRange}
         />
       </ObserveTelemetryDataSection>
-
-      <Link
-        href="/observe/api"
-        className="inline-flex text-ui font-medium text-violet-700 hover:text-violet-900 dark:text-violet-400"
-      >
-        View API telemetry →
-      </Link>
     </div>
   );
 }

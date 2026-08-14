@@ -223,20 +223,22 @@ export function AgentObserveDataSkeleton({
   );
 }
 
+export function EvalObserveDataSkeleton() {
+  return (
+    <div className="space-y-8">
+      <FilterFormSkeleton fields={3} />
+      <StatCardsSkeleton count={8} />
+      <TableSkeleton rows={6} columns={7} />
+    </div>
+  );
+}
+
 export function EvalsPageSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <LoadingStatus label="Loading eval lab" />
-      <ObservePageHeaderSkeleton />
-      <section className="rounded-lg border border-dashed border-zinc-300 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
-        <Skeleton className="h-4 w-32" />
-        <div className="mt-4 space-y-2">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-2/3" />
-        </div>
-      </section>
-      <TableSkeleton rows={4} columns={3} />
+      <ObserveTelemetryHeaderSkeleton />
+      <EvalObserveDataSkeleton />
     </div>
   );
 }
@@ -244,7 +246,7 @@ export function EvalsPageSkeleton() {
 export function SessionDetailSkeleton({ showTurnsTable = false }: { showTurnsTable?: boolean }) {
   return (
     <div className="space-y-8">
-      <LoadingStatus label="Loading session detail" />
+      <LoadingStatus label="Loading agent session details" />
       <header className="space-y-3">
         <Skeleton className="h-4 w-40" />
         <div className="space-y-2">
@@ -282,4 +284,52 @@ export function SessionDetailSkeleton({ showTurnsTable = false }: { showTurnsTab
 
 export function AgentSessionDetailSkeleton() {
   return <SessionDetailSkeleton showTurnsTable />;
+}
+
+export function EvalCaseDetailSkeleton() {
+  return (
+    <div className="space-y-8" role="status" aria-label="Loading case details">
+      <LoadingStatus label="Loading case details" />
+      <section className="space-y-3">
+        <Skeleton className="h-5 w-40" />
+        <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="flex gap-6">
+              {Array.from({ length: 4 }, (_, index) => (
+                <Skeleton key={index} className="h-4 w-20" />
+              ))}
+            </div>
+          </div>
+          <div className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} className="flex gap-6 px-4 py-3">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-full max-w-md" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <Skeleton className="h-5 w-32" />
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="space-y-2">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="space-y-3">
+        <Skeleton className="h-5 w-24" />
+        <div className="space-y-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton key={index} className="h-16 w-full rounded-r-lg" />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }

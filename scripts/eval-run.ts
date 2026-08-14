@@ -29,6 +29,7 @@ import {
 import { scoreRun } from "../lib/eval/scoreRun";
 import { evaluateAssertionsSpecNotFound } from "../lib/eval/assertions";
 import type { AssertionResult } from "../eval/types";
+import { persistEvalTrial } from "../lib/eval/persistTrial";
 
 const DRIVER_PATH = path.join(process.cwd(), "agent/scripts/eval_driver.py");
 const PYTHON_PATH = path.join(process.cwd(), "agent/.venv/bin/python");
@@ -177,7 +178,10 @@ async function runTrial(input: {
   experimentId: string;
   trialIndex: number;
   agentUrl: string;
+  platformBaseUrl: string;
+  baselineExperimentId?: string | null;
   timeoutS: number;
+  persist: boolean;
 }): Promise<TrialResult> {
   const startedAt = new Date().toISOString();
   const evalCase = loadCase(input.evalCaseId);
@@ -234,7 +238,7 @@ async function runTrial(input: {
     passed,
   );
 
-  return {
+  const trial: TrialResult = {
     id: trialId,
     experimentId: input.experimentId,
     trialIndex: input.trialIndex,
@@ -255,6 +259,15 @@ async function runTrial(input: {
     startedAt,
     completedAt: new Date().toISOString(),
   };
+
+  if (input.persist) {
+    await persistEvalTrial(trial, evalCase, {
+      platformBaseUrl: input.platformBaseUrl,
+      baselineExperimentId: input.baselineExperimentId,
+    });
+  }
+
+  return trial;
 }
 
 function summarizeTrials(
@@ -303,18 +316,27 @@ async function main(): Promise<void> {
 Options:
   --case=<id>         Run one case (comma-separated ok); default: all eval cases
   --agent-url=<url>   Agent base URL (default http://localhost:8000)
+  --platform-url=<url> Platform base URL for telemetry (default RAPIDUI_BASE_URL or http://localhost:3000)
+  --baseline-experiment=<uuid> Optional baseline experiment id for comparison (7.6)
   --timeout=<sec>     Per-turn chat timeout (default 300)
   --json              Print full trial JSON (includes transcript; very verbose)
+  --no-persist        Skip writing trials to eval_trials (debug only)
   --dry-run           Validate cases without calling the agent`);
     return;
   }
 
   const dryRun = args["dry-run"] === true;
   const jsonOutput = args.json === true;
+  const persist = args["no-persist"] !== true;
   const agentUrl =
     optionalArg(args, "agent-url") ??
     process.env.AGENT_URL ??
     "http://localhost:8000";
+  const platformBaseUrl =
+    optionalArg(args, "platform-url") ??
+    process.env.RAPIDUI_BASE_URL ??
+    "http://localhost:3000";
+  const baselineExperimentId = optionalArg(args, "baseline-experiment") ?? null;
   const timeoutS = parseOptionalInt(optionalArg(args, "timeout")) ?? 300;
 
   let caseIds: EvalRunCaseId[];
@@ -350,7 +372,12 @@ Options:
   const trials: TrialResult[] = [];
 
   if (!jsonOutput) {
-    console.log(`\neval:run experiment ${experimentId}\n`);
+    console.log(`\neval:run experiment ${experimentId}`);
+    if (!persist) {
+      console.log("(no-persist — trials not written to eval_trials)\n");
+    } else {
+      console.log("");
+    }
   }
 
   for (const [index, caseId] of caseIds.entries()) {
@@ -360,7 +387,10 @@ Options:
       experimentId,
       trialIndex: index,
       agentUrl,
+      platformBaseUrl,
+      baselineExperimentId,
       timeoutS,
+      persist,
     });
     trials.push(trial);
     if (jsonOutput) {

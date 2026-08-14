@@ -33,13 +33,16 @@ Requires local stack (platform + agent) with `DATABASE_URL` in `.env.local`.
 ```bash
 npm run eval:run
 npm run eval:run -- --case=static-browse-v0.2
-npm run eval:run -- --dry-run   # validate cases only
-npm run eval:run -- --json      # full trial JSON (debugging)
+npm run eval:run -- --dry-run      # validate cases only
+npm run eval:run -- --json         # full trial JSON (debugging)
+npm run eval:run -- --no-persist   # skip eval_trials write (debug only)
 ```
 
 Uses `agent/scripts/eval_driver.py` — **not** `chat_cli.py` (which drops tool parts). See [agent/README.md](../agent/README.md#guided-eval-driver-phase-73).
 
-Results appear in `/observe/evals` and `eval_runs` table.
+Each trial is persisted to **`eval_trials`** (append-only): config snapshot, pass/fail, assertion breakdown, process metrics, and full **`transcript_jsonb`** (user messages + assistant tool calls). Review trials at **`/observe/evals`** — list, filters, and per-trial detail with transcript. Join via `session_id` to Observe Agent/API sessions.
+
+Path B manual runs still use **`eval_runs`** (+ optional `session_id` for Observe cross-link).
 
 ## Path B — external agent (manual)
 
@@ -57,7 +60,8 @@ npm run eval:log -- \
   --specId=<uuid> \
   --case=crud-admin-v0.2 \
   --agent=cursor \
-  --validate-count=<n>
+  --validate-count=<n> \
+  --session-id=<SESSION_ID>
 
 # 4. Open viewUrl; find session in Observe
 open "https://rapidui.dev/observe/api?session=<SESSION_ID>"

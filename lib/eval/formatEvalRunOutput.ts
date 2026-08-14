@@ -35,6 +35,8 @@ export function formatTrialSummary(trial: TrialResult): string {
     parts.push(`session=${trial.sessionId.slice(0, 8)}…`);
   }
 
+  parts.push(`trial=${trial.id.slice(0, 8)}…`);
+
   if (status === "ERROR") {
     parts.push(`owner=${trial.failureOwner ?? "?"}`);
     if (trial.failureStage) {

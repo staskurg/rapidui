@@ -91,12 +91,12 @@ Full definitions: reference **§15**. **v0.2 ships when S1–S10 are verified** 
 
 ## Current project status
 
-**Last verified:** 2026-08-12
+**Last verified:** 2026-08-13
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0–6** | ✅ Complete | Observability (Phase 6 P0 + UI) shipped — see [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31) |
-| **7** | 🔲 In progress | **7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **chat session persistence** ✅ · **draft-first agent + eval cases** ✅ · **7.5 blockers** ✅ · **7.4** ← next · **7.6–7.7** remaining |
+| **7** | 🔲 In progress | **7.1–7.6** ✅ · **7.7** ← next (`eval:matrix` + model-selection doc) |
 | **v0.3** | ⏸ After v0.2 | Renderer, auth hardening — [Appendix D](#appendix-d--industry-alignment--v03-backlog) |
 
 **One-line gap:** Observe answers *what happened*; Phase **7** (7.1–7.7) answers *was the result correct, was the path reasonable, and which model/prompt should we ship?*
@@ -3259,7 +3259,7 @@ package.json
 #### Cross-links
 
 - `/observe/agent` ↔ `/observe/api` (filter by `session_id`)
-- Link to `/observe/evals` placeholder (Phase 7.6 replaces)
+- Link to `/observe/evals` (eval lab — **7.6** ✅)
 - Path B external-agent sessions: API detail only — no broken agent link
 
 ### UI pattern
@@ -3407,7 +3407,7 @@ Big-picture snapshot before Phase 7 implementation. **Observe is done; eval regr
 
 **Interview line:** *We can explain any demo session in under five minutes using Observe drill-down.*
 
-### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **eval cases shipped** ✅ · **7.4–7.7** remaining)
+### Eval harness inventory (**7.1** ✅ · **7.2** ✅ · **7.3** ✅ · **7.4** ✅ · **7.5** ✅ · **7.6** ✅ · **7.7** remaining)
 
 | Capability | Status | Risk if ignored |
 |------------|--------|-----------------|
@@ -3415,7 +3415,8 @@ Big-picture snapshot before Phase 7 implementation. **Observe is done; eval regr
 | `eval:run` (Path A guided) | ✅ | 5 cases (3 canonical + 2 **7.5** blockers); concise CLI + `--json` |
 | `resolveRunState` / `no_save` → FAIL | ✅ | Abandoned without save = model failure (`failureStage: no_save`) |
 | `eval:matrix` | ❌ | No multi-config regression batch (**7.7**) |
-| `eval_trials` table | ❌ | No config snapshots, no baseline compare (**7.4**) |
+| `eval_trials` table | ✅ | Migrations **007**/**008**; `persistTrial.ts`; baseline compare on detail (**7.4**) |
+| `/observe/evals` UI | ✅ | Experiment list + per-case trial table + detail (**7.6**) |
 | Mutation / negative grader tests | ✅ | Vitest + `eval-grader.yml` CI; `browseFilter` + `forbiddenEmbeddedAction` |
 | Live agent eval baseline | ✅ | All 5 cases green locally on **prompt v1.2** + **gpt-5.6-terra** (2026-08-12) |
 | CI workflow | ✅ | `.github/workflows/eval-grader.yml` |
@@ -3762,9 +3763,9 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 
 **After v0.2 ship:** Review [Appendix D — Industry alignment & v0.3 backlog](#appendix-d--industry-alignment--v03-backlog).
 
-### Implementation readiness (2026-08-12)
+### Implementation readiness (2026-08-13)
 
-**Verdict:** **7.1–7.3**, chat session persistence, draft-first agent work, and eval case updates are complete. **7.4** is next — wire `eval_trials` and run first baseline batch. **7.6** blocked on **7.4** data.
+**Verdict:** **7.1–7.6** complete. Automated trials persist to **`eval_trials`**; **`/observe/evals`** replaces the Phase 3 placeholder. **7.7** is next — `eval:matrix` batch runner + grouped comparison UI (**S10**).
 
 | Phase | Readiness | Notes |
 |-------|-----------|-------|
@@ -3774,9 +3775,9 @@ Full playbook: [Appendix C](#appendix-c--agent-strengthening-tracing--eval-strat
 | **Chat session persistence** | ✅ Complete | Migration **009**; exploration enabler (2026-08-08) |
 | **Draft-first agent + eval cases** | ✅ Complete | Prompt, Observe session state, 5-case suite (2026-08-12) — [summary below](#agent-draft-first-and-eval-harness) |
 | **7.5 blockers** | ✅ Complete | Clarification + negotiation variant JSONs; green in `eval:run` suite |
-| **7.4** | 🔲 Next | Migrations **007**/**008**, `evalTrials.ts`, persist runner output |
-| **7.6** | Blocked on 7.4 | `/observe/evals` placeholder; teaser from legacy `eval_runs` only |
-| **7.7** | Not started | **`eval:matrix`** + `docs/model-selection-v0.2.md` — see [Phase 7.7](#phase-77--modelprompt-comparison-o5) |
+| **7.4** | ✅ Complete | Migrations **007**/**008**, `evalTrials.ts`, `persistTrial.ts`, `eval:run` persist (2026-08-13) |
+| **7.6** | ✅ Complete | `/observe/evals` experiment list + trial detail; hub teaser from `eval_trials` (2026-08-13) |
+| **7.7** | 🔲 Next | **`eval:matrix`** + `docs/model-selection-v0.2.md` — see [Phase 7.7](#phase-77--modelprompt-comparison-o5) |
 | **Terra default** | ✅ Shipped | **`gpt-5.6-terra` + `v1.2`** code defaults; o-series dropped (unreliable evals) |
 
 **Recommended pre-work (before 7.3 — not blocking 7.2):**
@@ -3996,7 +3997,7 @@ package.json                    # vitest devDependency + test script
 | Python `chat_cli.py` | ⚠️ | Drops tool parts — **not** eval driver |
 | `AGENT_ID_EVAL` | ✅ | `X-RapidUI-Agent: rapidui-agent-eval` |
 | UC4 `spec-update-v0.2` | ✅ excluded | Clear error until `load_spec` (stretch O1) |
-| Eval trials | ⚠️ stub | JSON stdout only — **7.4** writes `eval_trials` |
+| Eval trials | ✅ | **`eval:run`** persists to **`eval_trials`** (**7.4**); review at **`/observe/evals`** (**7.6**) |
 
 ### Resolved decisions
 
@@ -4087,7 +4088,7 @@ agent/README.md
 - [x] UC4 excluded with clear error
 - [ ] *(Recommended)* Runner vs manual parity with baseline Path A batch — eval tuning follow-up, not blocking
 
-**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Chat session persistence ✅ (2026-08-08). Eval case suite + runner updates ✅ (2026-08-12). **Next: Phase 7.4** — persist trials and run first baseline batch.
+**Phase 7.3 sign-off:** ✅ Complete (2026-08-03). Chat session persistence ✅ (2026-08-08). Eval case suite + runner updates ✅ (2026-08-12). Trial persistence ✅ (**7.4**, 2026-08-13).
 
 ---
 
@@ -4205,10 +4206,12 @@ CREATE INDEX IF NOT EXISTS eval_runs_session_idx ON eval_runs (session_id) WHERE
 
 ### Checklist (7.4)
 
-- [ ] `eval_trials` table migrated (**007**); **`eval_runs.session_id`** migrated (**008**)
-- [ ] Automated runner persists complete trial snapshot
-- [ ] Case hash + config snapshot stored per trial
-- [ ] Baseline incompatibility rules documented in code/comments
+- [x] `eval_trials` table migrated (**007**); **`eval_runs.session_id`** migrated (**008**)
+- [x] Automated runner persists complete trial snapshot
+- [x] Case hash + config snapshot stored per trial
+- [x] Baseline incompatibility rules documented in code/comments (`lib/eval/baselineCompare.ts`)
+
+**Phase 7.4 sign-off:** ✅ Complete (2026-08-13). `eval:run` persists by default; `--no-persist` for debug. `eval:log` accepts optional `--session-id` → **`eval_runs.session_id`**.
 
 ---
 
@@ -4240,38 +4243,72 @@ UC4 until `load_spec` · save-timeout without fault injection · LLM user simula
 
 **Prerequisite:** **7.4** populated by at least one `eval:run` batch. Phase **6 UI** ✅.
 
+**Status:** ✅ Complete (2026-08-13).
+
 **Design principle:** List → detail → link out. Answers *“Pass or Fail on the UI spec? Which assertions broke? How expensive was the agent path?”* — not a second Observe.
 
-### Routes
+### Routes (as-built)
 
 ```txt
 app/observe/evals/
-  page.tsx
-  experiments/[experimentId]/   # optional grouping page
-  trials/[trialId]/
+  page.tsx                          # experiment list + summary stats + filters
+  EvalTrialsDashboard.tsx
+  experiments/[experimentId]/       # per-case trial table (accordion detail)
+  trials/[trialId]/                 # standalone trial detail (deep link)
 ```
+
+**As-built UX (2026-08-13):** Top-level **`/observe/evals`** lists **experiments** (grouped by `experiment_id`) with pass-rate summary cards — not a flat trial table. Per-case **trial rows** live on **`/observe/evals/experiments/[experimentId]`** (expand row → assertion breakdown, process metrics, transcript). **`/observe/evals/trials/[trialId]`** remains for direct links. Path B legacy teaser still shown when **`eval_runs`** has rows.
 
 ### MVP (must implement)
 
 Replace **`app/observe/evals/page.tsx`** placeholder.
 
-#### List view — trial table
+#### List view — experiment table (as-built)
 
-**Source:** `eval_trials` primary; optional teaser from legacy `eval_runs` (Path B).
+**Source:** `eval_trials` aggregated by `experiment_id`; optional Path B teaser from legacy `eval_runs`.
+
+| Column | Source |
+|--------|--------|
+| Experiment | `experiment_id` (truncated + link) |
+| Outcome | aggregate pass/fail/incomplete across cases |
+| Pass rate | passed cases / total cases |
+| Cases | count per experiment |
+| Model / Prompt | config snapshot from first trial |
+| Started | earliest `started_at` in experiment |
+
+Per-case trial columns (Result, Validates, Turns, Session, Latency, Started) are on **`/observe/evals/experiments/[experimentId]`** — see below.
+
+#### Experiment detail — per-case trial table
+
+| Column | Source |
+|--------|--------|
+| Case | `eval_case_id` |
+| **Result** | **Pass** / **Fail** / **Incomplete** / **Error** — from `passed` + `run_state` |
+| Validates | `validate_attempts` vs case `maxRetries` — highlight when over |
+| Turns | `user_turns` vs case `maxUserTurns` |
+| Session | `session_id` — truncated + link |
+| Latency | `latency_ms` |
+| Started | `started_at` |
+
+Expand row → inline detail (assertions, process metrics, transcript) without leaving the page.
+
+#### Original flat trial table (spec reference)
+
+If a single-page trial table is needed later, columns were:
 
 | Column | Source |
 |--------|--------|
 | Started | `started_at` |
 | Case | `eval_case_id` |
-| **Result** | **Pass** / **Fail** / **Incomplete** — from `passed` + `run_state` ([Eval system spec](#eval-system-specification-locked--2026-08-03)) |
-| Validates | `validate_attempts` vs case `maxRetries` — highlight when over |
+| **Result** | **Pass** / **Fail** / **Incomplete** — from `passed` + `run_state` |
+| Validates | `validate_attempts` vs case `maxRetries` |
 | Turns | `user_turns` vs case `maxUserTurns` |
 | Model / Prompt / Mode | config snapshot |
-| Session | `session_id` — truncated + link |
+| Session | `session_id` |
 | Latency | `latency_ms` |
 | Experiment | `experiment_id` |
 
-**Filters:** failed; incomplete; infra error; regressed vs baseline (compatible config only); over validate cap (process tuning).
+**Filters:** pass / fail / incomplete / error / infra error; over validate cap (process tuning); date window; experiment id. *(Deferred:* regressed vs baseline list filter — baseline compare on trial detail when `--baseline-experiment` set; full regression matrix → **7.7***)*
 
 **Empty state:** `npm run eval:run -- --case static-browse-v0.2` instructions.
 
@@ -4303,38 +4340,54 @@ Grouped comparison table — see [Phase 7.7](#phase-77--modelprompt-comparison-o
 
 ### Task list (7.6)
 
-1. **`lib/db/evalTrials.ts`** — list with filters, get by id, list by experiment_id.
-2. **`lib/eval/baselineCompare.ts`** — compatibility check + delta.
-3. **`app/observe/evals/page.tsx`** — trial table + filters + empty state.
-4. **`app/observe/evals/trials/[trialId]/page.tsx`** — detail sections.
-5. **`components/observe/`** — `TrialOutcomeBadges`, `AssertionResultsTable`, `ConfigSnapshotCard`.
-6. Hub teaser on `/observe` when `eval_trials` has rows.
+1. **`lib/db/evalTrials.ts`** — list with filters, get by id, list by experiment_id. ✅
+2. **`lib/eval/baselineCompare.ts`** — compatibility check + delta. ✅
+3. **`app/observe/evals/page.tsx`** — experiment list + filters + empty state. ✅
+4. **`app/observe/evals/experiments/[experimentId]/page.tsx`** + **`trials/[trialId]/page.tsx`** — detail sections. ✅
+5. **`components/observe/`** — `TrialOutcomeBadge`, `AssertionResultsTable`, `ConfigSnapshotCard`, `EvalTrialTranscript`. ✅
+6. Hub teaser on `/observe` when `eval_trials` has rows. ✅
 
 ### Files to create / modify (7.6)
 
 ```txt
 lib/db/evalTrials.ts
 lib/eval/baselineCompare.ts
+lib/eval/queryEvalTrials.ts
+lib/eval/queryEvalExperiments.ts
+lib/eval/persistTrial.ts
+lib/eval/collectTrialConfig.ts
+lib/eval/trialDisplay.ts
+lib/eval/evalTrialFilterQuery.ts
 app/observe/evals/page.tsx
+app/observe/evals/EvalTrialsDashboard.tsx
+app/observe/evals/experiments/[experimentId]/page.tsx
 app/observe/evals/trials/[trialId]/page.tsx
-components/observe/TrialOutcomeBadges.tsx
+components/observe/TrialOutcomeBadge.tsx
 components/observe/AssertionResultsTable.tsx
 components/observe/ConfigSnapshotCard.tsx
+components/observe/EvalTrialDetailSections.tsx
+components/observe/EvalTrialTranscript.tsx
+components/observe/EvalExperimentCasesTable.tsx
 app/observe/page.tsx
 ```
 
 ### Checklist (7.6)
 
-- [ ] `/observe/evals` shows trial table from `eval_trials`
-- [ ] **Result** column: Pass / Fail / Incomplete (not parallel artifact/process Pass/Fail badges)
-- [ ] Trial detail with per-assertion breakdown
-- [ ] Process metrics as numbers vs caps on detail
-- [ ] `failure_owner` / `failure_stage` visible when set
-- [ ] Cross-links to Agent + API Observe + spec
-- [ ] Transcript from `transcript_jsonb` when present
-- [ ] No duplicated session timelines
-- [ ] Empty state with `eval:run` instructions
-- [ ] *(Recommended)* Baseline compare when config compatible
+- [x] `/observe/evals` reads from `eval_trials` (experiment list + drill-down)
+- [x] **Result** column: Pass / Fail / Incomplete / Error (not parallel artifact/process Pass/Fail badges)
+- [x] Trial detail with per-assertion breakdown
+- [x] Process metrics as numbers vs caps on detail
+- [x] `failure_owner` / `failure_stage` visible when set
+- [x] Cross-links to Agent + API Observe + spec
+- [x] Transcript from `transcript_jsonb` when present
+- [x] No duplicated session timelines
+- [x] Empty state with `eval:run` instructions
+- [x] *(Recommended)* Experiment grouping page
+- [x] *(Recommended)* Baseline compare when config compatible (detail view; `--baseline-experiment` on `eval:run`)
+- [ ] *(Deferred)* List filter: regressed vs baseline — **7.7** matrix UI
+- [ ] *(Optional)* D1 one-shot and D3 iterate variant JSONs (**7.5**)
+
+**Phase 7.6 sign-off:** ✅ Complete (2026-08-13).
 
 ---
 
@@ -4396,7 +4449,7 @@ rapidui.dev/
 ├── /observe/api         Phase 3
 ├── /observe/agent       Phase 3 placeholder → Phase 6 metrics + session detail
 ├── /observe/agent/sessions/[sessionId]   Phase 6 drill-down
-├── /observe/evals       Phase 3 placeholder → Phase 7.6 UI + 7.7 comparison section
+├── /observe/evals       Phase 7.6 eval lab UI + Phase 7.7 comparison section
 ├── /api/validate        Phase 1 + 2
 ├── /api/specs           Phase 1 + 2
 ├── /api/schema          Phase 2
@@ -4428,7 +4481,7 @@ When an agent expands a phase, produce:
 
 **Applies to:** Phases **4–7** — from first agent ship through eval lab and **v0.2 ship**. Use this as the **improvement playbook** after the agent loop is live: trace → measure → eval → iterate.
 
-> **As of 2026-08-12:** Closed loop is **partial** — Observe + manual `eval:log` + **`eval:run`** (7.3 ✅) + 5-case eval suite green locally. Full automated loop completes when **7.4–7.7** ship (`eval_trials` → `/observe/evals` UI → `eval:matrix`). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
+> **As of 2026-08-13:** Closed loop is **mostly complete** — Observe + `eval:log` (Path B) + **`eval:run`** → **`eval_trials`** → **`/observe/evals`** (**7.4–7.6** ✅). Remaining gap for v0.2 ship: **`eval:matrix`** + grouped comparison UI (**7.7** / **S10**). Gap inventory: [Pre–Phase 7 audit](#pre-phase-7-audit-2026-07-31).
 
 **Interview line:** *“Outcome is Pass or Fail on the saved UI spec — one meaning for `passed`. Process is how expensive the path was: validates, turns, latency — numbers, not a second pass/fail. Conversation we sample by hand. In evals, a script plays the human so we compare models fairly.”*
 
@@ -4685,7 +4738,7 @@ RapidUI evaluates a **structured artifact** (saved RUI spec), not open-ended cha
 
 | Question | Answer |
 |----------|--------|
-| Can we regression-test agent quality? | **Partial** — hardened grader (7.2) + `eval:run` (7.3); `eval_trials` persistence + matrix pending **7.4–7.7** |
+| Can we regression-test agent quality? | **Mostly** — grader + `eval:run` + `eval_trials` + `/observe/evals` (**7.2–7.6** ✅); multi-config matrix pending **7.7** |
 | Safe to ship v0.2 without Phase 7 (7.1–7.7)? | **No** — eval lab is part of MVP; agent/API regressions would be undetected |
 | Safe to build v0.3 renderer without v0.2 eval harness? | **No** — v0.2 requires Phase **7.2–7.7** complete |
 | Can we explain demo failures? | **Yes** — Observe drill-down (Phase 6 complete) |
@@ -4862,7 +4915,7 @@ Separate from artifact grader pass/fail.
 
 ## Appendix F — Phase 7 document map
 
-**Added:** 2026-07-31 · **Updated:** 2026-08-12 (eval cases shipped; **7.4** next)  
+**Added:** 2026-07-31 · **Updated:** 2026-08-13 (**7.4–7.6** complete; **7.7** next)  
 **Purpose:** Entry point for Phase 7 — start here before reading sub-phase specs.
 
 ### Sub-phase quick reference

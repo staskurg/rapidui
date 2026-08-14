@@ -4,12 +4,20 @@ type MetricInfoTooltipProps = {
   label: string;
   description: string;
   icon?: "!" | "i";
+  /** Prefer bottom inside clipped containers (e.g. filter bars). */
+  placement?: "top" | "bottom";
 };
+
+const placementClasses = {
+  top: "bottom-full mb-1.5",
+  bottom: "top-full mt-1.5",
+} as const;
 
 export function MetricInfoTooltip({
   label,
   description,
   icon = "!",
+  placement = "top",
 }: MetricInfoTooltipProps) {
   return (
     <span className="group/info relative inline-flex shrink-0">
@@ -22,7 +30,7 @@ export function MetricInfoTooltip({
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-56 -translate-x-1/2 rounded-md border border-zinc-200 bg-white px-2.5 py-2 text-micro leading-snug text-zinc-700 shadow-md group-hover/info:block group-focus-within/info:block dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+        className={`pointer-events-none absolute left-1/2 z-50 hidden w-56 -translate-x-1/2 rounded-md border border-zinc-200 bg-white px-2.5 py-2 text-micro leading-snug text-zinc-700 shadow-md group-hover/info:block group-focus-within/info:block dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 ${placementClasses[placement]}`}
       >
         {description}
       </span>

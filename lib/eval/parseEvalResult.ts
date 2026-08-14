@@ -87,5 +87,6 @@ export function parseEvalResult(text: string): EvalResultBlock {
     operationsFound: parseListValue(
       fields.get("operations_found") ?? fields.get("blocks_found") ?? "[]",
     ),
+    sessionId: parseNullableString(fields.get("session_id") ?? "null"),
   };
 }
